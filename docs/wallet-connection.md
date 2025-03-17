@@ -65,4 +65,106 @@ Each wallet is tracked with the following information:
 - `address`: A shortened version of the wallet address for display
 - `fullAddress`: The complete wallet address for transactions
 - `chain`: The blockchain being used ("Polygon" or "Solana")
-- `type`: The wallet type ("evm" or "solana") 
+- `type`: The wallet type ("evm" or "solana")
+
+## Code Adjustments
+
+useEffect(() => {
+    const handleAccountsChanged = async (accounts) => {
+        if (accounts.length === 0) {
+            // User disconnected all accounts
+            setConnectedWallets(prev => prev.filter(w => w.type !== 'evm'));
+        } else {
+            // Update the connected wallets with the new accounts
+            setConnectedWallets(accounts.map(account => ({
+                id: `metamask-${account.substring(0, 8)}`,
+                name: 'MetaMask',
+                address: formatAddress(account),
+                fullAddress: account,
+                chain: 'Polygon',
+                type: 'evm'
+            })));
+        }
+    };
+
+    if (typeof window !== 'undefined' && window.ethereum) {
+        window.ethereum.on('accountsChanged', handleAccountsChanged);
+    }
+
+    return () => {
+        if (typeof window !== 'undefined' && window.ethereum) {
+            window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        }
+    };
+}, []); 
+
+// Add a flag to track if the user initiated a connection
+const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
+
+// Modify the fetchAllAccounts to only run if user initiated
+useEffect(() => {
+    if (userInitiatedConnection && isConnected && address) {
+        const fetchAllAccounts = async () => {
+            try {
+                if (window.ethereum && window.ethereum.request) {
+                    // Get all connected accounts from MetaMask
+                    const accounts = await window.ethereum.request({
+                        method: 'eth_accounts'
+                    });
+
+                    if (accounts && accounts.length > 0) {
+                        // Keep only solana wallets
+                        const nonMetaMaskWallets = connectedWallets.filter(w => w.type !== 'evm');
+
+                        // Add all connected MetaMask accounts as separate entries
+                        const metaMaskWallets = accounts.map(account => ({
+                            id: `metamask-${account.substring(2, 10)}`,
+                            name: 'MetaMask',
+                            address: formatAddress(account),
+                            fullAddress: account,
+                            chain: 'Polygon',
+                            type: 'evm'
+                        }));
+
+                        // Update state with all wallets
+                        setConnectedWallets([...nonMetaMaskWallets, ...metaMaskWallets]);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching MetaMask accounts:', error);
+            }
+        };
+
+        fetchAllAccounts();
+    }
+}, [userInitiatedConnection, isConnected, address]);
+
+// Function to initiate connection
+const initiateConnection = () => {
+    setUserInitiatedConnection(true);
+    setShowWalletSelector(true); // Show the wallet selector UI
+};
+
+// Ensure the wallet selector is shown
+return (
+    <div>
+        <button onClick={initiateConnection} className="btn btn-primary">
+            Connect Wallet
+        </button>
+        {showWalletSelector && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
+                    <WalletSelector onClose={() => setShowWalletSelector(false)} />
+                </div>
+            </div>
+        )}
+    </div>
+); 
+
+// Ensure no automatic connection logic is present
+useEffect(() => {
+    // Only run connection logic if explicitly triggered by user action
+    if (userInitiatedConnection) {
+        // Connection logic here
+    }
+}, [userInitiatedConnection]); 

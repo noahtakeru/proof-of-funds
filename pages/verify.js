@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES } from '../config/constants';
@@ -39,6 +39,14 @@ const ABI = [
 ];
 
 export default function VerifyPage() {
+    // Add a flag to track user-initiated connection, initialized from localStorage
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
+        }
+        return false;
+    });
+
     const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
     const [proofType, setProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
     const [zkProofType, setZkProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
@@ -46,13 +54,25 @@ export default function VerifyPage() {
     const [amount, setAmount] = useState('');
     const [verificationStatus, setVerificationStatus] = useState(null); // null, true, false
 
+    // Update userInitiatedConnection if it changes in localStorage
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setUserInitiatedConnection(localStorage.getItem('userInitiatedConnection') === 'true');
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', handleStorageChange);
+            return () => window.removeEventListener('storage', handleStorageChange);
+        }
+    }, []);
+
     // Read contract for standard proof verification
     const { data: standardProofResult, isLoading: isLoadingStandard, refetch: refetchStandard } = useContractRead({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'verifyProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
-        enabled: false,
+        enabled: false, // Only run when explicitly initiated by verification
     });
 
     // Read contract for threshold proof verification

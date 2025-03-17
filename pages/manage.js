@@ -52,17 +52,37 @@ const ABI = [
 ];
 
 export default function ManagePage() {
+    // Add a flag to track user-initiated connection, initialized from localStorage
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
+        }
+        return false;
+    });
+
     const { address, isConnected } = useAccount();
     const [activeProofs, setActiveProofs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Read user's proofs
+    // Update userInitiatedConnection if it changes in localStorage
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setUserInitiatedConnection(localStorage.getItem('userInitiatedConnection') === 'true');
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', handleStorageChange);
+            return () => window.removeEventListener('storage', handleStorageChange);
+        }
+    }, []);
+
+    // Read user's proofs - only if user has explicitly initiated a connection
     const { data: proofIds, refetch: refetchProofIds } = useContractRead({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getUserProofs',
         args: [address || '0x0000000000000000000000000000000000000000'],
-        enabled: isConnected,
+        enabled: isConnected && userInitiatedConnection,
     });
 
     // Contract write hook for revocation

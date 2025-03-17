@@ -14,16 +14,25 @@ export default function ConnectWallet() {
     const [phantomAddress, setPhantomAddress] = useState(null);
     const [isPhantomConnected, setIsPhantomConnected] = useState(false);
 
+    // Add a flag to track if the user initiated a connection
+    // Initialize from localStorage if available
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
+        }
+        return false;
+    });
+
     // Format address for display
     const formatAddress = (address) => {
         if (!address) return '';
         return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     };
 
-    // Check for Phantom connection
+    // Modify the checkPhantomConnection to only run if user initiated
     useEffect(() => {
         const checkPhantomConnection = async () => {
-            if (typeof window !== 'undefined' && window.solana) {
+            if (userInitiatedConnection && typeof window !== 'undefined' && window.solana) {
                 try {
                     // Check if already connected
                     if (window.solana.isConnected) {
@@ -107,7 +116,17 @@ export default function ConnectWallet() {
                 window.solana.removeAllListeners('disconnect');
             }
         };
-    }, []);
+    }, [userInitiatedConnection]);
+
+    // Function to initiate connection
+    const initiateConnection = () => {
+        setUserInitiatedConnection(true);
+        // Store in localStorage to persist across pages
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('userInitiatedConnection', 'true');
+        }
+        setShowWalletSelector(true);
+    };
 
     // Listen for account changes in MetaMask
     useEffect(() => {
@@ -117,51 +136,31 @@ export default function ConnectWallet() {
                 setConnectedWallets(prev => prev.filter(w => w.type !== 'evm'));
             } else {
                 // Update the connected wallets with the new accounts
-                try {
-                    if (window.ethereum && window.ethereum.request) {
-                        // Get all the connected accounts
-                        const allAccounts = await window.ethereum.request({
-                            method: 'eth_accounts'
-                        });
-
-                        console.log('MetaMask accounts changed:', allAccounts);
-
-                        // Keep only solana wallets, remove existing metamask wallets
-                        const nonMetaMaskWallets = connectedWallets.filter(w => w.type !== 'evm');
-
-                        // Add all currently connected MetaMask accounts
-                        const metaMaskWallets = allAccounts.map(account => ({
-                            id: `metamask-${account.substring(2, 10)}`,
-                            name: 'MetaMask',
-                            address: formatAddress(account),
-                            fullAddress: account,
-                            chain: 'Polygon',
-                            type: 'evm'
-                        }));
-
-                        // Update state with all wallets
-                        setConnectedWallets([...nonMetaMaskWallets, ...metaMaskWallets]);
-                    }
-                } catch (error) {
-                    console.error('Error updating MetaMask accounts:', error);
-                }
+                setConnectedWallets(accounts.map(account => ({
+                    id: `metamask-${account.substring(0, 8)}`,
+                    name: 'MetaMask',
+                    address: formatAddress(account),
+                    fullAddress: account,
+                    chain: 'Polygon',
+                    type: 'evm'
+                })));
             }
         };
 
         if (typeof window !== 'undefined' && window.ethereum) {
             window.ethereum.on('accountsChanged', handleAccountsChanged);
-
-            return () => {
-                if (window.ethereum) {
-                    window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-                }
-            };
         }
-    }, [connectedWallets]);
+
+        return () => {
+            if (typeof window !== 'undefined' && window.ethereum) {
+                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+            }
+        };
+    }, []);
 
     // Track MetaMask connection only when explicitly connected
     useEffect(() => {
-        if (isConnected && address) {
+        if (userInitiatedConnection && isConnected && address) {
             const fetchAllAccounts = async () => {
                 try {
                     if (window.ethereum && window.ethereum.request) {
@@ -195,7 +194,7 @@ export default function ConnectWallet() {
 
             fetchAllAccounts();
         }
-    }, [isConnected, address]);
+    }, [userInitiatedConnection, isConnected, address, connectedWallets]);
 
     // Close wallet menu when clicking outside
     useEffect(() => {
@@ -213,17 +212,24 @@ export default function ConnectWallet() {
 
     const handleDisconnect = (walletId) => {
         if (walletId.startsWith('metamask-')) {
-            // For MetaMask, we can disconnect individual accounts
-            // First check if this is the only MetaMask account
-            const metaMaskWallets = connectedWallets.filter(w => w.type === 'evm');
+            // For MetaMask, disconnect completely regardless of number of accounts
+            disconnect();
 
-            if (metaMaskWallets.length === 1) {
-                // This is the only MetaMask account, disconnect it completely
-                disconnect();
-            } else {
-                // Just remove this account from our list
-                // The wallet will still be connected in MetaMask
-                setConnectedWallets(prev => prev.filter(w => w.id !== walletId));
+            // Also remove this wallet from our list immediately
+            setConnectedWallets(prev => prev.filter(w => w.id !== walletId));
+
+            // If this was the last MetaMask wallet, we should properly reset state
+            const remainingMetaMaskWallets = connectedWallets.filter(w =>
+                w.type === 'evm' && w.id !== walletId
+            );
+
+            if (remainingMetaMaskWallets.length === 0) {
+                // Reset userInitiatedConnection to prevent auto-reconnect
+                setUserInitiatedConnection(false);
+                // Remove from localStorage
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('userInitiatedConnection');
+                }
             }
         } else if (walletId.startsWith('phantom-')) {
             // Phantom only allows one connected account at a time
@@ -336,14 +342,9 @@ export default function ConnectWallet() {
 
     return (
         <div>
-            <button
-                onClick={() => setShowWalletSelector(true)}
-                className="btn btn-primary"
-            >
+            <button onClick={initiateConnection} className="btn btn-primary">
                 Connect Wallet
             </button>
-
-            {/* Wallet Selector Modal */}
             {showWalletSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
