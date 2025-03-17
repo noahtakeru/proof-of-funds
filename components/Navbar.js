@@ -1,7 +1,16 @@
 import Link from 'next/link';
 import ConnectWallet from './ConnectWallet';
+import { useState } from 'react';
 
 export default function Navbar() {
+    const [refreshing, setRefreshing] = useState(false);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        // Force a page refresh
+        window.location.reload();
+    };
+
     return (
         <nav className="bg-white shadow">
             <div className="container mx-auto px-4">
