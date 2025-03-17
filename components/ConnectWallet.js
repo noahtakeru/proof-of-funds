@@ -128,6 +128,107 @@ export default function ConnectWallet() {
         setShowWalletSelector(true);
     };
 
+    // Listen for wallet connections from other components
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === 'lastWalletConnection') {
+                try {
+                    const data = JSON.parse(e.newValue);
+                    if (data && data.wallet && data.accounts && data.accounts.length > 0) {
+                        console.log('Detected wallet connection from another component:', data);
+
+                        if (data.wallet === 'metamask') {
+                            // Immediately update our wallet list with the selected accounts
+                            const metaMaskWallets = data.accounts.map(account => ({
+                                id: `metamask-${account.toLowerCase()}`,
+                                name: 'MetaMask',
+                                address: formatAddress(account),
+                                fullAddress: account,
+                                chain: 'Polygon',
+                                type: 'evm'
+                            }));
+
+                            setConnectedWallets(prev => {
+                                const nonMetaMaskWallets = prev.filter(w => w.type !== 'evm');
+                                return [...nonMetaMaskWallets, ...metaMaskWallets];
+                            });
+
+                            // This will also trigger the userInitiatedConnection flag
+                            setUserInitiatedConnection(true);
+                            if (typeof window !== 'undefined') {
+                                localStorage.setItem('userInitiatedConnection', 'true');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error processing wallet connection data:', error);
+                }
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            // Listen for the storage event
+            window.addEventListener('storage', handleStorageChange);
+
+            // Also check for direct changes in the same window
+            const originalSetItem = localStorage.setItem;
+            localStorage.setItem = function (key, value) {
+                // Call the original setItem first
+                const result = originalSetItem.apply(this, arguments);
+
+                // Create and dispatch a synthetic event
+                const event = new StorageEvent('storage', {
+                    key: key,
+                    newValue: value,
+                    oldValue: localStorage.getItem(key),
+                    storageArea: localStorage
+                });
+                window.dispatchEvent(event);
+
+                return result;
+            };
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('storage', handleStorageChange);
+                // Restore original localStorage.setItem if we modified it
+                if (window._originalSetItem) {
+                    localStorage.setItem = window._originalSetItem;
+                    delete window._originalSetItem;
+                }
+            }
+        };
+    }, [formatAddress]);
+
+    // Set up synthetic storage event handler
+    useEffect(() => {
+        // Set up the synthetic event handler for direct localStorage changes
+        // But only do it once to avoid stacking multiple handlers
+        if (typeof window !== 'undefined' && !window._originalSetItem) {
+            window._originalSetItem = localStorage.setItem;
+            localStorage.setItem = function (key, value) {
+                // Call the original setItem first
+                const result = window._originalSetItem.apply(this, arguments);
+
+                // Create and dispatch a synthetic event
+                const event = new StorageEvent('storage', {
+                    key: key,
+                    newValue: value,
+                    oldValue: localStorage.getItem(key),
+                    storageArea: localStorage
+                });
+                window.dispatchEvent(event);
+
+                return result;
+            };
+        }
+
+        return () => {
+            // Cleanup will be handled by the main storage event listener
+        };
+    }, []);
+
     // Listen for account changes in MetaMask
     useEffect(() => {
         const handleAccountsChanged = async (accounts) => {
@@ -136,14 +237,24 @@ export default function ConnectWallet() {
                 setConnectedWallets(prev => prev.filter(w => w.type !== 'evm'));
             } else {
                 // Update the connected wallets with the new accounts
-                setConnectedWallets(accounts.map(account => ({
-                    id: `metamask-${account.substring(0, 8)}`,
+                const metaMaskWallets = accounts.map(account => ({
+                    // Use the full address in the ID to ensure uniqueness
+                    id: `metamask-${account.toLowerCase()}`,
                     name: 'MetaMask',
                     address: formatAddress(account),
                     fullAddress: account,
                     chain: 'Polygon',
                     type: 'evm'
-                })));
+                }));
+
+                // Log the wallets for debugging
+                console.log('MetaMask wallets updated:', metaMaskWallets);
+
+                // Replace all existing MetaMask wallets with the new ones
+                setConnectedWallets(prev => {
+                    const nonMetaMaskWallets = prev.filter(w => w.type !== 'evm');
+                    return [...nonMetaMaskWallets, ...metaMaskWallets];
+                });
             }
         };
 
@@ -169,19 +280,24 @@ export default function ConnectWallet() {
                             method: 'eth_accounts'
                         });
 
+                        console.log('All connected MetaMask accounts:', accounts);
+
                         if (accounts && accounts.length > 0) {
                             // Keep only solana wallets
                             const nonMetaMaskWallets = connectedWallets.filter(w => w.type !== 'evm');
 
                             // Add all connected MetaMask accounts as separate entries
                             const metaMaskWallets = accounts.map(account => ({
-                                id: `metamask-${account.substring(2, 10)}`,
+                                // Use the full address in the ID to ensure uniqueness
+                                id: `metamask-${account.toLowerCase()}`,
                                 name: 'MetaMask',
                                 address: formatAddress(account),
                                 fullAddress: account,
                                 chain: 'Polygon',
                                 type: 'evm'
                             }));
+
+                            console.log('MetaMask wallets to add:', metaMaskWallets);
 
                             // Update state with all wallets
                             setConnectedWallets([...nonMetaMaskWallets, ...metaMaskWallets]);
