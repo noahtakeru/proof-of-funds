@@ -43,6 +43,7 @@ export default function WalletSelector({ onClose }) {
     const [error, setError] = useState('');
     const [connecting, setConnecting] = useState(false);
     const [selectedWallet, setSelectedWallet] = useState(null);
+    const [connectionStage, setConnectionStage] = useState('select'); // 'select', 'connecting', 'accounts'
 
     const { connect, connectors } = useConnect();
 
@@ -80,6 +81,7 @@ export default function WalletSelector({ onClose }) {
         setError('');
         setConnecting(true);
         setSelectedWallet(walletId);
+        setConnectionStage('connecting');
 
         try {
             if (walletId === 'metamask') {
@@ -95,14 +97,54 @@ export default function WalletSelector({ onClose }) {
 
                 if (window.ethereum) {
                     try {
+                        // First, check what accounts are already connected
+                        const existingAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Existing MetaMask accounts before connection:', existingAccounts);
+
                         // Force MetaMask to show its account selection UI
+                        // This will display ALL accounts in the user's wallet for selection
                         await window.ethereum.request({
                             method: 'wallet_requestPermissions',
                             params: [{ eth_accounts: {} }]
                         });
 
+                        // After permissions are granted, get the accounts the user selected
+                        const selectedAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Selected MetaMask accounts:', selectedAccounts);
+
+                        if (selectedAccounts.length === 0) {
+                            throw new Error('No accounts were selected');
+                        }
+
                         // Connect with wagmi to handle the selected account(s)
-                        connect({ connector: metaMaskConnector });
+                        await connect({ connector: metaMaskConnector });
+
+                        // Give a moment for the connection to complete
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // Double-check for all selected accounts again to ensure we have the complete list
+                        const finalSelectedAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Final MetaMask accounts after connection:', finalSelectedAccounts);
+
+                        // Directly signal to the parent component that connection succeeded
+                        // This is important to ensure the wallet list updates
+                        if (typeof window !== 'undefined') {
+                            // Use the final account list to ensure we have all accounts
+                            localStorage.setItem('lastWalletConnection', JSON.stringify({
+                                wallet: 'metamask',
+                                accounts: finalSelectedAccounts,
+                                timestamp: Date.now()
+                            }));
+                        }
 
                         // Close the dialog after connection is initiated
                         setTimeout(() => {
@@ -134,6 +176,16 @@ export default function WalletSelector({ onClose }) {
                     // Connect to Phantom - this will show the Phantom account selection UI
                     await window.solana.connect({ onlyIfTrusted: false });
 
+                    // Directly signal to the parent component that connection succeeded
+                    if (typeof window !== 'undefined') {
+                        // Trigger a storage event to notify other components
+                        localStorage.setItem('lastWalletConnection', JSON.stringify({
+                            wallet: 'phantom',
+                            accounts: [window.solana.publicKey?.toString()],
+                            timestamp: Date.now()
+                        }));
+                    }
+
                     // Close the modal after successful connection
                     setTimeout(() => {
                         onClose();
@@ -150,8 +202,14 @@ export default function WalletSelector({ onClose }) {
             console.error(`Error connecting to ${walletId}:`, error);
             setError(`Failed to connect: ${error.message}`);
             setConnecting(false);
+            setConnectionStage('select');
         }
     };
+
+    // Only show wallet options that match the selected wallet type if we're connecting
+    const walletOptionsToShow = connectionStage === 'select'
+        ? availableWallets
+        : availableWallets.filter(wallet => wallet.id === selectedWallet);
 
     return (
         <div className="p-6">
@@ -166,7 +224,9 @@ export default function WalletSelector({ onClose }) {
             </div>
 
             <div className="mb-4 text-sm text-gray-600">
-                Select a wallet to connect. You'll be able to select which accounts to connect from your wallet provider.
+                {connectionStage === 'select'
+                    ? 'Select a wallet to connect. You\'ll be able to select which accounts to connect from your wallet provider.'
+                    : `Connecting to ${selectedWallet}. Please follow the instructions in your wallet.`}
             </div>
 
             {error && (
@@ -176,7 +236,7 @@ export default function WalletSelector({ onClose }) {
             )}
 
             <div className="space-y-3">
-                {availableWallets.map(wallet => (
+                {walletOptionsToShow.map(wallet => (
                     <div
                         key={wallet.id}
                         className={`p-4 border rounded-lg flex justify-between items-center ${wallet.isInstalled
@@ -185,7 +245,7 @@ export default function WalletSelector({ onClose }) {
                                 : 'border-gray-300 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all'
                             : 'border-gray-200 bg-gray-50 opacity-70'
                             }`}
-                        onClick={() => wallet.isInstalled && handleConnect(wallet.id)}
+                        onClick={() => wallet.isInstalled && !connecting && handleConnect(wallet.id)}
                     >
                         <div className="flex items-center">
                             <div className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center">
@@ -220,6 +280,21 @@ export default function WalletSelector({ onClose }) {
                     </div>
                 ))}
             </div>
+
+            {connectionStage === 'connecting' && (
+                <div className="mt-4 flex justify-center">
+                    <button
+                        onClick={() => {
+                            setConnectionStage('select');
+                            setConnecting(false);
+                            setSelectedWallet(null);
+                        }}
+                        className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                        Cancel and go back
+                    </button>
+                </div>
+            )}
 
             <div className="mt-6 text-sm text-gray-500">
                 <p>Connect your wallet to create and verify proofs for your digital assets.</p>
