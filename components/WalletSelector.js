@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
+import { useConnect } from 'wagmi';
 
 export default function WalletSelector({ onClose }) {
     const [availableWallets, setAvailableWallets] = useState([
@@ -43,6 +43,9 @@ export default function WalletSelector({ onClose }) {
     const [error, setError] = useState('');
     const [connecting, setConnecting] = useState(false);
     const [selectedWallet, setSelectedWallet] = useState(null);
+    const [connectionStage, setConnectionStage] = useState('select'); // 'select', 'connecting', 'accounts'
+
+    const { connect, connectors } = useConnect();
 
     useEffect(() => {
         // Check which wallets are installed
@@ -78,38 +81,135 @@ export default function WalletSelector({ onClose }) {
         setError('');
         setConnecting(true);
         setSelectedWallet(walletId);
+        setConnectionStage('connecting');
 
         try {
-            let accounts = [];
-
             if (walletId === 'metamask') {
-                // Use our centralized util for MetaMask connection
-                accounts = await connectMetaMask();
-                // Save the connection data
-                saveWalletConnection('metamask', accounts);
-            } else if (walletId === 'phantom') {
-                // Use our centralized util for Phantom connection
-                accounts = await connectPhantom();
-                // Save the connection data
-                saveWalletConnection('phantom', accounts);
-            }
+                // Connect to MetaMask
+                const metaMaskConnector = connectors.find(
+                    connector => connector.name.toLowerCase() === 'metamask' ||
+                        connector.id.toLowerCase() === 'metamask'
+                );
 
-            // Close the dialog after successful connection
-            setTimeout(() => {
-                onClose();
-            }, 500);
+                if (!metaMaskConnector) {
+                    throw new Error('MetaMask connector not found');
+                }
+
+                if (window.ethereum) {
+                    try {
+                        // First, check what accounts are already connected
+                        const existingAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Existing MetaMask accounts before connection:', existingAccounts);
+
+                        // Force MetaMask to show its account selection UI
+                        // This will display ALL accounts in the user's wallet for selection
+                        await window.ethereum.request({
+                            method: 'wallet_requestPermissions',
+                            params: [{ eth_accounts: {} }]
+                        });
+
+                        // After permissions are granted, get the accounts the user selected
+                        const selectedAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Selected MetaMask accounts:', selectedAccounts);
+
+                        if (selectedAccounts.length === 0) {
+                            throw new Error('No accounts were selected');
+                        }
+
+                        // Connect with wagmi to handle the selected account(s)
+                        await connect({ connector: metaMaskConnector });
+
+                        // Give a moment for the connection to complete
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // Double-check for all selected accounts again to ensure we have the complete list
+                        const finalSelectedAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('Final MetaMask accounts after connection:', finalSelectedAccounts);
+
+                        // Directly signal to the parent component that connection succeeded
+                        // This is important to ensure the wallet list updates
+                        if (typeof window !== 'undefined') {
+                            // Use the final account list to ensure we have all accounts
+                            localStorage.setItem('lastWalletConnection', JSON.stringify({
+                                wallet: 'metamask',
+                                accounts: finalSelectedAccounts,
+                                timestamp: Date.now()
+                            }));
+                        }
+
+                        // Close the dialog after connection is initiated
+                        setTimeout(() => {
+                            onClose();
+                        }, 500);
+                    } catch (error) {
+                        // User rejected permission request or closed the modal
+                        console.error('Error connecting to MetaMask:', error);
+                        if (error.code === 4001) {
+                            throw new Error('Account selection was canceled');
+                        }
+                        throw error;
+                    }
+                }
+            } else if (walletId === 'phantom') {
+                // Connect to Phantom
+                if (!window.solana) {
+                    throw new Error('Phantom wallet not found');
+                }
+
+                try {
+                    // If already connected, disconnect first to force the account selection UI
+                    if (window.solana.isConnected) {
+                        await window.solana.disconnect();
+                        // Short delay to allow disconnect to complete
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+
+                    // Connect to Phantom - this will show the Phantom account selection UI
+                    await window.solana.connect({ onlyIfTrusted: false });
+
+                    // Directly signal to the parent component that connection succeeded
+                    if (typeof window !== 'undefined') {
+                        // Trigger a storage event to notify other components
+                        localStorage.setItem('lastWalletConnection', JSON.stringify({
+                            wallet: 'phantom',
+                            accounts: [window.solana.publicKey?.toString()],
+                            timestamp: Date.now()
+                        }));
+                    }
+
+                    // Close the modal after successful connection
+                    setTimeout(() => {
+                        onClose();
+                    }, 500);
+                } catch (error) {
+                    console.error('Error connecting to Phantom:', error);
+                    if (error.code === 4001) {
+                        throw new Error('Account selection was canceled');
+                    }
+                    throw error;
+                }
+            }
         } catch (error) {
             console.error(`Error connecting to ${walletId}:`, error);
             setError(`Failed to connect: ${error.message}`);
             setConnecting(false);
-            setSelectedWallet(null);
+            setConnectionStage('select');
         }
     };
 
-    // Show only the selected wallet if one is selected
-    const filteredWallets = selectedWallet
-        ? availableWallets.filter(wallet => wallet.id === selectedWallet)
-        : availableWallets;
+    // Only show wallet options that match the selected wallet type if we're connecting
+    const walletOptionsToShow = connectionStage === 'select'
+        ? availableWallets
+        : availableWallets.filter(wallet => wallet.id === selectedWallet);
 
     return (
         <div className="p-6">
@@ -124,9 +224,9 @@ export default function WalletSelector({ onClose }) {
             </div>
 
             <div className="mb-4 text-sm text-gray-600">
-                {!selectedWallet
-                    ? 'Select a wallet to connect with'
-                    : connecting ? `Connecting to ${selectedWallet === 'metamask' ? 'MetaMask' : 'Phantom'}...` : ''}
+                {connectionStage === 'select'
+                    ? 'Select a wallet to connect. You\'ll be able to select which accounts to connect from your wallet provider.'
+                    : `Connecting to ${selectedWallet}. Please follow the instructions in your wallet.`}
             </div>
 
             {error && (
@@ -136,7 +236,7 @@ export default function WalletSelector({ onClose }) {
             )}
 
             <div className="space-y-3">
-                {filteredWallets.map(wallet => (
+                {walletOptionsToShow.map(wallet => (
                     <div
                         key={wallet.id}
                         className={`p-4 border rounded-lg flex justify-between items-center ${wallet.isInstalled
@@ -156,20 +256,48 @@ export default function WalletSelector({ onClose }) {
                                 <div className="text-sm text-gray-500">{wallet.chain}</div>
                             </div>
                         </div>
-
-                        <div>
-                            {wallet.isInstalled ? (
-                                connecting && selectedWallet === wallet.id ? (
-                                    <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
-                                ) : (
-                                    <span className="text-sm text-blue-600">Connect</span>
-                                )
-                            ) : (
-                                <span className="text-sm text-gray-500">Not Installed</span>
-                            )}
-                        </div>
+                        {wallet.isInstalled ? (
+                            <button
+                                className={`px-3 py-1 rounded-md text-sm font-medium ${connecting && selectedWallet === wallet.id
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    }`}
+                                disabled={connecting}
+                            >
+                                {connecting && selectedWallet === wallet.id ? 'Connecting...' : 'Connect'}
+                            </button>
+                        ) : (
+                            <a
+                                href={wallet.id === 'metamask' ? 'https://metamask.io/download/' : 'https://phantom.app/download'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1 rounded-md text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                Install
+                            </a>
+                        )}
                     </div>
                 ))}
+            </div>
+
+            {connectionStage === 'connecting' && (
+                <div className="mt-4 flex justify-center">
+                    <button
+                        onClick={() => {
+                            setConnectionStage('select');
+                            setConnecting(false);
+                            setSelectedWallet(null);
+                        }}
+                        className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                        Cancel and go back
+                    </button>
+                </div>
+            )}
+
+            <div className="mt-6 text-sm text-gray-500">
+                <p>Connect your wallet to create and verify proofs for your digital assets.</p>
             </div>
         </div>
     );
