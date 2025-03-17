@@ -1,127 +1,368 @@
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { useEffect, useState, useRef } from 'react';
 import WalletSelector from './WalletSelector';
-import { getConnectedWallets, disconnectWallet } from '../lib/walletHelpers';
 
 export default function ConnectWallet() {
+    const { address, isConnected } = useAccount();
+    const { disconnect } = useDisconnect();
     const [showWalletSelector, setShowWalletSelector] = useState(false);
     const [connectedWallets, setConnectedWallets] = useState([]);
     const [showWalletMenu, setShowWalletMenu] = useState(false);
     const walletMenuRef = useRef(null);
 
-    // Utility function to add a synthetic event listener for localStorage changes
-    const setupLocalStorageListener = () => {
-        // Listen for changes from other components
-        const handleStorageChange = (e) => {
-            if (e.key === 'lastWalletConnection' || e.key === 'userInitiatedConnection') {
-                console.log('Storage change detected in ConnectWallet:', e.key);
-                updateConnectedWallets();
-            }
-        };
+    // Phantom wallet state
+    const [phantomAddress, setPhantomAddress] = useState(null);
+    const [isPhantomConnected, setIsPhantomConnected] = useState(false);
 
-        // Add storage event listener for changes from other tabs
-        window.addEventListener('storage', handleStorageChange);
-
-        // Set up for changes in the current tab
-        if (typeof window !== 'undefined' && !window._walletStorageInterceptor) {
-            const originalSetItem = localStorage.setItem;
-
-            localStorage.setItem = function (key, value) {
-                // Call original first
-                originalSetItem.apply(this, arguments);
-
-                // Only trigger for wallet-related keys
-                if (key === 'lastWalletConnection' || key === 'userInitiatedConnection') {
-                    console.log(`localStorage.setItem intercepted in ConnectWallet: ${key}`);
-
-                    // Create and dispatch a custom event 
-                    const event = new CustomEvent('localStorage-changed', {
-                        detail: { key, newValue: value }
-                    });
-                    window.dispatchEvent(event);
-                }
-            };
-
-            window._walletStorageInterceptor = true;
+    // Add a flag to track if the user initiated a connection
+    // Initialize from localStorage if available
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
         }
+        return false;
+    });
 
-        // Listen for the custom localStorage-changed event
-        const handleLocalChange = (e) => {
-            if (e.detail && (e.detail.key === 'lastWalletConnection' || e.detail.key === 'userInitiatedConnection')) {
-                console.log(`localStorage-changed event in ConnectWallet: ${e.detail.key}`);
-                updateConnectedWallets();
-            }
-        };
-
-        window.addEventListener('localStorage-changed', handleLocalChange);
-
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            window.removeEventListener('localStorage-changed', handleLocalChange);
-        };
+    // Format address for display
+    const formatAddress = (address) => {
+        if (!address) return '';
+        return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     };
 
-    // Function to update connected wallets from localStorage
-    const updateConnectedWallets = () => {
-        const wallets = getConnectedWallets();
-        console.log('Updated wallet list in ConnectWallet:', wallets);
-        setConnectedWallets(wallets);
-    };
-
-    // Initialize wallet state and set up storage listener
+    // Modify the checkPhantomConnection to only run if user initiated
     useEffect(() => {
-        updateConnectedWallets();
-        const cleanup = setupLocalStorageListener();
+        const checkPhantomConnection = async () => {
+            if (userInitiatedConnection && typeof window !== 'undefined' && window.solana) {
+                try {
+                    // Check if already connected
+                    if (window.solana.isConnected) {
+                        const publicKey = window.solana.publicKey?.toString();
+                        if (publicKey) {
+                            setPhantomAddress(publicKey);
+                            setIsPhantomConnected(true);
 
-        // Set up click outside handler for wallet menu
-        const handleClickOutside = (event) => {
-            if (walletMenuRef.current && !walletMenuRef.current.contains(event.target)) {
-                setShowWalletMenu(false);
+                            // Add to connected wallets list if not already there
+                            setConnectedWallets(prev => {
+                                const existingWallet = prev.find(w =>
+                                    w.fullAddress === publicKey &&
+                                    w.type === 'solana'
+                                );
+
+                                if (!existingWallet) {
+                                    return [...prev, {
+                                        id: `phantom-${publicKey.substring(0, 8)}`,
+                                        name: 'Phantom',
+                                        address: formatAddress(publicKey),
+                                        fullAddress: publicKey,
+                                        chain: 'Solana',
+                                        type: 'solana'
+                                    }];
+                                }
+                                return prev;
+                            });
+                        }
+                    }
+
+                    // Listen for connection events
+                    window.solana.on('connect', () => {
+                        const publicKey = window.solana.publicKey?.toString();
+                        if (publicKey) {
+                            setPhantomAddress(publicKey);
+                            setIsPhantomConnected(true);
+
+                            // Add to connected wallets list
+                            setConnectedWallets(prev => {
+                                const existingWallet = prev.find(w =>
+                                    w.fullAddress === publicKey &&
+                                    w.type === 'solana'
+                                );
+
+                                if (!existingWallet) {
+                                    return [...prev, {
+                                        id: `phantom-${publicKey.substring(0, 8)}`,
+                                        name: 'Phantom',
+                                        address: formatAddress(publicKey),
+                                        fullAddress: publicKey,
+                                        chain: 'Solana',
+                                        type: 'solana'
+                                    }];
+                                }
+                                return prev;
+                            });
+                        }
+                    });
+
+                    window.solana.on('disconnect', () => {
+                        setPhantomAddress(null);
+                        setIsPhantomConnected(false);
+
+                        // Remove Phantom wallets from connected wallets list
+                        setConnectedWallets(prev =>
+                            prev.filter(w => w.type !== 'solana')
+                        );
+                    });
+                } catch (error) {
+                    console.error('Error checking Phantom connection:', error);
+                }
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
+        checkPhantomConnection();
 
+        // Cleanup event listeners on unmount
         return () => {
-            cleanup();
-            document.removeEventListener('mousedown', handleClickOutside);
+            if (typeof window !== 'undefined' && window.solana) {
+                window.solana.removeAllListeners('connect');
+                window.solana.removeAllListeners('disconnect');
+            }
         };
-    }, []);
+    }, [userInitiatedConnection]);
 
     // Function to initiate connection
     const initiateConnection = () => {
+        setUserInitiatedConnection(true);
+        // Store in localStorage to persist across pages
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('userInitiatedConnection', 'true');
+        }
         setShowWalletSelector(true);
     };
 
-    // Handle disconnect for a wallet
-    const handleDisconnect = async (walletId) => {
-        try {
-            const wallet = connectedWallets.find(w => w.id === walletId);
-            if (!wallet) return;
+    // Listen for wallet connections from other components
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === 'lastWalletConnection') {
+                try {
+                    const data = JSON.parse(e.newValue);
+                    if (data && data.wallet && data.accounts && data.accounts.length > 0) {
+                        console.log('Detected wallet connection from another component:', data);
 
-            // Use the centralized disconnect helper
-            await disconnectWallet(wallet.type, wallet.fullAddress);
+                        if (data.wallet === 'metamask') {
+                            // Immediately update our wallet list with the selected accounts
+                            const metaMaskWallets = data.accounts.map(account => ({
+                                id: `metamask-${account.toLowerCase()}`,
+                                name: 'MetaMask',
+                                address: formatAddress(account),
+                                fullAddress: account,
+                                chain: 'Polygon',
+                                type: 'evm'
+                            }));
 
-            // Update the wallet list
-            updateConnectedWallets();
+                            setConnectedWallets(prev => {
+                                const nonMetaMaskWallets = prev.filter(w => w.type !== 'evm');
+                                return [...nonMetaMaskWallets, ...metaMaskWallets];
+                            });
 
-            // Close the menu
-            setShowWalletMenu(false);
-        } catch (error) {
-            console.error('Error disconnecting wallet:', error);
+                            // This will also trigger the userInitiatedConnection flag
+                            setUserInitiatedConnection(true);
+                            if (typeof window !== 'undefined') {
+                                localStorage.setItem('userInitiatedConnection', 'true');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error processing wallet connection data:', error);
+                }
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            // Listen for the storage event
+            window.addEventListener('storage', handleStorageChange);
+
+            // Also check for direct changes in the same window
+            const originalSetItem = localStorage.setItem;
+            localStorage.setItem = function (key, value) {
+                // Call the original setItem first
+                const result = originalSetItem.apply(this, arguments);
+
+                // Create and dispatch a synthetic event
+                const event = new StorageEvent('storage', {
+                    key: key,
+                    newValue: value,
+                    oldValue: localStorage.getItem(key),
+                    storageArea: localStorage
+                });
+                window.dispatchEvent(event);
+
+                return result;
+            };
         }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('storage', handleStorageChange);
+                // Restore original localStorage.setItem if we modified it
+                if (window._originalSetItem) {
+                    localStorage.setItem = window._originalSetItem;
+                    delete window._originalSetItem;
+                }
+            }
+        };
+    }, [formatAddress]);
+
+    // Set up synthetic storage event handler
+    useEffect(() => {
+        // Set up the synthetic event handler for direct localStorage changes
+        // But only do it once to avoid stacking multiple handlers
+        if (typeof window !== 'undefined' && !window._originalSetItem) {
+            window._originalSetItem = localStorage.setItem;
+            localStorage.setItem = function (key, value) {
+                // Call the original setItem first
+                const result = window._originalSetItem.apply(this, arguments);
+
+                // Create and dispatch a synthetic event
+                const event = new StorageEvent('storage', {
+                    key: key,
+                    newValue: value,
+                    oldValue: localStorage.getItem(key),
+                    storageArea: localStorage
+                });
+                window.dispatchEvent(event);
+
+                return result;
+            };
+        }
+
+        return () => {
+            // Cleanup will be handled by the main storage event listener
+        };
+    }, []);
+
+    // Listen for account changes in MetaMask
+    useEffect(() => {
+        const handleAccountsChanged = async (accounts) => {
+            if (accounts.length === 0) {
+                // User disconnected all accounts
+                setConnectedWallets(prev => prev.filter(w => w.type !== 'evm'));
+            } else {
+                // Update the connected wallets with the new accounts
+                const metaMaskWallets = accounts.map(account => ({
+                    // Use the full address in the ID to ensure uniqueness
+                    id: `metamask-${account.toLowerCase()}`,
+                    name: 'MetaMask',
+                    address: formatAddress(account),
+                    fullAddress: account,
+                    chain: 'Polygon',
+                    type: 'evm'
+                }));
+
+                // Log the wallets for debugging
+                console.log('MetaMask wallets updated:', metaMaskWallets);
+
+                // Replace all existing MetaMask wallets with the new ones
+                setConnectedWallets(prev => {
+                    const nonMetaMaskWallets = prev.filter(w => w.type !== 'evm');
+                    return [...nonMetaMaskWallets, ...metaMaskWallets];
+                });
+            }
+        };
+
+        if (typeof window !== 'undefined' && window.ethereum) {
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+        }
+
+        return () => {
+            if (typeof window !== 'undefined' && window.ethereum) {
+                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+            }
+        };
+    }, []);
+
+    // Track MetaMask connection only when explicitly connected
+    useEffect(() => {
+        if (userInitiatedConnection && isConnected && address) {
+            const fetchAllAccounts = async () => {
+                try {
+                    if (window.ethereum && window.ethereum.request) {
+                        // Get all connected accounts from MetaMask
+                        const accounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+
+                        console.log('All connected MetaMask accounts:', accounts);
+
+                        if (accounts && accounts.length > 0) {
+                            // Keep only solana wallets
+                            const nonMetaMaskWallets = connectedWallets.filter(w => w.type !== 'evm');
+
+                            // Add all connected MetaMask accounts as separate entries
+                            const metaMaskWallets = accounts.map(account => ({
+                                // Use the full address in the ID to ensure uniqueness
+                                id: `metamask-${account.toLowerCase()}`,
+                                name: 'MetaMask',
+                                address: formatAddress(account),
+                                fullAddress: account,
+                                chain: 'Polygon',
+                                type: 'evm'
+                            }));
+
+                            console.log('MetaMask wallets to add:', metaMaskWallets);
+
+                            // Update state with all wallets
+                            setConnectedWallets([...nonMetaMaskWallets, ...metaMaskWallets]);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching MetaMask accounts:', error);
+                }
+            };
+
+            fetchAllAccounts();
+        }
+    }, [userInitiatedConnection, isConnected, address, connectedWallets]);
+
+    // Close wallet menu when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (walletMenuRef.current && !walletMenuRef.current.contains(event.target)) {
+                setShowWalletMenu(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const handleDisconnect = (walletId) => {
+        if (walletId.startsWith('metamask-')) {
+            // For MetaMask, disconnect completely regardless of number of accounts
+            disconnect();
+
+            // Also remove this wallet from our list immediately
+            setConnectedWallets(prev => prev.filter(w => w.id !== walletId));
+
+            // If this was the last MetaMask wallet, we should properly reset state
+            const remainingMetaMaskWallets = connectedWallets.filter(w =>
+                w.type === 'evm' && w.id !== walletId
+            );
+
+            if (remainingMetaMaskWallets.length === 0) {
+                // Reset userInitiatedConnection to prevent auto-reconnect
+                setUserInitiatedConnection(false);
+                // Remove from localStorage
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('userInitiatedConnection');
+                }
+            }
+        } else if (walletId.startsWith('phantom-')) {
+            // Phantom only allows one connected account at a time
+            window.solana.disconnect();
+        }
+
+        setShowWalletMenu(false);
     };
 
-    // Close the wallet selector
     const handleWalletSelectorClose = () => {
         setShowWalletSelector(false);
     };
 
-    // Toggle the wallet menu
     const toggleWalletMenu = () => {
-        setShowWalletMenu(prev => !prev);
+        setShowWalletMenu(!showWalletMenu);
     };
 
-    // Show the wallet selector to add a new wallet
     const handleAddWallet = () => {
         setShowWalletMenu(false);
         setShowWalletSelector(true);
@@ -156,38 +397,48 @@ export default function ConnectWallet() {
                 {showWalletMenu && (
                     <div
                         ref={walletMenuRef}
-                        className="absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg z-10 py-1"
+                        className="absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg z-10 border"
                     >
-                        <div className="px-4 py-2 text-sm text-gray-700 font-medium border-b border-gray-200">
-                            Connected Wallets
+                        <div className="py-1 border-b">
+                            <div className="px-4 py-2 text-sm font-medium text-gray-700">
+                                Connected Wallets
+                            </div>
                         </div>
-
-                        <div className="max-h-80 overflow-y-auto py-1">
+                        <div className="max-h-60 overflow-y-auto">
                             {connectedWallets.map(wallet => (
                                 <div
                                     key={wallet.id}
-                                    className="px-4 py-2 hover:bg-gray-50 flex justify-between items-center"
+                                    className="px-4 py-3 hover:bg-gray-50 flex justify-between items-center"
                                 >
                                     <div>
-                                        <div className="text-sm font-medium">{wallet.name}</div>
-                                        <div className="text-xs text-gray-500">{wallet.address}</div>
+                                        <div className="font-medium text-sm">
+                                            {wallet.name}
+                                        </div>
+                                        <div className="text-xs text-gray-500 flex items-center">
+                                            <span className="mr-1">{wallet.address}</span>
+                                            <span className="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">
+                                                {wallet.chain}
+                                            </span>
+                                        </div>
                                     </div>
                                     <button
                                         onClick={() => handleDisconnect(wallet.id)}
-                                        className="text-xs text-red-500 hover:text-red-700"
+                                        className="text-red-500 hover:text-red-700 text-xs"
                                     >
                                         Disconnect
                                     </button>
                                 </div>
                             ))}
                         </div>
-
-                        <div className="border-t border-gray-200 px-4 py-2">
+                        <div className="py-1 border-t">
                             <button
                                 onClick={handleAddWallet}
-                                className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
+                                className="px-4 py-2 text-sm text-primary-600 hover:bg-gray-50 w-full text-left flex items-center"
                             >
-                                + Add Wallet
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                                Add Another Wallet
                             </button>
                         </div>
                     </div>
@@ -196,7 +447,7 @@ export default function ConnectWallet() {
                 {/* Wallet Selector Modal */}
                 {showWalletSelector && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+                        <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
                             <WalletSelector onClose={handleWalletSelectorClose} />
                         </div>
                     </div>
@@ -206,11 +457,17 @@ export default function ConnectWallet() {
     }
 
     return (
-        <button
-            onClick={initiateConnection}
-            className="btn btn-primary"
-        >
-            Connect Wallet
-        </button>
+        <div>
+            <button onClick={initiateConnection} className="btn btn-primary">
+                Connect Wallet
+            </button>
+            {showWalletSelector && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
+                        <WalletSelector onClose={handleWalletSelectorClose} />
+                    </div>
+                </div>
+            )}
+        </div>
     );
 } 
