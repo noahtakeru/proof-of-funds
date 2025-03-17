@@ -57,9 +57,9 @@ const injectedConnector = new InjectedConnector({
     },
 });
 
-// Set up client
+// Set up client - explicitly set autoConnect to false to prevent automatic connections
 const client = createClient({
-    autoConnect: false,
+    autoConnect: false, // This ensures no automatic connection happens
     connectors: [metaMaskConnector, injectedConnector],
     provider,
 });
@@ -70,6 +70,20 @@ const Layout = dynamic(() => import('../components/Layout'), {
 });
 
 function MyApp({ Component, pageProps }) {
+    // Check and clear any stored connection state on initial load
+    useEffect(() => {
+        // Only run in browser
+        if (typeof window !== 'undefined') {
+            // If the user hasn't explicitly initiated a connection, clear any stored state
+            const userInitiatedConnection = localStorage.getItem('userInitiatedConnection') === 'true';
+            if (!userInitiatedConnection) {
+                // Optionally clear connection data if auto-connection wasn't explicitly requested
+                localStorage.removeItem('wagmi.connected');
+                localStorage.removeItem('wagmi.connectors');
+            }
+        }
+    }, []);
+
     return (
         <WagmiConfig client={client}>
             <Layout>

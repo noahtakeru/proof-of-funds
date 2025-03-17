@@ -53,10 +53,18 @@ export default function CreatePage() {
     const [useKYC, setUseKYC] = useState(false);
     const [success, setSuccess] = useState(false);
     const [txHash, setTxHash] = useState('');
-    const [selectedWallet, setSelectedWallet] = useState(null);
-    const [connectedWallets, setConnectedWallets] = useState([]);
+
+    // Add a flag to track user-initiated connection, initialized from localStorage
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
+        }
+        return false;
+    });
 
     const { address, isConnected } = useAccount();
+    const [connectedWallets, setConnectedWallets] = useState([]);
+    const [selectedWallet, setSelectedWallet] = useState(null);
 
     // Format address for display
     const formatAddress = (address) => {
@@ -67,14 +75,23 @@ export default function CreatePage() {
     // Track connected wallets
     useEffect(() => {
         const updateWalletList = async () => {
+            // Only run if the user has explicitly initiated a connection
+            if (!userInitiatedConnection) {
+                setConnectedWallets([]);
+                return;
+            }
+
             const wallets = [];
 
             // Check MetaMask
             if (typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask && window.ethereum.request) {
                 try {
-                    // Get all MetaMask accounts that have explicitly granted permission
-                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    // Only check for accounts if user has explicitly interacted with MetaMask
+                    const accounts = await window.ethereum.request({
+                        method: 'eth_accounts'
+                    });
 
+                    // Only add accounts if user has explicitly connected
                     if (accounts && accounts.length > 0) {
                         // Add each account as a separate wallet
                         accounts.forEach(account => {
@@ -121,7 +138,19 @@ export default function CreatePage() {
         };
 
         updateWalletList();
-    }, [isConnected, address, selectedWallet]);
+    }, [isConnected, address, selectedWallet, userInitiatedConnection]);
+
+    // Update userInitiatedConnection if it changes in localStorage
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setUserInitiatedConnection(localStorage.getItem('userInitiatedConnection') === 'true');
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', handleStorageChange);
+            return () => window.removeEventListener('storage', handleStorageChange);
+        }
+    }, []);
 
     // Set up listener for MetaMask account changes
     useEffect(() => {

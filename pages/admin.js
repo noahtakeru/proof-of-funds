@@ -8,14 +8,34 @@ import SystemConfig from '../components/admin/SystemConfig';
 import AuditLogs from '../components/admin/AuditLogs';
 
 export default function AdminPage() {
+    // Add a flag to track user-initiated connection, initialized from localStorage
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('userInitiatedConnection') === 'true';
+        }
+        return false;
+    });
+
     const { address } = useAccount();
     const [activeTab, setActiveTab] = useState('dashboard');
 
+    // Update userInitiatedConnection if it changes in localStorage
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setUserInitiatedConnection(localStorage.getItem('userInitiatedConnection') === 'true');
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', handleStorageChange);
+            return () => window.removeEventListener('storage', handleStorageChange);
+        }
+    }, []);
+
     // TODO: Implement proper admin role verification
-    const isAdmin = true; // Replace with actual admin verification logic
+    const isAdmin = userInitiatedConnection && true; // Replace with actual admin verification logic that requires connection
 
     if (!isAdmin) {
-        return <div className="p-8">Access Denied</div>;
+        return <div className="p-8">You must connect your wallet with admin privileges to access this page.</div>;
     }
 
     return (
