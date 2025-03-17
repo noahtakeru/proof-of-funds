@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useContractWrite } from 'wagmi';
 import { ethers } from 'ethers';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
+import { getConnectedWallets } from '../lib/walletHelpers';
 
 // Smart contract address on Polygon Amoy testnet
 const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
@@ -54,17 +55,12 @@ export default function CreatePage() {
     const [success, setSuccess] = useState(false);
     const [txHash, setTxHash] = useState('');
 
-    // Add a flag to track user-initiated connection, initialized from localStorage
-    const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('userInitiatedConnection') === 'true';
-        }
-        return false;
-    });
-
-    const { address, isConnected } = useAccount();
+    // For wallet connection state management
     const [connectedWallets, setConnectedWallets] = useState([]);
     const [selectedWallet, setSelectedWallet] = useState(null);
+    const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
+
+    const { address, isConnected } = useAccount();
 
     // Format address for display
     const formatAddress = (address) => {
@@ -72,175 +68,60 @@ export default function CreatePage() {
         return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     };
 
-    // Track connected wallets
+    // Import and use the getConnectedWallets helper from walletHelpers
     useEffect(() => {
-        const updateWalletList = async () => {
-            // Only run if the user has explicitly initiated a connection
-            if (!userInitiatedConnection) {
-                setConnectedWallets([]);
-                return;
-            }
-
-            const wallets = [];
-
-            // Check MetaMask
-            if (typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask && window.ethereum.request) {
-                try {
-                    // Only check for accounts if user has explicitly interacted with MetaMask
-                    const accounts = await window.ethereum.request({
-                        method: 'eth_accounts'
-                    });
-
-                    // Only add accounts if user has explicitly connected
-                    if (accounts && accounts.length > 0) {
-                        // Add each account as a separate wallet
-                        accounts.forEach(account => {
-                            wallets.push({
-                                // Use the full address in the ID to ensure uniqueness
-                                id: `metamask-${account.toLowerCase()}`,
-                                name: 'MetaMask',
-                                address: formatAddress(account),
-                                fullAddress: account,
-                                chain: 'Polygon',
-                                type: 'evm'
-                            });
-                        });
-
-                        // Log the wallets for debugging
-                        console.log('MetaMask wallets in create.js:', wallets.filter(w => w.type === 'evm'));
-                    }
-                } catch (error) {
-                    console.error('Error checking MetaMask accounts:', error);
-                }
-            }
-
-            // Check Phantom
-            if (typeof window !== 'undefined' && window.solana && window.solana.isConnected) {
-                const phantomAddress = window.solana.publicKey?.toString();
-                if (phantomAddress) {
-                    wallets.push({
-                        id: `phantom-${phantomAddress.substring(0, 8)}`,
-                        name: 'Phantom',
-                        address: formatAddress(phantomAddress),
-                        fullAddress: phantomAddress,
-                        chain: 'Solana',
-                        type: 'solana'
-                    });
-                }
-            }
-
+        // Function to update connected wallets from localStorage
+        const updateConnectedWallets = () => {
+            // Use the centralized helper to get wallets
+            const wallets = getConnectedWallets();
+            console.log('Updated wallet list in create.js:', wallets);
             setConnectedWallets(wallets);
 
+            // Update user connection state
+            const userInitiated = localStorage.getItem('userInitiatedConnection') === 'true';
+            setUserInitiatedConnection(userInitiated);
+
             // Update selected wallet if needed
-            if (selectedWallet && !wallets.find(w => w.id === selectedWallet)) {
-                // If previously selected wallet is no longer connected, clear the selection
-                setSelectedWallet(null);
-            } else if (wallets.length > 0 && !selectedWallet) {
-                // If there's at least one wallet and nothing selected, select the first one
-                setSelectedWallet(wallets[0].id);
-            }
-        };
-
-        updateWalletList();
-    }, [isConnected, address, selectedWallet, userInitiatedConnection]);
-
-    // Update userInitiatedConnection if it changes in localStorage
-    useEffect(() => {
-        const handleStorageChange = (e) => {
-            if (e.key === 'userInitiatedConnection') {
-                setUserInitiatedConnection(e.newValue === 'true');
-            } else if (e.key === 'lastWalletConnection') {
-                try {
-                    const data = JSON.parse(e.newValue);
-                    if (data && data.wallet && data.accounts && data.accounts.length > 0) {
-                        console.log('Create page detected wallet connection:', data);
-
-                        // Force an update of the wallet list
-                        setUserInitiatedConnection(true);
-
-                        // This will trigger the updateWalletList effect
-                        // But we can also directly update our wallet list for immediate feedback
-                        if (data.wallet === 'metamask') {
-                            const metaMaskWallets = data.accounts.map(account => ({
-                                id: `metamask-${account.toLowerCase()}`,
-                                name: 'MetaMask',
-                                address: formatAddress(account),
-                                fullAddress: account,
-                                chain: 'Polygon',
-                                type: 'evm'
-                            }));
-
-                            setConnectedWallets(prev => {
-                                const nonMetaMaskWallets = prev.filter(w => w.type !== 'evm');
-                                return [...nonMetaMaskWallets, ...metaMaskWallets];
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error processing wallet connection data in create.js:', error);
+            if (wallets.length > 0) {
+                if (!selectedWallet || !wallets.find(w => w.id === selectedWallet)) {
+                    setSelectedWallet(wallets[0].id);
                 }
+            } else {
+                setSelectedWallet(null);
             }
         };
 
-        if (typeof window !== 'undefined') {
-            window.addEventListener('storage', handleStorageChange);
+        // Initial update
+        updateConnectedWallets();
 
-            // Also set up the same synthetic event handler for direct localStorage changes
-            if (!window._hasSetupStorageInterceptor) {
-                const originalSetItem = localStorage.setItem;
-                localStorage.setItem = function (key, value) {
-                    // Call the original setItem first
-                    const result = originalSetItem.apply(this, arguments);
-
-                    // Create and dispatch a synthetic event
-                    const event = new StorageEvent('storage', {
-                        key: key,
-                        newValue: value,
-                        oldValue: localStorage.getItem(key),
-                        storageArea: localStorage
-                    });
-                    window.dispatchEvent(event);
-
-                    return result;
-                };
-                window._hasSetupStorageInterceptor = true;
+        // Set up listeners for wallet changes across the app
+        const handleStorageChange = (e) => {
+            if (e.key === 'lastWalletConnection' || e.key === 'userInitiatedConnection') {
+                console.log(`Storage change detected in create.js: ${e.key}`);
+                updateConnectedWallets();
             }
+        };
+
+        // Listen for changes from other tabs
+        window.addEventListener('storage', handleStorageChange);
+
+        // Set up for changes in current tab
+        if (typeof window !== 'undefined' && !window._createPageStorageSetup) {
+            window.addEventListener('localStorage-changed', (e) => {
+                if (e.detail && (e.detail.key === 'lastWalletConnection' || e.detail.key === 'userInitiatedConnection')) {
+                    console.log(`localStorage-changed event in create.js: ${e.detail.key}`);
+                    updateConnectedWallets();
+                }
+            });
+
+            window._createPageStorageSetup = true;
         }
 
+        // Clean up
         return () => {
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('storage', handleStorageChange);
-            }
+            window.removeEventListener('storage', handleStorageChange);
         };
-    }, [formatAddress]);
-
-    // Set up synthetic storage event handler
-    useEffect(() => {
-        // Set up the synthetic event handler for direct localStorage changes
-        // But only do it once to avoid stacking multiple handlers
-        if (typeof window !== 'undefined' && !window._originalSetItem) {
-            window._originalSetItem = localStorage.setItem;
-            localStorage.setItem = function (key, value) {
-                // Call the original setItem first
-                const result = window._originalSetItem.apply(this, arguments);
-
-                // Create and dispatch a synthetic event
-                const event = new StorageEvent('storage', {
-                    key: key,
-                    newValue: value,
-                    oldValue: localStorage.getItem(key),
-                    storageArea: localStorage
-                });
-                window.dispatchEvent(event);
-
-                return result;
-            };
-        }
-
-        return () => {
-            // Cleanup will be handled by the main storage event listener
-        };
-    }, []);
+    }, [selectedWallet]);
 
     // Set up listener for MetaMask account changes
     useEffect(() => {
@@ -345,14 +226,27 @@ export default function CreatePage() {
                 // Check if we need to switch to this MetaMask account
                 if (!address || wallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
                     try {
+                        // Get the correct provider for MetaMask
+                        let provider = window.ethereum;
+
+                        // If window.ethereum has providers (multiple wallets installed)
+                        if (window.ethereum?.providers) {
+                            // Find the MetaMask provider explicitly
+                            const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+                            if (metamaskProvider) {
+                                provider = metamaskProvider;
+                                console.log('Using explicit MetaMask provider in create.js');
+                            }
+                        }
+
                         // Show the account selector UI to let the user switch accounts
-                        await window.ethereum.request({
+                        await provider.request({
                             method: 'wallet_requestPermissions',
                             params: [{ eth_accounts: {} }]
                         });
 
                         // Get the currently selected account after user interaction
-                        const accounts = await window.ethereum.request({
+                        const accounts = await provider.request({
                             method: 'eth_requestAccounts'
                         });
 
@@ -362,7 +256,7 @@ export default function CreatePage() {
                         }
 
                         // Switch to the correct chain if needed
-                        await window.ethereum.request({
+                        await provider.request({
                             method: 'wallet_switchEthereumChain',
                             params: [{ chainId: '0x13882' }], // Polygon Amoy testnet (80002 in decimal)
                         });
@@ -575,7 +469,7 @@ export default function CreatePage() {
                         </div>
                     </div>
                 </div>
-            ) : connectedWallets.length === 0 ? (
+            ) : connectedWallets.length === 0 || !userInitiatedConnection ? (
                 <div className="bg-white p-8 rounded-lg shadow-md text-center">
                     <h2 className="text-xl font-medium mb-4">Connect Your Wallet</h2>
                     <p className="text-gray-600 mb-6">Please connect your wallet to create a proof of funds.</p>
