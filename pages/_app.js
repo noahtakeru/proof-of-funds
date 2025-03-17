@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { WagmiConfig, createClient, configureChains } from 'wagmi';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+import { InjectedConnector } from 'wagmi/connectors/injected';
 
 // Define Polygon Amoy testnet
 const polygonAmoy = {
@@ -38,10 +39,28 @@ const { chains, provider } = configureChains(
     ]
 );
 
+// Set up MetaMask connector with explicit options
+const metaMaskConnector = new MetaMaskConnector({
+    chains,
+    options: {
+        shimDisconnect: true,
+        UNSTABLE_shimOnConnectSelectAccount: true,
+    },
+});
+
+// Set up injected connector as fallback
+const injectedConnector = new InjectedConnector({
+    chains,
+    options: {
+        name: 'Injected',
+        shimDisconnect: true,
+    },
+});
+
 // Set up client
 const client = createClient({
-    autoConnect: true,
-    connectors: [new MetaMaskConnector({ chains })],
+    autoConnect: false,
+    connectors: [metaMaskConnector, injectedConnector],
     provider,
 });
 

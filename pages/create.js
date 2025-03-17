@@ -53,8 +53,289 @@ export default function CreatePage() {
     const [useKYC, setUseKYC] = useState(false);
     const [success, setSuccess] = useState(false);
     const [txHash, setTxHash] = useState('');
+    const [selectedWallet, setSelectedWallet] = useState(null);
+    const [connectedWallets, setConnectedWallets] = useState([]);
 
     const { address, isConnected } = useAccount();
+
+    // Format address for display
+    const formatAddress = (address) => {
+        if (!address) return '';
+        return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    };
+
+    // Track connected wallets
+    useEffect(() => {
+        const updateWalletList = async () => {
+            const wallets = [];
+
+            // Check MetaMask
+            if (typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask && window.ethereum.request) {
+                try {
+                    // Get all MetaMask accounts that have explicitly granted permission
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+
+                    if (accounts && accounts.length > 0) {
+                        // Add each account as a separate wallet
+                        accounts.forEach(account => {
+                            wallets.push({
+                                id: `metamask-${account.substring(2, 10)}`,
+                                name: 'MetaMask',
+                                address: formatAddress(account),
+                                fullAddress: account,
+                                chain: 'Polygon',
+                                type: 'evm'
+                            });
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error checking MetaMask accounts:', error);
+                }
+            }
+
+            // Check Phantom
+            if (typeof window !== 'undefined' && window.solana && window.solana.isConnected) {
+                const phantomAddress = window.solana.publicKey?.toString();
+                if (phantomAddress) {
+                    wallets.push({
+                        id: `phantom-${phantomAddress.substring(0, 8)}`,
+                        name: 'Phantom',
+                        address: formatAddress(phantomAddress),
+                        fullAddress: phantomAddress,
+                        chain: 'Solana',
+                        type: 'solana'
+                    });
+                }
+            }
+
+            setConnectedWallets(wallets);
+
+            // Update selected wallet if needed
+            if (selectedWallet && !wallets.find(w => w.id === selectedWallet)) {
+                // If previously selected wallet is no longer connected, clear the selection
+                setSelectedWallet(null);
+            } else if (wallets.length > 0 && !selectedWallet) {
+                // If there's at least one wallet and nothing selected, select the first one
+                setSelectedWallet(wallets[0].id);
+            }
+        };
+
+        updateWalletList();
+    }, [isConnected, address, selectedWallet]);
+
+    // Set up listener for MetaMask account changes
+    useEffect(() => {
+        const handleAccountsChanged = async (accounts) => {
+            // This will trigger the wallet tracking effect that rebuilds the wallet list
+            if (accounts.length === 0) {
+                // User disconnected all accounts
+                setSelectedWallet(null);
+            }
+        };
+
+        if (typeof window !== 'undefined' && window.ethereum) {
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+            return () => {
+                if (window.ethereum) {
+                    window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+                }
+            };
+        }
+    }, []);
+
+    // Contract write hooks
+    const {
+        write: writeStandardProof,
+        isLoading: isPendingStandard,
+        isError: isErrorStandard,
+        error: errorStandard,
+        data: dataStandard
+    } = useContractWrite({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'submitProof',
+    });
+
+    const {
+        write: writeThresholdProof,
+        isLoading: isPendingThreshold,
+        isError: isErrorThreshold,
+        error: errorThreshold,
+        data: dataThreshold
+    } = useContractWrite({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'submitThresholdProof',
+    });
+
+    const {
+        write: writeMaximumProof,
+        isLoading: isPendingMaximum,
+        isError: isErrorMaximum,
+        error: errorMaximum,
+        data: dataMaximum
+    } = useContractWrite({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'submitMaximumProof',
+    });
+
+    const {
+        write: writeZKProof,
+        isLoading: isPendingZK,
+        isError: isErrorZK,
+        error: errorZK,
+        data: dataZK
+    } = useContractWrite({
+        address: ZK_VERIFIER_ADDRESS,
+        abi: [
+            {
+                "inputs": [
+                    { "internalType": "bytes", "name": "_proof", "type": "bytes" },
+                    { "internalType": "bytes", "name": "_publicSignals", "type": "bytes" },
+                    { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
+                    { "internalType": "uint8", "name": "_proofType", "type": "uint8" },
+                    { "internalType": "string", "name": "_signatureMessage", "type": "string" },
+                    { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+                ],
+                "name": "verifyAndStoreProof",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }
+        ],
+        functionName: 'verifyAndStoreProof',
+    });
+
+    // Handle proof submission
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedWallet) return;
+
+        try {
+            const wallet = connectedWallets.find(w => w.id === selectedWallet);
+            if (!wallet) {
+                throw new Error('Selected wallet not found');
+            }
+
+            const amountInWei = ethers.utils.parseEther(amount || '0');
+            const expiryTime = getExpiryTimestamp(expiryDays);
+
+            if (wallet.type === 'evm') {
+                // Check if we need to switch to this MetaMask account
+                if (!address || wallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
+                    try {
+                        // Show the account selector UI to let the user switch accounts
+                        await window.ethereum.request({
+                            method: 'wallet_requestPermissions',
+                            params: [{ eth_accounts: {} }]
+                        });
+
+                        // Get the currently selected account after user interaction
+                        const accounts = await window.ethereum.request({
+                            method: 'eth_requestAccounts'
+                        });
+
+                        // Verify if the user selected the correct account
+                        if (!accounts.some(acc => acc.toLowerCase() === wallet.fullAddress.toLowerCase())) {
+                            throw new Error('Please select the wallet you want to use for creating this proof');
+                        }
+
+                        // Switch to the correct chain if needed
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x13882' }], // Polygon Amoy testnet (80002 in decimal)
+                        });
+                    } catch (switchError) {
+                        // Handle errors from chain or account switch
+                        throw new Error(`Error switching to the selected wallet: ${switchError.message}`);
+                    }
+                }
+
+                // Submit Ethereum proof
+                if (proofCategory === 'standard') {
+                    if (proofType === 'standard') {
+                        writeStandardProof({
+                            args: [amountInWei, expiryTime, signatureMessage],
+                        });
+                    } else if (proofType === 'threshold') {
+                        writeThresholdProof({
+                            args: [amountInWei, expiryTime, signatureMessage],
+                        });
+                    } else if (proofType === 'maximum') {
+                        writeMaximumProof({
+                            args: [amountInWei, expiryTime, signatureMessage],
+                        });
+                    }
+                } else if (proofCategory === 'zk') {
+                    // Zero-knowledge proofs
+                    // In a real implementation, this would generate a ZK proof first
+                    // For now, we'll mock the proof and public signals
+                    const mockProof = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[1, 2, 3, 4, 5, 6, 7, 8]]
+                    );
+
+                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[amountInWei.toString()]]
+                    );
+
+                    let zkProofTypeValue;
+                    if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
+                    else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
+                    else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
+
+                    const mockSignature = ethers.utils.toUtf8Bytes("mock-signature"); // In a real app, this would be a real signature
+
+                    writeZKProof({
+                        args: [
+                            mockProof,
+                            mockPublicSignals,
+                            expiryTime,
+                            zkProofTypeValue,
+                            signatureMessage,
+                            mockSignature
+                        ],
+                    });
+                }
+            } else if (wallet.type === 'solana') {
+                // Handle Solana wallet differently
+                if (!window.solana || !window.solana.isConnected) {
+                    throw new Error('Phantom wallet not connected');
+                }
+
+                // Make sure we're using the right Phantom account
+                if (window.solana.publicKey?.toString() !== wallet.fullAddress) {
+                    throw new Error('Please select the correct account in the Phantom wallet');
+                }
+
+                // For now, just sign a message since we're mocking the Solana proof creation
+                const encodedMessage = new TextEncoder().encode(signatureMessage);
+                const signature = await window.solana.signMessage(encodedMessage, 'utf8');
+
+                console.log('Solana proof created with signature:', signature);
+
+                // Mock successful transaction for UI feedback
+                setTxHash('solana-' + Date.now().toString(16));
+                setSuccess(true);
+            }
+        } catch (error) {
+            console.error('Error submitting proof:', error);
+        }
+    };
+
+    // Check for transaction completion
+    useEffect(() => {
+        if (dataStandard || dataThreshold || dataMaximum || dataZK) {
+            const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
+            if (txData.hash) {
+                setTxHash(txData.hash);
+                setSuccess(true);
+            }
+        }
+    }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
 
     // Update signature message when template changes
     useEffect(() => {
@@ -78,6 +359,21 @@ export default function CreatePage() {
         }
     }, [selectedTemplate, amount, customFields]);
 
+    // Get expiry timestamp based on selection
+    const getExpiryTimestamp = (expiryOption) => {
+        const now = Math.floor(Date.now() / 1000); // Current time in seconds
+        const option = EXPIRY_OPTIONS.find(opt => opt.id === expiryOption);
+        return now + (option ? option.seconds : 604800); // Default to 7 days
+    };
+
+    // Handle custom field changes
+    const handleCustomFieldChange = (key, value) => {
+        setCustomFields(prev => ({
+            ...prev,
+            [key]: value
+        }));
+    };
+
     // Extract custom field placeholders from the template
     const getCustomFieldsFromTemplate = (templateId) => {
         const template = SIGNATURE_MESSAGE_TEMPLATES.find(t => t.id === templateId);
@@ -86,145 +382,81 @@ export default function CreatePage() {
         const regex = /{([^{}]*)}/g;
         const matches = template.template.match(regex) || [];
 
+        // Filter out known placeholders
         return matches
             .map(match => match.replace(/{|}/g, ''))
-            .filter(field => !['amount', 'date'].includes(field));
+            .filter(key => !['amount', 'date'].includes(key));
     };
-
-    // Contract write hook for standard proof
-    const { write: writeStandardProof, isPending: isPendingStandard, isError: isErrorStandard, error: errorStandard, data: dataStandard } = useContractWrite({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitProof',
-    });
-
-    // Contract write hook for threshold proof
-    const { write: writeThresholdProof, isPending: isPendingThreshold, isError: isErrorThreshold, error: errorThreshold, data: dataThreshold } = useContractWrite({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitThresholdProof',
-    });
-
-    // Contract write hook for maximum proof
-    const { write: writeMaximumProof, isPending: isPendingMaximum, isError: isErrorMaximum, error: errorMaximum, data: dataMaximum } = useContractWrite({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitMaximumProof',
-    });
-
-    // Contract write hook for ZK proofs
-    const { write: writeZKProof, isPending: isPendingZK, isError: isErrorZK, error: errorZK, data: dataZK } = useContractWrite({
-        address: ZK_VERIFIER_ADDRESS,
-        abi: [
-            {
-                "inputs": [
-                    { "internalType": "bytes", "name": "_proof", "type": "bytes" },
-                    { "internalType": "bytes", "name": "_publicSignals", "type": "bytes" },
-                    { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-                    { "internalType": "enum ZKVerifier.ZKProofType", "name": "_proofType", "type": "uint8" },
-                    { "internalType": "string", "name": "_signatureMessage", "type": "string" },
-                    { "internalType": "bytes", "name": "_signature", "type": "bytes" }
-                ],
-                "name": "submitZKProof",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            }
-        ],
-        functionName: 'submitZKProof',
-    });
-
-    // Handle template change
-    const handleTemplateChange = (e) => {
-        const templateId = e.target.value;
-        setSelectedTemplate(templateId);
-        // Reset custom fields when template changes
-        setCustomFields({});
-    };
-
-    // Update custom field value
-    const updateCustomField = (field, value) => {
-        setCustomFields(prev => ({ ...prev, [field]: value }));
-    };
-
-    // Handle form submission
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!isConnected) return;
-
-        const expiryTime = EXPIRY_OPTIONS[expiryDays] || EXPIRY_OPTIONS.SEVEN_DAYS;
-
-        try {
-            if (proofCategory === 'standard') {
-                // Standard (non-ZK) proofs
-                if (proofType === 'standard') {
-                    writeStandardProof({
-                        args: [ethers.utils.parseEther(amount), expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'threshold') {
-                    writeThresholdProof({
-                        args: [ethers.utils.parseEther(amount), expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'maximum') {
-                    writeMaximumProof({
-                        args: [ethers.utils.parseEther(amount), expiryTime, signatureMessage],
-                    });
-                }
-            } else if (proofCategory === 'zk') {
-                // Zero-knowledge proofs
-                // In a real implementation, this would generate a ZK proof first
-                // For now, we'll mock the proof and public signals
-                const mockProof = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[1, 2, 3, 4, 5, 6, 7, 8]]
-                );
-
-                const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[ethers.utils.parseEther(amount).toString()]]
-                );
-
-                let zkProofTypeValue;
-                if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
-                else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
-                else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
-
-                writeZKProof({
-                    args: [
-                        mockProof,
-                        mockPublicSignals,
-                        expiryTime,
-                        zkProofTypeValue,
-                        signatureMessage,
-                        ethers.utils.toUtf8Bytes("mock-signature") // In a real app, this would be a real signature
-                    ],
-                });
-            }
-        } catch (error) {
-            console.error('Error submitting proof:', error);
-        }
-    };
-
-    // Check for transaction completion
-    useEffect(() => {
-        if (dataStandard || dataThreshold || dataMaximum || dataZK) {
-            const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
-            if (txData.hash) {
-                setTxHash(txData.hash);
-                setSuccess(true);
-            }
-        }
-    }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
 
     const isPending = isPendingStandard || isPendingThreshold || isPendingMaximum || isPendingZK;
     const isError = isErrorStandard || isErrorThreshold || isErrorMaximum || isErrorZK;
     const error = errorStandard || errorThreshold || errorMaximum || errorZK;
 
+    // Reset success state
+    const handleCreateAnother = () => {
+        setSuccess(false);
+        setTxHash('');
+    };
+
     return (
-        <div className="max-w-4xl mx-auto mt-8">
+        <div className="max-w-4xl mx-auto mt-8 px-4">
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
 
-            {!isConnected ? (
+            {success ? (
+                <div className="bg-white p-8 rounded-lg shadow-md">
+                    <div className="text-center">
+                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                            <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-semibold mt-4">Proof Created Successfully!</h2>
+                        <p className="text-gray-600 mt-2">
+                            Your proof of funds has been created and is now verifiable.
+                        </p>
+
+                        <div className="mt-6 border-t border-b border-gray-200 py-4">
+                            <h3 className="text-lg font-medium mb-2">Transaction Details</h3>
+                            <div className="flex items-center justify-center">
+                                <span className="text-gray-500 text-sm font-mono break-all">
+                                    {txHash}
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        const selectedWalletObj = connectedWallets.find(w => w.id === selectedWallet);
+                                        const network = selectedWalletObj?.type === 'solana' ? 'solana' : 'polygon';
+                                        let url = '';
+                                        if (network === 'solana') {
+                                            url = `https://explorer.solana.com/tx/${txHash}?cluster=devnet`;
+                                        } else {
+                                            url = `https://amoy.polygonscan.com/tx/${txHash}`;
+                                        }
+                                        window.open(url, '_blank');
+                                    }}
+                                    className="ml-2 text-blue-600 hover:text-blue-800"
+                                >
+                                    View
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-center space-x-4">
+                            <button
+                                onClick={handleCreateAnother}
+                                className="btn btn-primary"
+                            >
+                                Create Another Proof
+                            </button>
+                            <button
+                                onClick={() => window.location.href = '/verify'}
+                                className="btn btn-secondary"
+                            >
+                                Verify Proof
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : connectedWallets.length === 0 ? (
                 <div className="bg-white p-8 rounded-lg shadow-md text-center">
                     <h2 className="text-xl font-medium mb-4">Connect Your Wallet</h2>
                     <p className="text-gray-600 mb-6">Please connect your wallet to create a proof of funds.</p>
@@ -234,6 +466,31 @@ export default function CreatePage() {
                     <h2 className="text-xl font-semibold mb-6">Proof Creation Form</h2>
 
                     <div className="space-y-6">
+                        {/* Wallet Selection */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Select Wallet for Proof
+                            </label>
+                            <div className="grid grid-cols-1 gap-3">
+                                {connectedWallets.map(wallet => (
+                                    <button
+                                        key={wallet.id}
+                                        type="button"
+                                        onClick={() => setSelectedWallet(wallet.id)}
+                                        className={`py-2 px-4 text-sm font-medium rounded-md border flex justify-between items-center ${selectedWallet === wallet.id
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <div className="flex items-center">
+                                            <span>{wallet.name} - {wallet.address}</span>
+                                        </div>
+                                        <span className="text-xs opacity-75">{wallet.chain}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Proof Category Selection */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -412,7 +669,7 @@ export default function CreatePage() {
                                 id="signature-template"
                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border mb-2"
                                 value={selectedTemplate}
-                                onChange={handleTemplateChange}
+                                onChange={(e) => setSelectedTemplate(e.target.value)}
                             >
                                 {SIGNATURE_MESSAGE_TEMPLATES.map(template => (
                                     <option key={template.id} value={template.id}>
@@ -432,7 +689,7 @@ export default function CreatePage() {
                                         id={`field-${field}`}
                                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
                                         value={customFields[field] || ''}
-                                        onChange={(e) => updateCustomField(field, e.target.value)}
+                                        onChange={(e) => handleCustomFieldChange(field, e.target.value)}
                                     />
                                 </div>
                             ))}
@@ -496,52 +753,6 @@ export default function CreatePage() {
                                 </div>
                             </div>
                         )}
-
-                        {/* Success Message */}
-                        {success && (
-                            <div className="rounded-md bg-green-50 p-4 mt-4">
-                                <div className="flex">
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-green-800">Proof Created Successfully</h3>
-                                        <div className="mt-2 text-sm text-green-700">
-                                            <p>Your proof has been created on the Polygon blockchain.</p>
-                                            {txHash && (
-                                                <p className="mt-1">
-                                                    Transaction Hash: <a href={`https://amoy.polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="font-medium underline">{txHash.substring(0, 10)}...{txHash.substring(txHash.length - 8)}</a>
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Information Section */}
-                    <div className="mt-12 border-t pt-6">
-                        <h2 className="text-xl font-semibold mb-4">About Proof of Funds</h2>
-                        <p className="text-gray-600 mb-4">
-                            Creating a proof of funds allows you to cryptographically verify ownership of assets on the Polygon blockchain
-                            without revealing your private information.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h3 className="font-medium text-blue-800 mb-2">Standard Proof</h3>
-                                <p className="text-sm text-gray-600">Proves that you own exactly the specified amount. Useful for specific commitments.</p>
-                            </div>
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h3 className="font-medium text-blue-800 mb-2">Threshold Proof</h3>
-                                <p className="text-sm text-gray-600">Proves that you own at least the specified amount. Useful for qualification requirements.</p>
-                            </div>
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h3 className="font-medium text-blue-800 mb-2">Maximum Proof</h3>
-                                <p className="text-sm text-gray-600">Proves that you own less than the specified amount. Useful for certain compliance requirements.</p>
-                            </div>
-                            <div className="bg-purple-50 p-4 rounded-lg">
-                                <h3 className="font-medium text-purple-800 mb-2">Zero-Knowledge Proofs</h3>
-                                <p className="text-sm text-gray-600">Private proofs that validate your funds without revealing actual amounts to the blockchain.</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             )}

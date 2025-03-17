@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function Home() {
     return (
-        <div className="max-w-4xl mx-auto text-center mt-8">
+        <div className="max-w-4xl mx-auto text-center mt-8 mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-6">Proof of Funds on Polygon</h1>
             <p className="text-xl text-gray-600 mb-8">
                 Securely verify your blockchain assets with privacy-preserving proofs
@@ -60,7 +60,7 @@ export default function Home() {
                 </div>
             </div>
 
-            <div className="bg-primary-50 rounded-lg px-6 py-8 flex flex-col items-center">
+            <div className="bg-primary-50 rounded-lg px-6 py-8 flex flex-col items-center mb-16">
                 <h2 className="text-2xl font-semibold mb-4">Ready to get started?</h2>
                 <p className="text-gray-600 mb-6">Create your first proof of funds on Polygon in minutes</p>
                 <Link
