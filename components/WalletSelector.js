@@ -133,9 +133,20 @@ export default function WalletSelector({ onClose }) {
                 // Save the connection data
                 saveWalletConnection('metamask', accounts);
             } else if (walletId === 'phantom') {
+                // For Phantom, we need to inform the user that they need to select the correct wallet in the extension first
+                console.log('Connecting to currently selected Phantom wallet');
+
+                // Give user instructions via the UI
+                setSelectedWallet(walletId);
+                setError('Note: Phantom only connects the currently active wallet in the extension. To connect a different wallet, switch accounts in the Phantom extension first, then try connecting again.');
+
+                // Wait a moment for the user to read the instruction before proceeding
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
                 // Use our centralized util for Phantom connection
                 accounts = await connectPhantom();
                 console.log('Phantom accounts:', accounts);
+
                 // Save the connection data
                 saveWalletConnection('phantom', accounts);
             }
@@ -154,6 +165,11 @@ export default function WalletSelector({ onClose }) {
             setError(`Failed to connect: ${error.message || 'Unknown error'}`);
             setConnecting(false);
             setSelectedWallet(null);
+
+            // Clean up any session flags if error occurs
+            if (walletId === 'phantom') {
+                sessionStorage.removeItem('phantom_force_ui_connect');
+            }
         }
     };
 
