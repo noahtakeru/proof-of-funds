@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
+import { connectMetaMask, saveWalletConnection } from '../lib/walletHelpers';
+import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
 
 export default function WalletSelector({ onClose }) {
     console.log('WalletSelector component rendered');
@@ -48,6 +49,7 @@ export default function WalletSelector({ onClose }) {
     const [error, setError] = useState('');
     const [connecting, setConnecting] = useState(false);
     const [selectedWallet, setSelectedWallet] = useState(null);
+    const [showPhantomMultiSelector, setShowPhantomMultiSelector] = useState(false);
 
     useEffect(() => {
         // Check which wallets are installed
@@ -124,52 +126,29 @@ export default function WalletSelector({ onClose }) {
         setSelectedWallet(walletId);
 
         try {
-            let accounts = [];
-
             if (walletId === 'metamask') {
                 // Use our centralized util for MetaMask connection
-                accounts = await connectMetaMask();
+                const accounts = await connectMetaMask();
                 console.log('MetaMask accounts:', accounts);
                 // Save the connection data
                 saveWalletConnection('metamask', accounts);
+
+                // Close the dialog after successful connection
+                setTimeout(() => {
+                    console.log('Connection successful, closing wallet selector');
+                    if (typeof onClose === 'function') {
+                        onClose();
+                    }
+                }, 500);
             } else if (walletId === 'phantom') {
-                // For Phantom, we need to inform the user that they need to select the correct wallet in the extension first
-                console.log('Connecting to currently selected Phantom wallet');
-
-                // Give user instructions via the UI
-                setSelectedWallet(walletId);
-                setError('Note: Phantom only connects the currently active wallet in the extension. To connect a different wallet, switch accounts in the Phantom extension first, then try connecting again.');
-
-                // Wait a moment for the user to read the instruction before proceeding
-                await new Promise(resolve => setTimeout(resolve, 2000));
-
-                // Use our centralized util for Phantom connection
-                accounts = await connectPhantom();
-                console.log('Phantom accounts:', accounts);
-
-                // Save the connection data
-                saveWalletConnection('phantom', accounts);
+                // For Phantom, show our custom multi-wallet selector
+                setShowPhantomMultiSelector(true);
             }
-
-            // Close the dialog after successful connection
-            setTimeout(() => {
-                console.log('Connection successful, closing wallet selector');
-                if (typeof onClose === 'function') {
-                    onClose();
-                } else {
-                    console.error('onClose is not a function:', onClose);
-                }
-            }, 500);
         } catch (error) {
             console.error(`Error connecting to ${walletId}:`, error);
             setError(`Failed to connect: ${error.message || 'Unknown error'}`);
             setConnecting(false);
             setSelectedWallet(null);
-
-            // Clean up any session flags if error occurs
-            if (walletId === 'phantom') {
-                sessionStorage.removeItem('phantom_force_ui_connect');
-            }
         }
     };
 
@@ -182,6 +161,23 @@ export default function WalletSelector({ onClose }) {
             console.error('onClose is not a function:', onClose);
         }
     };
+
+    // Handle closing the multi-wallet selector
+    const handlePhantomMultiSelectorClose = () => {
+        setShowPhantomMultiSelector(false);
+        setConnecting(false);
+        setSelectedWallet(null);
+
+        // Also close the main selector
+        setTimeout(() => {
+            handleClose();
+        }, 300);
+    };
+
+    // If showing the Phantom Multi-Wallet Selector, render only that
+    if (showPhantomMultiSelector) {
+        return <PhantomMultiWalletSelector onClose={handlePhantomMultiSelectorClose} />;
+    }
 
     // Show only the selected wallet if one is selected
     const filteredWallets = selectedWallet

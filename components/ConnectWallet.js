@@ -210,18 +210,26 @@ export default function ConnectWallet() {
     };
 
     if (connectedWallets.length > 0) {
+        // Count wallet types
+        const phantomCount = connectedWallets.filter(w => w.type === 'solana').length;
+        const evmCount = connectedWallets.filter(w => w.type === 'evm').length;
+
         return (
             <div className="relative">
                 <div className="flex items-center gap-2">
                     <div className="mr-2">
-                        {/* Shows only the first connected wallet in the main view */}
+                        {/* Shows summary of connected wallets */}
                         <div className="flex items-center text-sm text-gray-600">
-                            <span>
-                                {connectedWallets[0].name}: {connectedWallets[0].address}
-                            </span>
-                            {connectedWallets.length > 1 && (
-                                <span className="ml-1 text-xs text-primary-600">
-                                    +{connectedWallets.length - 1} more
+                            {phantomCount > 0 && (
+                                <span className="flex items-center mr-2">
+                                    <span className="inline-block w-4 h-4 mr-1 bg-indigo-500 rounded-full"></span>
+                                    <span>{phantomCount} Phantom {phantomCount === 1 ? 'Wallet' : 'Wallets'}</span>
+                                </span>
+                            )}
+                            {evmCount > 0 && (
+                                <span className="flex items-center">
+                                    <span className="inline-block w-4 h-4 mr-1 bg-orange-500 rounded-full"></span>
+                                    <span>{evmCount} EVM {evmCount === 1 ? 'Wallet' : 'Wallets'}</span>
                                 </span>
                             )}
                         </div>
