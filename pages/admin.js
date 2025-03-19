@@ -6,6 +6,7 @@ import UserManagement from '../components/admin/UserManagement';
 import ContractManagement from '../components/admin/ContractManagement';
 import SystemConfig from '../components/admin/SystemConfig';
 import AuditLogs from '../components/admin/AuditLogs';
+import WalletManagement from '../components/admin/WalletManagement';
 
 export default function AdminPage() {
     // Add a flag to track user-initiated connection, initialized from localStorage
@@ -69,6 +70,12 @@ export default function AdminPage() {
                         Contract Management
                     </button>
                     <button
+                        onClick={() => setActiveTab('wallets')}
+                        className={`px-4 py-2 rounded ${activeTab === 'wallets' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+                    >
+                        Wallet Management
+                    </button>
+                    <button
                         onClick={() => setActiveTab('config')}
                         className={`px-4 py-2 rounded ${activeTab === 'config' ? 'bg-blue-500 text-white' : 'bg-white'}`}
                     >
@@ -86,6 +93,7 @@ export default function AdminPage() {
                 {activeTab === 'proofs' && <ProofManagement />}
                 {activeTab === 'users' && <UserManagement />}
                 {activeTab === 'contracts' && <ContractManagement />}
+                {activeTab === 'wallets' && <WalletManagement />}
                 {activeTab === 'config' && <SystemConfig />}
                 {activeTab === 'audit' && <AuditLogs />}
             </div>

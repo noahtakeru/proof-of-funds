@@ -96,7 +96,7 @@ export default function CreatePage() {
 
         // Set up listeners for wallet changes across the app
         const handleStorageChange = (e) => {
-            if (e.key === 'lastWalletConnection' || e.key === 'userInitiatedConnection') {
+            if (e.key === 'walletData' || e.key === 'userInitiatedConnection') {
                 console.log(`Storage change detected in create.js: ${e.key}`);
                 updateConnectedWallets();
             }
@@ -108,7 +108,7 @@ export default function CreatePage() {
         // Set up for changes in current tab
         if (typeof window !== 'undefined' && !window._createPageStorageSetup) {
             window.addEventListener('localStorage-changed', (e) => {
-                if (e.detail && (e.detail.key === 'lastWalletConnection' || e.detail.key === 'userInitiatedConnection')) {
+                if (e.detail && (e.detail.key === 'walletData' || e.detail.key === 'userInitiatedConnection')) {
                     console.log(`localStorage-changed event in create.js: ${e.detail.key}`);
                     updateConnectedWallets();
                 }
