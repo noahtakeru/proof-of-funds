@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
 
 export default function WalletSelector({ onClose }) {
+    console.log('WalletSelector component rendered');
+
+    // Add ref to main container
+    const selectorRef = useRef(null);
+
     const [availableWallets, setAvailableWallets] = useState([
         {
             id: 'metamask',
@@ -47,34 +52,73 @@ export default function WalletSelector({ onClose }) {
     useEffect(() => {
         // Check which wallets are installed
         const checkWallets = async () => {
-            // Check for MetaMask
-            const isMetaMaskAvailable = typeof window !== 'undefined' &&
-                window.ethereum &&
-                (window.ethereum.isMetaMask ||
-                    (window.ethereum.providers &&
-                        window.ethereum.providers.some(provider => provider.isMetaMask)));
+            try {
+                console.log('Checking for installed wallets...');
 
-            // Check for Phantom
-            const isPhantomAvailable = typeof window !== 'undefined' &&
-                window.solana &&
-                window.solana.isPhantom;
+                // Check for MetaMask
+                const isMetaMaskAvailable = typeof window !== 'undefined' &&
+                    window.ethereum &&
+                    (window.ethereum.isMetaMask ||
+                        (window.ethereum.providers &&
+                            window.ethereum.providers.some(provider => provider.isMetaMask)));
 
-            setAvailableWallets(prev =>
-                prev.map(wallet => {
-                    if (wallet.id === 'metamask') {
-                        return { ...wallet, isInstalled: isMetaMaskAvailable };
-                    } else if (wallet.id === 'phantom') {
-                        return { ...wallet, isInstalled: isPhantomAvailable };
-                    }
-                    return wallet;
-                })
-            );
+                // Check for Phantom
+                const isPhantomAvailable = typeof window !== 'undefined' &&
+                    window.solana &&
+                    window.solana.isPhantom;
+
+                console.log('Wallet availability:', {
+                    metamask: isMetaMaskAvailable,
+                    phantom: isPhantomAvailable
+                });
+
+                setAvailableWallets(prev =>
+                    prev.map(wallet => {
+                        if (wallet.id === 'metamask') {
+                            return { ...wallet, isInstalled: isMetaMaskAvailable };
+                        } else if (wallet.id === 'phantom') {
+                            return { ...wallet, isInstalled: isPhantomAvailable };
+                        }
+                        return wallet;
+                    })
+                );
+            } catch (err) {
+                console.error('Error checking wallet availability:', err);
+                setError('Failed to detect wallets. Please refresh the page and try again.');
+            }
         };
 
         checkWallets();
+
+        // Make sure the modal is properly cleaned up on unmount
+        return () => {
+            console.log('WalletSelector component unmounting');
+        };
+    }, []);
+
+    // Set up click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (selectorRef.current && !selectorRef.current.contains(event.target)) {
+                handleClose();
+            }
+        };
+
+        // Add event listener to document
+        document.addEventListener('mousedown', handleClickOutside);
+
+        // Add visibility to body
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            // Remove event listener from document
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.body.style.overflow = 'auto';
+        };
     }, []);
 
     const handleConnect = async (walletId) => {
+        console.log(`Attempting to connect to ${walletId}...`);
         setError('');
         setConnecting(true);
         setSelectedWallet(walletId);
@@ -85,24 +129,57 @@ export default function WalletSelector({ onClose }) {
             if (walletId === 'metamask') {
                 // Use our centralized util for MetaMask connection
                 accounts = await connectMetaMask();
+                console.log('MetaMask accounts:', accounts);
                 // Save the connection data
                 saveWalletConnection('metamask', accounts);
             } else if (walletId === 'phantom') {
+                // For Phantom, we need to inform the user that they need to select the correct wallet in the extension first
+                console.log('Connecting to currently selected Phantom wallet');
+
+                // Give user instructions via the UI
+                setSelectedWallet(walletId);
+                setError('Note: Phantom only connects the currently active wallet in the extension. To connect a different wallet, switch accounts in the Phantom extension first, then try connecting again.');
+
+                // Wait a moment for the user to read the instruction before proceeding
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
                 // Use our centralized util for Phantom connection
                 accounts = await connectPhantom();
+                console.log('Phantom accounts:', accounts);
+
                 // Save the connection data
                 saveWalletConnection('phantom', accounts);
             }
 
             // Close the dialog after successful connection
             setTimeout(() => {
-                onClose();
+                console.log('Connection successful, closing wallet selector');
+                if (typeof onClose === 'function') {
+                    onClose();
+                } else {
+                    console.error('onClose is not a function:', onClose);
+                }
             }, 500);
         } catch (error) {
             console.error(`Error connecting to ${walletId}:`, error);
-            setError(`Failed to connect: ${error.message}`);
+            setError(`Failed to connect: ${error.message || 'Unknown error'}`);
             setConnecting(false);
             setSelectedWallet(null);
+
+            // Clean up any session flags if error occurs
+            if (walletId === 'phantom') {
+                sessionStorage.removeItem('phantom_force_ui_connect');
+            }
+        }
+    };
+
+    // Function to safely close the modal
+    const handleClose = () => {
+        console.log('Closing wallet selector modal');
+        if (typeof onClose === 'function') {
+            onClose();
+        } else {
+            console.error('onClose is not a function:', onClose);
         }
     };
 
@@ -112,12 +189,20 @@ export default function WalletSelector({ onClose }) {
         : availableWallets;
 
     return (
-        <div className="p-6">
+        <div
+            ref={selectorRef}
+            className="p-6 wallet-selector"
+            style={{
+                position: 'relative',
+                zIndex: 10000
+            }}
+        >
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Connect Wallet</h2>
                 <button
-                    onClick={() => onClose()}
-                    className="text-gray-500 hover:text-gray-700"
+                    onClick={handleClose}
+                    className="text-gray-500 hover:text-gray-700 p-2"
+                    aria-label="Close"
                 >
                     ✕
                 </button>

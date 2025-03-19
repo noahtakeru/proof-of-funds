@@ -6,13 +6,16 @@ export default function ConnectWallet() {
     const [showWalletSelector, setShowWalletSelector] = useState(false);
     const [connectedWallets, setConnectedWallets] = useState([]);
     const [showWalletMenu, setShowWalletMenu] = useState(false);
+    const [disconnectingWallets, setDisconnectingWallets] = useState({});
+    const [buttonClicked, setButtonClicked] = useState(false);
     const walletMenuRef = useRef(null);
+    const connectBtnRef = useRef(null);
 
     // Utility function to add a synthetic event listener for localStorage changes
     const setupLocalStorageListener = () => {
         // Listen for changes from other components
         const handleStorageChange = (e) => {
-            if (e.key === 'lastWalletConnection' || e.key === 'userInitiatedConnection') {
+            if (e.key === 'walletData' || e.key === 'userInitiatedConnection') {
                 console.log('Storage change detected in ConnectWallet:', e.key);
                 updateConnectedWallets();
             }
@@ -24,13 +27,14 @@ export default function ConnectWallet() {
         // Set up for changes in the current tab
         if (typeof window !== 'undefined' && !window._walletStorageInterceptor) {
             const originalSetItem = localStorage.setItem;
+            const originalRemoveItem = localStorage.removeItem;
 
             localStorage.setItem = function (key, value) {
                 // Call original first
                 originalSetItem.apply(this, arguments);
 
                 // Only trigger for wallet-related keys
-                if (key === 'lastWalletConnection' || key === 'userInitiatedConnection') {
+                if (key === 'walletData' || key === 'userInitiatedConnection') {
                     console.log(`localStorage.setItem intercepted in ConnectWallet: ${key}`);
 
                     // Create and dispatch a custom event 
@@ -41,12 +45,28 @@ export default function ConnectWallet() {
                 }
             };
 
+            localStorage.removeItem = function (key) {
+                // Call original first
+                originalRemoveItem.apply(this, arguments);
+
+                // Only trigger for wallet-related keys
+                if (key === 'walletData' || key === 'userInitiatedConnection') {
+                    console.log(`localStorage.removeItem intercepted in ConnectWallet: ${key}`);
+
+                    // Create and dispatch a custom event 
+                    const event = new CustomEvent('localStorage-changed', {
+                        detail: { key, removed: true }
+                    });
+                    window.dispatchEvent(event);
+                }
+            };
+
             window._walletStorageInterceptor = true;
         }
 
         // Listen for the custom localStorage-changed event
         const handleLocalChange = (e) => {
-            if (e.detail && (e.detail.key === 'lastWalletConnection' || e.detail.key === 'userInitiatedConnection')) {
+            if (e.detail && (e.detail.key === 'walletData' || e.detail.key === 'userInitiatedConnection')) {
                 console.log(`localStorage-changed event in ConnectWallet: ${e.detail.key}`);
                 updateConnectedWallets();
             }
@@ -87,37 +107,73 @@ export default function ConnectWallet() {
         };
     }, []);
 
-    // Function to initiate connection
+    // Function to initiate connection - directly open the wallet selector
     const initiateConnection = () => {
-        setShowWalletSelector(true);
+        console.log('Connect button clicked, opening wallet selector');
+        setButtonClicked(true);
+
+        // Force the modal to open on the next render cycle
+        setTimeout(() => {
+            setShowWalletSelector(true);
+            setButtonClicked(false);
+        }, 50);
     };
 
     // Handle disconnect for a wallet
     const handleDisconnect = async (walletId) => {
         try {
+            // Set disconnecting state for only this wallet
+            setDisconnectingWallets(prev => ({
+                ...prev,
+                [walletId]: true
+            }));
+
             const wallet = connectedWallets.find(w => w.id === walletId);
-            if (!wallet) return;
+            if (!wallet) {
+                setDisconnectingWallets(prev => ({
+                    ...prev,
+                    [walletId]: false
+                }));
+                return;
+            }
+
+            console.log('Disconnecting wallet:', wallet);
 
             // Use the centralized disconnect helper
             await disconnectWallet(wallet.type, wallet.fullAddress);
 
-            // Update the wallet list
-            updateConnectedWallets();
-
-            // Close the menu
-            setShowWalletMenu(false);
+            // Force an immediate update of the wallet list
+            setTimeout(() => {
+                updateConnectedWallets();
+                setDisconnectingWallets(prev => ({
+                    ...prev,
+                    [walletId]: false
+                }));
+                setShowWalletMenu(false);
+            }, 300);
         } catch (error) {
             console.error('Error disconnecting wallet:', error);
+            setDisconnectingWallets(prev => ({
+                ...prev,
+                [walletId]: false
+            }));
         }
     };
 
     // Close the wallet selector
     const handleWalletSelectorClose = () => {
+        console.log('Closing wallet selector');
         setShowWalletSelector(false);
+        // Refresh the wallet list when closing the selector
+        updateConnectedWallets();
     };
 
     // Toggle the wallet menu
     const toggleWalletMenu = () => {
+        // Force refresh wallet list when opening menu
+        if (!showWalletMenu) {
+            updateConnectedWallets();
+        }
         setShowWalletMenu(prev => !prev);
     };
 
@@ -125,6 +181,32 @@ export default function ConnectWallet() {
     const handleAddWallet = () => {
         setShowWalletMenu(false);
         setShowWalletSelector(true);
+    };
+
+    // Debug function to log the component state
+    useEffect(() => {
+        console.log('ConnectWallet state:', {
+            showWalletSelector,
+            connectedWallets: connectedWallets.length,
+            buttonClicked,
+            modalVisible: !!document.querySelector('.wallet-modal-container')
+        });
+    }, [showWalletSelector, connectedWallets.length, buttonClicked]);
+
+    // Render the WalletSelector modal - separate from conditional rendering
+    const renderWalletSelector = () => {
+        if (!showWalletSelector) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 wallet-modal-container">
+                <div
+                    className="bg-white rounded-lg shadow-xl max-w-md w-full"
+                    style={{ maxHeight: '90vh', overflowY: 'auto' }}
+                >
+                    <WalletSelector onClose={handleWalletSelectorClose} />
+                </div>
+            </div>
+        );
     };
 
     if (connectedWallets.length > 0) {
@@ -174,9 +256,10 @@ export default function ConnectWallet() {
                                     </div>
                                     <button
                                         onClick={() => handleDisconnect(wallet.id)}
-                                        className="text-xs text-red-500 hover:text-red-700"
+                                        disabled={disconnectingWallets[wallet.id]}
+                                        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
                                     >
-                                        Disconnect
+                                        {disconnectingWallets[wallet.id] ? 'Disconnecting...' : 'Disconnect'}
                                     </button>
                                 </div>
                             ))}
@@ -193,24 +276,27 @@ export default function ConnectWallet() {
                     </div>
                 )}
 
-                {/* Wallet Selector Modal */}
-                {showWalletSelector && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-                            <WalletSelector onClose={handleWalletSelectorClose} />
-                        </div>
-                    </div>
-                )}
+                {/* Render wallet selector modal */}
+                {renderWalletSelector()}
             </div>
         );
     }
 
+    // For users with no wallets, simply show the connect button
+    // and render the selector modal outside of the conditional
     return (
-        <button
-            onClick={initiateConnection}
-            className="btn btn-primary"
-        >
-            Connect Wallet
-        </button>
+        <>
+            <button
+                ref={connectBtnRef}
+                onClick={initiateConnection}
+                className="btn btn-primary"
+                style={{ zIndex: 50 }} // Ensure button is clickable
+            >
+                Connect Wallet{buttonClicked ? '...' : ''}
+            </button>
+
+            {/* Always render the modal at the document root level */}
+            {renderWalletSelector()}
+        </>
     );
 } 
