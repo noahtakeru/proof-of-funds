@@ -7,6 +7,7 @@ import { WagmiConfig, createClient, configureChains } from 'wagmi';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { InjectedConnector } from 'wagmi/connectors/injected';
+import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext';
 
 // Define Polygon Amoy testnet
 const polygonAmoy = {
@@ -86,9 +87,11 @@ function MyApp({ Component, pageProps }) {
 
     return (
         <WagmiConfig client={client}>
-            <Layout>
-                <Component {...pageProps} />
-            </Layout>
+            <PhantomMultiWalletProvider>
+                <Layout>
+                    <Component {...pageProps} />
+                </Layout>
+            </PhantomMultiWalletProvider>
         </WagmiConfig>
     );
 }
