@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite } from 'wagmi';
 import { ethers } from 'ethers';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets } from '../lib/walletHelpers';
+import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet } from '../lib/walletHelpers';
+import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
+import WalletSelector from '../components/WalletSelector';
 
 // Smart contract address on Polygon Amoy testnet
 const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
@@ -57,10 +59,28 @@ export default function CreatePage() {
 
     // For wallet connection state management
     const [connectedWallets, setConnectedWallets] = useState([]);
-    const [selectedWallet, setSelectedWallet] = useState(null);
+    const [selectedWallets, setSelectedWallets] = useState([]);
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
 
+    // For multi-chain assets
+    const [assetSummary, setAssetSummary] = useState(null);
+    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+    const [assetError, setAssetError] = useState('');
+    const [showUSDValues, setShowUSDValues] = useState(false);
+    const [isConvertingUSD, setIsConvertingUSD] = useState(false);
+
     const { address, isConnected } = useAccount();
+
+    // Use refs to track previous values to avoid infinite loops
+    const prevSelectedWalletsRef = useRef([]);
+    const prevConnectedWalletsRef = useRef([]);
+    const prevShowUSDValuesRef = useRef(false);
+    const assetsLoadedRef = useRef(false);
+
+    // Add the missing refs for current values
+    const selectedWalletsRef = useRef([]);
+    const connectedWalletsRef = useRef([]);
+    const showUSDValuesRef = useRef(false);
 
     // Format address for display
     const formatAddress = (address) => {
@@ -81,13 +101,18 @@ export default function CreatePage() {
             const userInitiated = localStorage.getItem('userInitiatedConnection') === 'true';
             setUserInitiatedConnection(userInitiated);
 
-            // Update selected wallet if needed
-            if (wallets.length > 0) {
-                if (!selectedWallet || !wallets.find(w => w.id === selectedWallet)) {
-                    setSelectedWallet(wallets[0].id);
+            // Update selected wallets if needed - only update state if needed
+            if (selectedWallets.length === 0 && wallets.length > 0) {
+                setSelectedWallets([wallets[0].id]);
+            } else if (selectedWallets.length > 0) {
+                // Keep only valid wallets in selected list
+                const validWalletIds = wallets.map(w => w.id);
+                const filteredWallets = selectedWallets.filter(id => validWalletIds.includes(id));
+
+                // Only update if the arrays are different
+                if (filteredWallets.length !== selectedWallets.length) {
+                    setSelectedWallets(filteredWallets);
                 }
-            } else {
-                setSelectedWallet(null);
             }
         };
 
@@ -121,7 +146,112 @@ export default function CreatePage() {
         return () => {
             window.removeEventListener('storage', handleStorageChange);
         };
-    }, [selectedWallet]);
+    }, []); // Empty dependency array to run only once on mount
+
+    // Update refs when values change
+    useEffect(() => {
+        selectedWalletsRef.current = selectedWallets;
+    }, [selectedWallets]);
+
+    useEffect(() => {
+        connectedWalletsRef.current = connectedWallets;
+    }, [connectedWallets]);
+
+    useEffect(() => {
+        showUSDValuesRef.current = showUSDValues;
+    }, [showUSDValues]);
+
+    // This effect will handle asset loading
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadAssets = async () => {
+            // Only proceed if we have selected wallets
+            if (selectedWalletsRef.current.length === 0) {
+                if (isMounted) setAssetSummary(null);
+                return;
+            }
+
+            try {
+                if (isMounted) {
+                    setIsLoadingAssets(true);
+                    setAssetError('');
+                }
+
+                // Get the wallet objects for selected IDs
+                const walletObjects = connectedWalletsRef.current.filter(wallet =>
+                    selectedWalletsRef.current.includes(wallet.id)
+                );
+
+                if (walletObjects.length === 0) {
+                    throw new Error('No valid wallets selected');
+                }
+
+                // Scan assets across all selected wallets
+                const summary = await scanMultiChainAssets(walletObjects);
+                console.log('Asset summary:', summary);
+
+                // Convert to USD if needed
+                if (showUSDValuesRef.current) {
+                    if (isMounted) setIsConvertingUSD(true);
+                    const summaryWithUSD = await convertAssetsToUSD(summary);
+                    if (isMounted) {
+                        setAssetSummary(summaryWithUSD);
+                        setIsConvertingUSD(false);
+                    }
+                } else {
+                    if (isMounted) setAssetSummary(summary);
+                }
+            } catch (error) {
+                console.error('Error loading wallet assets:', error);
+                if (isMounted) {
+                    setAssetError(`Failed to load assets: ${error.message || 'Unknown error'}`);
+                    setAssetSummary(null);
+                }
+            } finally {
+                if (isMounted) setIsLoadingAssets(false);
+            }
+        };
+
+        loadAssets();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedWallets]); // Only depend on selectedWallets
+
+    // Toggle USD conversion
+    const handleToggleUSDConversion = async () => {
+        if (!showUSDValues && assetSummary) {
+            // If turning on USD conversion, convert existing assets
+            try {
+                setIsConvertingUSD(true);
+                const summaryWithUSD = await convertAssetsToUSD(assetSummary);
+                setAssetSummary(summaryWithUSD);
+                setShowUSDValues(true);
+            } catch (error) {
+                console.error('Error converting to USD:', error);
+                setAssetError(`Failed to convert to USD: ${error.message || 'Unknown error'}`);
+            } finally {
+                setIsConvertingUSD(false);
+            }
+        } else {
+            // Just toggle the flag, the useEffect will handle reloading
+            setShowUSDValues(!showUSDValues);
+        }
+    };
+
+    // Handle wallet selection (now supports multiple selection)
+    const handleWalletSelection = (walletId) => {
+        setSelectedWallets(prev => {
+            // If already selected, remove it
+            if (prev.includes(walletId)) {
+                return prev.filter(id => id !== walletId);
+            }
+            // Otherwise add it
+            return [...prev, walletId];
+        });
+    };
 
     // Set up listener for MetaMask account changes
     useEffect(() => {
@@ -129,7 +259,7 @@ export default function CreatePage() {
             // This will trigger the wallet tracking effect that rebuilds the wallet list
             if (accounts.length === 0) {
                 // User disconnected all accounts
-                setSelectedWallet(null);
+                setSelectedWallets([]);
             }
         };
 
@@ -211,20 +341,51 @@ export default function CreatePage() {
     // Handle proof submission
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!selectedWallet) return;
+        if (selectedWallets.length === 0) return;
 
         try {
-            const wallet = connectedWallets.find(w => w.id === selectedWallet);
-            if (!wallet) {
-                throw new Error('Selected wallet not found');
+            // For multi-wallet proof, we will generate a signature from the first wallet
+            // and include data about all selected wallets in the proof
+            const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+            if (!primaryWallet) {
+                throw new Error('Primary wallet not found');
             }
 
             const amountInWei = ethers.utils.parseEther(amount || '0');
             const expiryTime = getExpiryTimestamp(expiryDays);
 
-            if (wallet.type === 'evm') {
+            // Generate proof data that includes all selected wallets
+            const proofData = {
+                timestamp: Date.now(),
+                expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+                proofType: proofCategory === 'standard' ? proofType : zkProofType,
+                wallets: selectedWallets.map(id => {
+                    const wallet = connectedWallets.find(w => w.id === id);
+                    return {
+                        address: wallet.fullAddress,
+                        chain: wallet.chain,
+                        type: wallet.type
+                    };
+                }),
+                assets: assetSummary ? assetSummary.totalAssets : [],
+                totalValue: showUSDValues && assetSummary ?
+                    assetSummary.totalUSDValue :
+                    (assetSummary && assetSummary.totalAssets.length > 0 ?
+                        assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
+                currency: showUSDValues ? "USD" : "native",
+                signatures: {},
+                thresholdAmount: proofType === 'threshold' ? parseFloat(amount) : null,
+                maximumAmount: proofType === 'maximum' ? parseFloat(amount) : null,
+                isThresholdProof: proofType === 'threshold',
+                isMaximumProof: proofType === 'maximum'
+            };
+
+            console.log('Generated proof data:', proofData);
+
+            // Process based on wallet type
+            if (primaryWallet.type === 'evm') {
                 // Check if we need to switch to this MetaMask account
-                if (!address || wallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
+                if (!address || primaryWallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
                     try {
                         // Get the correct provider for MetaMask
                         let provider = window.ethereum;
@@ -251,7 +412,7 @@ export default function CreatePage() {
                         });
 
                         // Verify if the user selected the correct account
-                        if (!accounts.some(acc => acc.toLowerCase() === wallet.fullAddress.toLowerCase())) {
+                        if (!accounts.some(acc => acc.toLowerCase() === primaryWallet.fullAddress.toLowerCase())) {
                             throw new Error('Please select the wallet you want to use for creating this proof');
                         }
 
@@ -313,14 +474,14 @@ export default function CreatePage() {
                         ],
                     });
                 }
-            } else if (wallet.type === 'solana') {
+            } else if (primaryWallet.type === 'solana') {
                 // Handle Solana wallet differently
                 if (!window.solana || !window.solana.isConnected) {
                     throw new Error('Phantom wallet not connected');
                 }
 
                 // Make sure we're using the right Phantom account
-                if (window.solana.publicKey?.toString() !== wallet.fullAddress) {
+                if (window.solana.publicKey?.toString() !== primaryWallet.fullAddress) {
                     throw new Error('Please select the correct account in the Phantom wallet');
                 }
 
@@ -336,6 +497,7 @@ export default function CreatePage() {
             }
         } catch (error) {
             console.error('Error submitting proof:', error);
+            setError(`Failed to submit proof: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -375,8 +537,14 @@ export default function CreatePage() {
     // Get expiry timestamp based on selection
     const getExpiryTimestamp = (expiryOption) => {
         const now = Math.floor(Date.now() / 1000); // Current time in seconds
-        const option = EXPIRY_OPTIONS.find(opt => opt.id === expiryOption);
-        return now + (option ? option.seconds : 604800); // Default to 7 days
+
+        // Find the matching option in the array
+        const option = Array.isArray(EXPIRY_OPTIONS)
+            ? EXPIRY_OPTIONS.find(opt => opt.id === expiryOption)
+            : null;
+
+        // Use the seconds value from the option, or default to 7 days (604800 seconds)
+        return now + (option ? option.seconds : 604800);
     };
 
     // Handle custom field changes
@@ -411,364 +579,413 @@ export default function CreatePage() {
         setTxHash('');
     };
 
+    // Helper function to get currency symbol based on asset summary
+    const getCurrencySymbol = (summary) => {
+        if (!summary || !summary.chains || Object.keys(summary.chains).length === 0) {
+            return 'ETH'; // Default to ETH if no chain data
+        }
+
+        const firstChain = Object.keys(summary.chains)[0];
+
+        if (firstChain === 'polygon') return 'MATIC';
+        if (firstChain === 'solana') return 'SOL';
+        return 'ETH'; // Default for ethereum or other chains
+    };
+
     return (
-        <div className="max-w-4xl mx-auto mt-8 px-4">
+        <div className="max-w-4xl mx-auto mt-8">
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
 
-            {success ? (
-                <div className="bg-white p-8 rounded-lg shadow-md">
-                    <div className="text-center">
-                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                            <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <h2 className="text-2xl font-semibold mt-4">Proof Created Successfully!</h2>
-                        <p className="text-gray-600 mt-2">
-                            Your proof of funds has been created and is now verifiable.
-                        </p>
+            <div className="bg-white p-8 rounded-lg shadow-md">
+                <h2 className="text-xl font-semibold mb-6">Proof Creation</h2>
 
-                        <div className="mt-6 border-t border-b border-gray-200 py-4">
-                            <h3 className="text-lg font-medium mb-2">Transaction Details</h3>
-                            <div className="flex items-center justify-center">
-                                <span className="text-gray-500 text-sm font-mono break-all">
-                                    {txHash}
-                                </span>
-                                <button
-                                    onClick={() => {
-                                        const selectedWalletObj = connectedWallets.find(w => w.id === selectedWallet);
-                                        const network = selectedWalletObj?.type === 'solana' ? 'solana' : 'polygon';
-                                        let url = '';
-                                        if (network === 'solana') {
-                                            url = `https://explorer.solana.com/tx/${txHash}?cluster=devnet`;
-                                        } else {
-                                            url = `https://amoy.polygonscan.com/tx/${txHash}`;
-                                        }
-                                        window.open(url, '_blank');
-                                    }}
-                                    className="ml-2 text-blue-600 hover:text-blue-800"
-                                >
-                                    View
-                                </button>
-                            </div>
-                        </div>
+                <div className="space-y-6">
+                    {/* Wallet Selection Section */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Select Wallet for Proof
+                        </label>
 
-                        <div className="mt-6 flex justify-center space-x-4">
-                            <button
-                                onClick={handleCreateAnother}
-                                className="btn btn-primary"
-                            >
-                                Create Another Proof
-                            </button>
-                            <button
-                                onClick={() => window.location.href = '/verify'}
-                                className="btn btn-secondary"
-                            >
-                                Verify Proof
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            ) : connectedWallets.length === 0 || !userInitiatedConnection ? (
-                <div className="bg-white p-8 rounded-lg shadow-md text-center">
-                    <h2 className="text-xl font-medium mb-4">Connect Your Wallet</h2>
-                    <p className="text-gray-600 mb-6">Please connect your wallet to create a proof of funds.</p>
-                </div>
-            ) : (
-                <div className="bg-white p-8 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold mb-6">Proof Creation Form</h2>
-
-                    <div className="space-y-6">
-                        {/* Wallet Selection */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Select Wallet for Proof
-                            </label>
-                            <div className="grid grid-cols-1 gap-3">
-                                {connectedWallets.map(wallet => (
-                                    <button
+                        <div className="space-y-2">
+                            {connectedWallets.length > 0 ? (
+                                connectedWallets.map(wallet => (
+                                    <div
                                         key={wallet.id}
-                                        type="button"
-                                        onClick={() => setSelectedWallet(wallet.id)}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border flex justify-between items-center ${selectedWallet === wallet.id
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
+                                        className={`px-4 py-2 border rounded-md flex justify-between items-center cursor-pointer
+                                            ${selectedWallets.includes(wallet.id)
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                        onClick={() => handleWalletSelection(wallet.id)}
                                     >
-                                        <div className="flex items-center">
-                                            <span>{wallet.name} - {wallet.address}</span>
-                                        </div>
-                                        <span className="text-xs opacity-75">{wallet.chain}</span>
-                                    </button>
-                                ))}
-                            </div>
+                                        <div className="font-medium">{wallet.name} - {wallet.address}</div>
+                                        <div className="text-sm">{wallet.chain}</div>
+                                    </div>
+                                ))
+                            ) : userInitiatedConnection ? (
+                                <div className="text-sm text-gray-500 italic">
+                                    No wallets connected. Please connect a wallet to create a proof.
+                                </div>
+                            ) : (
+                                <div className="text-sm text-gray-500 italic">
+                                    Please connect a wallet to continue.
+                                </div>
+                            )}
                         </div>
 
-                        {/* Proof Category Selection */}
+                        {!userInitiatedConnection && (
+                            <button
+                                className="mt-3 py-2 px-4 text-sm font-medium rounded-md border bg-blue-600 text-white border-blue-600"
+                                onClick={() => {
+                                    document.getElementById('connect-wallet-button').click();
+                                }}
+                            >
+                                Connect Wallet
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Asset Summary Section */}
+                    {selectedWallets.length > 0 && (
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
+                                <div className="flex items-center">
+                                    <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
+                                    <button
+                                        onClick={handleToggleUSDConversion}
+                                        disabled={isLoadingAssets || isConvertingUSD}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full ${showUSDValues ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                        aria-checked={showUSDValues}
+                                        role="switch"
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUSDValues ? 'translate-x-6' : 'translate-x-1'}`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isLoadingAssets || isConvertingUSD ? (
+                                <div className="py-3 text-center text-sm text-gray-500">
+                                    <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Loading assets...
+                                </div>
+                            ) : assetSummary ? (
+                                <>
+                                    <div className="mb-3">
+                                        <div className="text-sm font-medium">Total Value: {showUSDValues
+                                            ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
+                                            : 'Multiple Assets'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-50 border rounded-md overflow-hidden mb-3">
+                                        <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
+                                            <div className="text-sm font-medium text-gray-700">Asset</div>
+                                            <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
+                                        </div>
+                                        {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
+                                            <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
+                                                <div className="text-sm text-gray-700">{asset.symbol}</div>
+                                                <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-700 mb-1">Chain Breakdown</div>
+                                        {Object.entries(assetSummary.chains).map(([chain, data]) => (
+                                            <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
+                                                <div className="font-medium text-sm capitalize">{chain}</div>
+                                                <div className="text-xs text-gray-700">
+                                                    Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                </div>
+                                                {Object.entries(data.tokens).length > 0 && (
+                                                    <div className="text-xs text-gray-700">
+                                                        Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
+                                                            <span key={symbol}>
+                                                                {i > 0 && ', '}
+                                                                {Number(balance).toFixed(6)} {symbol}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-sm text-gray-500 py-2">No assets found</div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Proof Category */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Proof Category
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'standard'
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                onClick={() => setProofCategory('standard')}
+                            >
+                                Standard Proofs
+                            </button>
+                            <button
+                                type="button"
+                                className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'zk'
+                                    ? 'bg-purple-600 text-white border-purple-600'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                onClick={() => setProofCategory('zk')}
+                            >
+                                Zero-Knowledge Proofs
+                            </button>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-500">
+                            {proofCategory === 'standard'
+                                ? 'Standard proofs verify funds while revealing the exact amount.'
+                                : 'Zero-knowledge proofs allow verification without revealing the actual amount.'}
+                        </p>
+                    </div>
+
+                    {/* Proof Type */}
+                    {proofCategory === 'standard' ? (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Proof Category
+                                Proof Type
                             </label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setProofCategory('standard');
-                                        setProofType('standard');
-                                    }}
-                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'standard'
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'standard'
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                         }`}
+                                    onClick={() => setProofType('standard')}
                                 >
-                                    Standard Proofs
+                                    Standard
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setProofCategory('zk');
-                                        setZkProofType('standard');
-                                    }}
-                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'zk'
-                                        ? 'bg-purple-600 text-white border-purple-600'
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'threshold'
+                                        ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                         }`}
+                                    onClick={() => setProofType('threshold')}
                                 >
-                                    Zero-Knowledge Proofs
+                                    Threshold
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'maximum'
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    onClick={() => setProofType('maximum')}
+                                >
+                                    Maximum
                                 </button>
                             </div>
                             <p className="mt-2 text-sm text-gray-500">
-                                {proofCategory === 'standard'
-                                    ? 'Standard proofs verify your funds while revealing the exact amount.'
-                                    : 'Zero-knowledge proofs allow verification without revealing the actual amount.'}
+                                {proofType === 'standard' && 'Verify that the wallet has exactly this amount'}
+                                {proofType === 'threshold' && 'Verify that the wallet has at least this amount'}
+                                {proofType === 'maximum' && 'Verify that the wallet has less than this amount'}
                             </p>
                         </div>
-
-                        {/* Proof Type Selection */}
-                        {proofCategory === 'standard' ? (
-                            <div>
-                                <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Proof Type
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setProofType('standard')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'standard'
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Standard
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setProofType('threshold')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'threshold'
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Threshold
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setProofType('maximum')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'maximum'
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Maximum
-                                    </button>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {proofType === 'standard' && 'Prove that your wallet has exactly this amount'}
-                                    {proofType === 'threshold' && 'Prove that your wallet has at least this amount'}
-                                    {proofType === 'maximum' && 'Prove that your wallet has less than this amount'}
-                                </p>
-                            </div>
-                        ) : (
-                            <div>
-                                <label htmlFor="zk-proof-type" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Zero-Knowledge Proof Type
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setZkProofType('standard')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'standard'
-                                            ? 'bg-purple-600 text-white border-purple-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        ZK Standard
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setZkProofType('threshold')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'threshold'
-                                            ? 'bg-purple-600 text-white border-purple-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        ZK Threshold
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setZkProofType('maximum')}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'maximum'
-                                            ? 'bg-purple-600 text-white border-purple-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        ZK Maximum
-                                    </button>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {zkProofType === 'standard' && 'Privately prove that your wallet has exactly this amount'}
-                                    {zkProofType === 'threshold' && 'Privately prove that your wallet has at least this amount'}
-                                    {zkProofType === 'maximum' && 'Privately prove that your wallet has less than this amount'}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Amount Input */}
+                    ) : (
                         <div>
-                            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                                Amount (MATIC)
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Zero-Knowledge Proof Type
                             </label>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    id="amount"
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                    placeholder="Enter amount"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    min="0"
-                                    step="0.001"
-                                />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                    <span className="text-gray-500 sm:text-sm">MATIC</span>
-                                </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <button
+                                    type="button"
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'standard'
+                                        ? 'bg-purple-600 text-white border-purple-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    onClick={() => setZkProofType('standard')}
+                                >
+                                    ZK Standard
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'threshold'
+                                        ? 'bg-purple-600 text-white border-purple-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    onClick={() => setZkProofType('threshold')}
+                                >
+                                    ZK Threshold
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'maximum'
+                                        ? 'bg-purple-600 text-white border-purple-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    onClick={() => setZkProofType('maximum')}
+                                >
+                                    ZK Maximum
+                                </button>
                             </div>
-                        </div>
-
-                        {/* Expiry Time Selection */}
-                        <div>
-                            <label htmlFor="expiry" className="block text-sm font-medium text-gray-700 mb-1">
-                                Proof Expiration
-                            </label>
-                            <select
-                                id="expiry"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                value={expiryDays}
-                                onChange={(e) => setExpiryDays(e.target.value)}
-                            >
-                                <option value="one_day">1 Day</option>
-                                <option value="seven_days">7 Days</option>
-                                <option value="thirty_days">30 Days</option>
-                                <option value="ninety_days">90 Days</option>
-                            </select>
-                        </div>
-
-                        {/* Signature Message */}
-                        <div>
-                            <label htmlFor="signature-template" className="block text-sm font-medium text-gray-700 mb-1">
-                                Signature Template
-                            </label>
-                            <select
-                                id="signature-template"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border mb-2"
-                                value={selectedTemplate}
-                                onChange={(e) => setSelectedTemplate(e.target.value)}
-                            >
-                                {SIGNATURE_MESSAGE_TEMPLATES.map(template => (
-                                    <option key={template.id} value={template.id}>
-                                        {template.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            {/* Custom Fields */}
-                            {getCustomFieldsFromTemplate(selectedTemplate).map(field => (
-                                <div key={field} className="mb-2">
-                                    <label htmlFor={`field-${field}`} className="block text-sm font-medium text-gray-700 mb-1">
-                                        {field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id={`field-${field}`}
-                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                        value={customFields[field] || ''}
-                                        onChange={(e) => handleCustomFieldChange(field, e.target.value)}
-                                    />
-                                </div>
-                            ))}
-
-                            <label htmlFor="signature-message" className="block text-sm font-medium text-gray-700 mb-1">
-                                Signature Message (Purpose)
-                            </label>
-                            <textarea
-                                id="signature-message"
-                                value={signatureMessage}
-                                onChange={(e) => setSignatureMessage(e.target.value)}
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border h-20"
-                                placeholder="Enter a message describing the purpose of this proof..."
-                            ></textarea>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Include a purpose for this proof to prevent reuse in other contexts.
+                            <p className="mt-2 text-sm text-gray-500">
+                                {zkProofType === 'standard' && 'Create a private proof of exactly this amount'}
+                                {zkProofType === 'threshold' && 'Create a private proof of at least this amount'}
+                                {zkProofType === 'maximum' && 'Create a private proof of less than this amount'}
                             </p>
                         </div>
+                    )}
 
-                        {/* KYC Option */}
-                        <div className="flex items-center">
+                    {/* Amount Input */}
+                    <div>
+                        <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
+                            Amount ({getCurrencySymbol(assetSummary)})
+                        </label>
+                        <div className="relative">
                             <input
-                                id="use-kyc"
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                checked={useKYC}
-                                onChange={(e) => setUseKYC(e.target.checked)}
+                                type="number"
+                                id="amount"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                placeholder="Enter amount"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                min="0"
+                                step="0.001"
                             />
-                            <label htmlFor="use-kyc" className="ml-2 block text-sm text-gray-700">
-                                Link verified identity (KYC) to this proof
-                            </label>
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span className="text-gray-500 sm:text-sm">{getCurrencySymbol(assetSummary)}</span>
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Submit Button */}
-                        <div>
+                    {/* Expiration */}
+                    <div>
+                        <label htmlFor="expiry" className="block text-sm font-medium text-gray-700 mb-1">
+                            Proof Expiration
+                        </label>
+                        <select
+                            id="expiry"
+                            value={expiryDays}
+                            onChange={(e) => setExpiryDays(e.target.value)}
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                        >
+                            {Array.isArray(EXPIRY_OPTIONS) ?
+                                EXPIRY_OPTIONS.map(option => (
+                                    <option key={option.id} value={option.id}>
+                                        {option.label}
+                                    </option>
+                                ))
+                                :
+                                // Fallback options if EXPIRY_OPTIONS is not an array
+                                [
+                                    { id: 'one_day', label: '1 Day' },
+                                    { id: 'seven_days', label: '7 Days' },
+                                    { id: 'thirty_days', label: '30 Days' },
+                                    { id: 'ninety_days', label: '90 Days' }
+                                ].map(option => (
+                                    <option key={option.id} value={option.id}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div>
+                        <button
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={isPending || amount === ''}
+                            className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isPending || amount === ''
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : proofCategory === 'standard'
+                                    ? 'bg-blue-600 hover:bg-blue-700'
+                                    : 'bg-purple-600 hover:bg-purple-700'
+                                }`}
+                        >
+                            {isPending ? 'Processing...' : 'Create Proof'}
+                        </button>
+                    </div>
+
+                    {isError && (
+                        <div className="p-4 bg-red-50 rounded-md">
+                            <p className="text-sm font-medium text-red-800">
+                                Error: {error?.message || 'Failed to create proof'}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Success Message */}
+                    {success && (
+                        <div className="p-4 bg-green-50 rounded-md">
+                            <div className="flex items-center text-green-800 font-medium mb-2">
+                                <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Proof of Funds created successfully!
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">
+                                Your proof has been submitted to the blockchain and can now be verified.
+                            </p>
+                            <div className="flex flex-wrap items-center text-sm">
+                                <span className="text-gray-600 mr-1">Transaction:</span>
+                                <a
+                                    href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 break-all hover:underline"
+                                >
+                                    {txHash}
+                                </a>
+                            </div>
                             <button
-                                type="button"
-                                onClick={handleSubmit}
-                                disabled={!amount || isPending}
-                                className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!amount || isPending
-                                    ? 'bg-gray-400 cursor-not-allowed'
-                                    : proofCategory === 'standard'
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-purple-600 hover:bg-purple-700'
-                                    }`}
+                                onClick={handleCreateAnother}
+                                className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium"
                             >
-                                {isPending ? 'Creating Proof...' : 'Create Proof'}
+                                Create Another Proof
                             </button>
                         </div>
+                    )}
+                </div>
 
-                        {/* Error Message */}
-                        {isError && (
-                            <div className="rounded-md bg-red-50 p-4 mt-4">
-                                <div className="flex">
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-red-800">Error creating proof</h3>
-                                        <div className="mt-2 text-sm text-red-700">
-                                            <p>{error?.message || 'There was an error creating your proof.'}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                {/* Information Section */}
+                <div className="mt-12 border-t pt-6">
+                    <h2 className="text-xl font-semibold mb-4">About Proof Creation</h2>
+                    <p className="text-gray-600 mb-4">
+                        This tool allows you to create a verifiable proof of funds on the Polygon blockchain
+                        without revealing your private information. You can choose between standard proofs that reveal the exact amount
+                        or zero-knowledge proofs that verify funds without revealing specific amounts.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-blue-800 mb-2">Standard Proof</h3>
+                            <p className="text-sm text-gray-600">Creates a proof that you have exactly the specified amount. Used for specific commitments or agreements.</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-blue-800 mb-2">Threshold Proof</h3>
+                            <p className="text-sm text-gray-600">Creates a proof that you have at least the specified amount. Ideal for qualification requirements.</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-blue-800 mb-2">Maximum Proof</h3>
+                            <p className="text-sm text-gray-600">Creates a proof that you have less than the specified amount. Useful for certain compliance requirements.</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-purple-800 mb-2">Zero-Knowledge Proofs</h3>
+                            <p className="text-sm text-gray-600">Private proofs that validate funds without revealing actual amounts to the blockchain.</p>
+                        </div>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 } 
