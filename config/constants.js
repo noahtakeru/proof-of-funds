@@ -18,12 +18,12 @@ export const ZK_PROOF_TYPES = {
 };
 
 // Expiry options in seconds
-export const EXPIRY_OPTIONS = {
-    ONE_DAY: 86400,
-    SEVEN_DAYS: 604800,
-    THIRTY_DAYS: 2592000,
-    NINETY_DAYS: 7776000
-};
+export const EXPIRY_OPTIONS = [
+    { id: 'one_day', label: '1 Day', seconds: 86400 },
+    { id: 'seven_days', label: '7 Days', seconds: 604800 },
+    { id: 'thirty_days', label: '30 Days', seconds: 2592000 },
+    { id: 'ninety_days', label: '90 Days', seconds: 7776000 }
+];
 
 // Legacy expiry options - will be removed in future
 export const EXPIRY_TIME_OPTIONS = {
@@ -233,3 +233,60 @@ export const ZK_VERIFIER_ABI = [
 //    "Regulatory compliance verification - {regulation}",
 //    "Custom verification"
 // ]; 
+
+// Supported blockchain networks
+export const SUPPORTED_CHAINS = {
+    ETHEREUM: {
+        name: 'Ethereum',
+        chainId: 1,
+        testnetChainId: 5, // Goerli
+        nativeSymbol: 'ETH',
+        decimals: 18,
+        blockExplorer: 'https://etherscan.io',
+        testnetBlockExplorer: 'https://goerli.etherscan.io',
+        rpcUrl: 'https://mainnet.infura.io/v3/your-infura-key',
+        testnetRpcUrl: 'https://goerli.infura.io/v3/your-infura-key'
+    },
+    POLYGON: {
+        name: 'Polygon',
+        chainId: 137,
+        testnetChainId: 80001, // Mumbai
+        nativeSymbol: 'MATIC',
+        decimals: 18,
+        blockExplorer: 'https://polygonscan.com',
+        testnetBlockExplorer: 'https://mumbai.polygonscan.com',
+        rpcUrl: 'https://polygon-rpc.com',
+        testnetRpcUrl: 'https://rpc-mumbai.maticvigil.com'
+    },
+    BINANCE: {
+        name: 'BNB Chain',
+        chainId: 56,
+        testnetChainId: 97,
+        nativeSymbol: 'BNB',
+        decimals: 18,
+        blockExplorer: 'https://bscscan.com',
+        testnetBlockExplorer: 'https://testnet.bscscan.com',
+        rpcUrl: 'https://bsc-dataseed.binance.org',
+        testnetRpcUrl: 'https://data-seed-prebsc-1-s1.binance.org:8545'
+    },
+    SOLANA: {
+        name: 'Solana',
+        clusterId: 'mainnet-beta',
+        testnetClusterId: 'devnet',
+        nativeSymbol: 'SOL',
+        decimals: 9,
+        blockExplorer: 'https://explorer.solana.com',
+        testnetBlockExplorer: 'https://explorer.solana.com/?cluster=devnet',
+        rpcUrl: 'https://api.mainnet-beta.solana.com',
+        testnetRpcUrl: 'https://api.devnet.solana.com'
+    }
+};
+
+// Price API endpoints
+export const PRICE_API = {
+    COINGECKO: 'https://api.coingecko.com/api/v3/simple/price',
+    COINMARKETCAP: 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest'
+};
+
+// Multi-chain proof data structure version
+export const PROOF_DATA_VERSION = '1.0.0'; 

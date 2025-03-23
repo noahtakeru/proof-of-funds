@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
 import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
+import { SUPPORTED_CHAINS } from '../config/constants';
 
 export default function WalletSelector({ onClose }) {
     console.log('WalletSelector component rendered');
@@ -12,7 +13,8 @@ export default function WalletSelector({ onClose }) {
         {
             id: 'metamask',
             name: 'MetaMask',
-            chain: 'Polygon/Ethereum',
+            chain: 'Multi-Chain',
+            supportedChains: ['Ethereum', 'Polygon', 'BNB Chain'],
             isInstalled: false,
             icon: (
                 <svg width="28" height="28" viewBox="0 0 35 33" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -31,6 +33,7 @@ export default function WalletSelector({ onClose }) {
             id: 'phantomMulti',
             name: 'Phantom',
             chain: 'Solana',
+            supportedChains: ['Solana'],
             isInstalled: false,
             icon: (
                 <svg width="28" height="28" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -44,12 +47,26 @@ export default function WalletSelector({ onClose }) {
                     </defs>
                 </svg>
             )
+        },
+        {
+            id: 'walletconnect',
+            name: 'WalletConnect',
+            chain: 'Multi-Chain',
+            supportedChains: ['Ethereum', 'Polygon', 'BNB Chain', 'Solana'],
+            isInstalled: true, // Always available as it's a web-based service
+            icon: (
+                <svg width="28" height="28" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M96 48C96 74.51 74.51 96 48 96C21.49 96 0 74.51 0 48C0 21.49 21.49 0 48 0C74.51 0 96 21.49 96 48Z" fill="#3396FF" />
+                    <path d="M24.42 32.5C35.1486 21.7714 52.2514 21.7714 62.98 32.5L63.8512 33.3712C64.2174 33.7374 64.2174 34.3317 63.8512 34.6979L59.3754 39.1737C59.1923 39.3568 58.8952 39.3568 58.7121 39.1737L57.5172 37.9788C50.0469 30.5085 37.3531 30.5085 29.8828 37.9788L28.5879 39.2737C28.4048 39.4568 28.1077 39.4568 27.9246 39.2737L23.4488 34.7979C23.0826 34.4317 23.0826 33.8374 23.4488 33.4712L24.42 32.5ZM70.68 40.2L74.5684 44.0884C74.9346 44.4546 74.9346 45.0489 74.5684 45.4151L54.4496 65.5339C54.0834 65.9001 53.4891 65.9001 53.1229 65.5339L39.2491 51.6601C39.1575 51.5685 39.0043 51.5685 38.9127 51.6601L25.0389 65.5339C24.6727 65.9001 24.0784 65.9001 23.7122 65.5339L3.59343 45.4151C3.22724 45.0489 3.22724 44.4546 3.59343 44.0884L7.48185 40.2C7.84804 39.8338 8.44233 39.8338 8.80852 40.2L22.6823 54.0739C22.7739 54.1655 22.9271 54.1655 23.0187 54.0739L36.8925 40.2C37.2587 39.8338 37.853 39.8338 38.2192 40.2L52.093 54.0739C52.1846 54.1655 52.3378 54.1655 52.4294 54.0739L66.3032 40.2C66.6694 39.8338 67.2637 39.8338 67.6299 40.2H70.68Z" fill="white" />
+                </svg>
+            )
         }
     ]);
     const [error, setError] = useState('');
     const [connecting, setConnecting] = useState(false);
     const [selectedWallet, setSelectedWallet] = useState(null);
     const [showMultiWalletSelector, setShowMultiWalletSelector] = useState(false);
+    const [selectedChain, setSelectedChain] = useState(null);
 
     useEffect(() => {
         // Check which wallets are installed
@@ -145,6 +162,10 @@ export default function WalletSelector({ onClose }) {
             } else if (walletId === 'phantomMulti') {
                 // Open the multi-wallet selector
                 setShowMultiWalletSelector(true);
+            } else if (walletId === 'walletconnect') {
+                // Implementation pending - would integrate WalletConnect SDK
+                setError('WalletConnect integration coming soon!');
+                setConnecting(false);
             }
         } catch (error) {
             console.error(`Error connecting to ${walletId}:`, error);
@@ -208,7 +229,7 @@ export default function WalletSelector({ onClose }) {
             <div className="mb-4 text-sm text-gray-600">
                 {!selectedWallet
                     ? 'Select a wallet to connect with'
-                    : connecting ? `Connecting to ${selectedWallet === 'metamask' ? 'MetaMask' : 'Phantom'}...` : ''}
+                    : connecting ? `Connecting to ${selectedWallet === 'metamask' ? 'MetaMask' : selectedWallet === 'phantomMulti' ? 'Phantom' : 'WalletConnect'}...` : ''}
             </div>
 
             {error && (
@@ -225,45 +246,54 @@ export default function WalletSelector({ onClose }) {
                             ? connecting && selectedWallet === wallet.id
                                 ? wallet.id === 'metamask'
                                     ? 'border-orange-300 bg-gradient-to-r from-amber-50 to-orange-50'
-                                    : 'border-indigo-300 bg-gradient-to-r from-indigo-50 to-purple-50'
+                                    : wallet.id === 'phantomMulti'
+                                        ? 'border-indigo-300 bg-gradient-to-r from-indigo-50 to-purple-50'
+                                        : 'border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50'
                                 : wallet.id === 'metamask'
                                     ? 'border-orange-200 hover:border-orange-500 hover:shadow-md cursor-pointer transition-all bg-gradient-to-r from-amber-50 to-orange-50'
-                                    : 'border-indigo-200 hover:border-indigo-500 hover:shadow-md cursor-pointer transition-all bg-gradient-to-r from-indigo-50 to-purple-50'
+                                    : wallet.id === 'phantomMulti'
+                                        ? 'border-indigo-200 hover:border-indigo-500 hover:shadow-md cursor-pointer transition-all bg-gradient-to-r from-indigo-50 to-purple-50'
+                                        : 'border-blue-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all bg-gradient-to-r from-blue-50 to-sky-50'
                             : 'border-gray-200 bg-gray-50 opacity-70'
                             }`}
                         onClick={() => wallet.isInstalled && !connecting && handleConnect(wallet.id)}
                     >
-                        <div className="flex items-center">
-                            <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center ${wallet.id === 'metamask' ? 'bg-white' : 'bg-white'}`}>
+                        <div className="flex items-center flex-1">
+                            <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-white`}>
                                 {wallet.icon}
                             </div>
-                            <div className="ml-3">
-                                <div className={`font-medium ${wallet.id === 'metamask' ? 'text-orange-900' : 'text-indigo-900'}`}>{wallet.name}</div>
-                                <div className={`text-sm ${wallet.id === 'metamask' ? 'text-orange-700' : 'text-indigo-700'}`}>{wallet.chain}</div>
+                            <div className="ml-3 flex-1">
+                                <div className={`font-medium ${wallet.id === 'metamask' ? 'text-orange-900' : wallet.id === 'phantomMulti' ? 'text-indigo-900' : 'text-blue-900'}`}>{wallet.name}</div>
+                                <div className={`text-sm ${wallet.id === 'metamask' ? 'text-orange-700' : wallet.id === 'phantomMulti' ? 'text-indigo-700' : 'text-blue-700'}`}>{wallet.chain}</div>
+                            </div>
+                            <div className="ml-3 text-xs flex flex-wrap justify-end gap-1 max-w-[120px]">
+                                {wallet.supportedChains.map((chain, idx) => (
+                                    <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{chain}</span>
+                                ))}
                             </div>
                         </div>
 
-                        <div>
+                        <div className="ml-3">
                             {wallet.isInstalled ? (
                                 connecting && selectedWallet === wallet.id ? (
-                                    <span className={`inline-block w-5 h-5 border-2 ${wallet.id === 'metamask' ? 'border-orange-500' : 'border-indigo-500'} border-t-transparent rounded-full animate-spin`}></span>
+                                    <span className={`inline-block w-5 h-5 border-2 ${wallet.id === 'metamask' ? 'border-orange-500' : wallet.id === 'phantomMulti' ? 'border-indigo-500' : 'border-blue-500'} border-t-transparent rounded-full animate-spin`}></span>
                                 ) : (
-                                    <span className={`text-sm font-medium px-3 py-1 rounded-full ${wallet.id === 'metamask' ? 'text-white bg-gradient-to-r from-orange-500 to-amber-500' : 'text-white bg-gradient-to-r from-indigo-600 to-purple-600'}`}>Connect</span>
+                                    <button className={`px-3 py-1 rounded-full text-xs ${wallet.id === 'metamask' ? 'bg-orange-100 text-orange-800' : wallet.id === 'phantomMulti' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                                        Connect
+                                    </button>
                                 )
                             ) : (
-                                <a
-                                    href={wallet.id === 'metamask' ? 'https://metamask.io/download/' : 'https://phantom.app/download'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`text-sm px-3 py-1 rounded-full ${wallet.id === 'metamask' ? 'text-orange-800 hover:text-orange-900 underline' : 'text-indigo-800 hover:text-indigo-900 underline'}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
+                                <button className="px-3 py-1 rounded-full text-xs bg-gray-200 text-gray-600 cursor-not-allowed">
                                     Install
-                                </a>
+                                </button>
                             )}
                         </div>
                     </div>
                 ))}
+            </div>
+
+            <div className="mt-6 text-center text-sm text-gray-500">
+                <p>By connecting a wallet, you agree to our <a href="#" className="text-blue-600 hover:underline">Terms of Service</a> and acknowledge that you have read and understand our <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>.</p>
             </div>
         </div>
     );
