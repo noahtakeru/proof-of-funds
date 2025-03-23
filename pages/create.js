@@ -66,8 +66,15 @@ export default function CreatePage() {
     const [assetSummary, setAssetSummary] = useState(null);
     const [isLoadingAssets, setIsLoadingAssets] = useState(false);
     const [assetError, setAssetError] = useState('');
-    const [showUSDValues, setShowUSDValues] = useState(false);
+    const [showUSDValues, setShowUSDValues] = useState(true);
     const [isConvertingUSD, setIsConvertingUSD] = useState(false);
+
+    // For asset summary expansion state
+    const [isAssetSummaryExpanded, setIsAssetSummaryExpanded] = useState(true);
+
+    // For amount input type selection
+    const [amountInputType, setAmountInputType] = useState('usd'); // 'usd' or 'tokens'
+    const [selectedTokens, setSelectedTokens] = useState([]); // Array of {token, amount}
 
     const { address, isConnected } = useAccount();
 
@@ -159,7 +166,23 @@ export default function CreatePage() {
 
     useEffect(() => {
         showUSDValuesRef.current = showUSDValues;
-    }, [showUSDValues]);
+        // If showUSDValues is true but we already have assets loaded without USD values,
+        // convert them to USD
+        if (showUSDValues && assetSummary && !assetSummary.convertedAssets) {
+            (async () => {
+                try {
+                    setIsConvertingUSD(true);
+                    const summaryWithUSD = await convertAssetsToUSD(assetSummary);
+                    setAssetSummary(summaryWithUSD);
+                } catch (error) {
+                    console.error('Error converting to USD:', error);
+                    setAssetError(`Failed to convert to USD: ${error.message || 'Unknown error'}`);
+                } finally {
+                    setIsConvertingUSD(false);
+                }
+            })();
+        }
+    }, [showUSDValues, assetSummary]);
 
     // This effect will handle asset loading
     useEffect(() => {
@@ -338,12 +361,74 @@ export default function CreatePage() {
         functionName: 'verifyAndStoreProof',
     });
 
-    // Handle proof submission
+    // Handle token selection for multi-token input
+    const handleTokenSelection = (token) => {
+        setSelectedTokens(prev => {
+            // Check if token is already selected
+            const existingToken = prev.find(t => t.symbol === token.symbol && t.chain === token.chain);
+            if (existingToken) {
+                // If already selected, remove it
+                return prev.filter(t => t.symbol !== token.symbol || t.chain !== token.chain);
+            }
+            // Otherwise add it with empty amount
+            return [...prev, { ...token, amount: '' }];
+        });
+    };
+
+    // Handle token amount change
+    const handleTokenAmountChange = (symbol, chain, value) => {
+        setSelectedTokens(prev =>
+            prev.map(token =>
+                (token.symbol === symbol && token.chain === chain)
+                    ? { ...token, amount: value }
+                    : token
+            )
+        );
+    };
+
+    // Calculate total USD value from selected tokens
+    const calculateTotalUsdValue = () => {
+        if (!assetSummary || !assetSummary.convertedAssets) return 0;
+
+        return selectedTokens.reduce((total, token) => {
+            // Find the token in convertedAssets to get USD rate
+            const assetInfo = assetSummary.convertedAssets.find(
+                a => a.symbol === token.symbol && a.chain === token.chain
+            );
+
+            if (!assetInfo || !token.amount) return total;
+
+            // Calculate USD value based on rate
+            const usdRate = assetInfo.usdRate || 0;
+            return total + (parseFloat(token.amount) * usdRate);
+        }, 0);
+    };
+
+    // Handle submission with both USD and token amounts
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (selectedWallets.length === 0) return;
 
         try {
+            // Prepare the amount value based on input type
+            let finalAmount = amount;
+            let tokenDetails = [];
+
+            if (amountInputType === 'tokens') {
+                // Calculate total USD value if using token inputs
+                finalAmount = calculateTotalUsdValue().toString();
+                tokenDetails = selectedTokens.map(token => ({
+                    symbol: token.symbol,
+                    chain: token.chain,
+                    amount: token.amount,
+                    usdValue: token.amount * (
+                        assetSummary?.convertedAssets?.find(
+                            a => a.symbol === token.symbol && a.chain === token.chain
+                        )?.usdRate || 0
+                    )
+                }));
+            }
+
             // For multi-wallet proof, we will generate a signature from the first wallet
             // and include data about all selected wallets in the proof
             const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
@@ -351,10 +436,10 @@ export default function CreatePage() {
                 throw new Error('Primary wallet not found');
             }
 
-            const amountInWei = ethers.utils.parseEther(amount || '0');
+            const amountInWei = ethers.utils.parseEther(finalAmount || '0');
             const expiryTime = getExpiryTimestamp(expiryDays);
 
-            // Generate proof data that includes all selected wallets
+            // Generate proof data that includes all selected wallets and token details if applicable
             const proofData = {
                 timestamp: Date.now(),
                 expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
@@ -372,10 +457,11 @@ export default function CreatePage() {
                     assetSummary.totalUSDValue :
                     (assetSummary && assetSummary.totalAssets.length > 0 ?
                         assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
-                currency: showUSDValues ? "USD" : "native",
+                currency: amountInputType === 'usd' ? "USD" : "tokens",
+                tokenDetails: tokenDetails,
                 signatures: {},
-                thresholdAmount: proofType === 'threshold' ? parseFloat(amount) : null,
-                maximumAmount: proofType === 'maximum' ? parseFloat(amount) : null,
+                thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+                maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
                 isThresholdProof: proofType === 'threshold',
                 isMaximumProof: proofType === 'maximum'
             };
@@ -648,7 +734,24 @@ export default function CreatePage() {
                     {selectedWallets.length > 0 && (
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
+                                <div className="flex items-center">
+                                    <button
+                                        onClick={() => setIsAssetSummaryExpanded(!isAssetSummaryExpanded)}
+                                        className="mr-2 text-gray-500 hover:text-gray-700"
+                                        aria-expanded={isAssetSummaryExpanded}
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className={`h-5 w-5 transition-transform ${isAssetSummaryExpanded ? 'transform rotate-0' : 'transform rotate-180'}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
+                                </div>
                                 <div className="flex items-center">
                                     <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
                                     <button
@@ -665,59 +768,63 @@ export default function CreatePage() {
                                 </div>
                             </div>
 
-                            {isLoadingAssets || isConvertingUSD ? (
-                                <div className="py-3 text-center text-sm text-gray-500">
-                                    <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Loading assets...
-                                </div>
-                            ) : assetSummary ? (
+                            {isAssetSummaryExpanded && (
                                 <>
-                                    <div className="mb-3">
-                                        <div className="text-sm font-medium">Total Value: {showUSDValues
-                                            ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
-                                            : 'Multiple Assets'}
+                                    {isLoadingAssets || isConvertingUSD ? (
+                                        <div className="py-3 text-center text-sm text-gray-500">
+                                            <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Loading assets...
                                         </div>
-                                    </div>
-                                    <div className="bg-gray-50 border rounded-md overflow-hidden mb-3">
-                                        <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
-                                            <div className="text-sm font-medium text-gray-700">Asset</div>
-                                            <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
-                                        </div>
-                                        {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
-                                            <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
-                                                <div className="text-sm text-gray-700">{asset.symbol}</div>
-                                                <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-700 mb-1">Chain Breakdown</div>
-                                        {Object.entries(assetSummary.chains).map(([chain, data]) => (
-                                            <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
-                                                <div className="font-medium text-sm capitalize">{chain}</div>
-                                                <div className="text-xs text-gray-700">
-                                                    Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                    ) : assetSummary ? (
+                                        <>
+                                            <div className="mb-3">
+                                                <div className="text-sm font-medium">Total Value: {showUSDValues
+                                                    ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
+                                                    : 'Multiple Assets'}
                                                 </div>
-                                                {Object.entries(data.tokens).length > 0 && (
-                                                    <div className="text-xs text-gray-700">
-                                                        Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
-                                                            <span key={symbol}>
-                                                                {i > 0 && ', '}
-                                                                {Number(balance).toFixed(6)} {symbol}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
-                                        ))}
-                                    </div>
+                                            <div className="bg-gray-50 border rounded-md overflow-hidden mb-3">
+                                                <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
+                                                    <div className="text-sm font-medium text-gray-700">Asset</div>
+                                                    <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
+                                                </div>
+                                                {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
+                                                    <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
+                                                        <div className="text-sm text-gray-700">{asset.symbol}</div>
+                                                        <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-700 mb-1">Chain Breakdown</div>
+                                                {Object.entries(assetSummary.chains).map(([chain, data]) => (
+                                                    <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
+                                                        <div className="font-medium text-sm capitalize">{chain}</div>
+                                                        <div className="text-xs text-gray-700">
+                                                            Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                        </div>
+                                                        {Object.entries(data.tokens).length > 0 && (
+                                                            <div className="text-xs text-gray-700">
+                                                                Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
+                                                                    <span key={symbol}>
+                                                                        {i > 0 && ', '}
+                                                                        {Number(balance).toFixed(6)} {symbol}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-sm text-gray-500 py-2">No assets found</div>
+                                    )}
                                 </>
-                            ) : (
-                                <div className="text-sm text-gray-500 py-2">No assets found</div>
                             )}
                         </div>
                     )}
@@ -847,24 +954,119 @@ export default function CreatePage() {
 
                     {/* Amount Input */}
                     <div>
-                        <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                            Amount ({getCurrencySymbol(assetSummary)})
-                        </label>
-                        <div className="relative">
-                            <input
-                                type="number"
-                                id="amount"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                placeholder="Enter amount"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                min="0"
-                                step="0.001"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                <span className="text-gray-500 sm:text-sm">{getCurrencySymbol(assetSummary)}</span>
+                        <div className="flex justify-between items-center mb-2">
+                            <label htmlFor="amount-type" className="block text-sm font-medium text-gray-700">
+                                Amount Type
+                            </label>
+                            <div className="flex items-center">
+                                <button
+                                    onClick={() => setAmountInputType('usd')}
+                                    className={`mr-2 py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'usd'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    USD Value
+                                </button>
+                                <button
+                                    onClick={() => setAmountInputType('tokens')}
+                                    className={`py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'tokens'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    Token Amounts
+                                </button>
                             </div>
                         </div>
+
+                        {amountInputType === 'usd' ? (
+                            // USD Amount Input
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    id="amount"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                    placeholder="Enter USD amount"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                />
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    <span className="text-gray-500 sm:text-sm">USD</span>
+                                </div>
+                            </div>
+                        ) : (
+                            // Token Amounts Input
+                            <div className="space-y-3">
+                                {assetSummary && assetSummary.convertedAssets ? (
+                                    <>
+                                        <div className="text-xs text-gray-500 mb-2">
+                                            Select tokens and specify amounts to include in your proof
+                                        </div>
+
+                                        {/* Token selector */}
+                                        <div className="bg-gray-50 p-3 rounded-md border">
+                                            <div className="text-sm font-medium mb-2">Available Tokens</div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {assetSummary.convertedAssets.map((asset, idx) => (
+                                                    <button
+                                                        key={`${asset.chain}-${asset.symbol}-${idx}`}
+                                                        onClick={() => handleTokenSelection(asset)}
+                                                        className={`px-2 py-1 text-xs rounded-md border flex justify-between items-center ${selectedTokens.some(t => t.symbol === asset.symbol && t.chain === asset.chain)
+                                                                ? 'bg-blue-100 border-blue-300'
+                                                                : 'bg-white border-gray-200'
+                                                            }`}
+                                                    >
+                                                        <span>{asset.symbol}</span>
+                                                        <span className="text-gray-500 text-xs">{asset.chain}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Selected tokens and amounts */}
+                                        {selectedTokens.length > 0 && (
+                                            <div className="bg-white p-3 rounded-md border">
+                                                <div className="text-sm font-medium mb-2">Selected Tokens</div>
+                                                <div className="space-y-2">
+                                                    {selectedTokens.map((token, idx) => (
+                                                        <div key={idx} className="flex items-center space-x-2">
+                                                            <input
+                                                                type="number"
+                                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-xs p-1 border"
+                                                                placeholder={`Amount of ${token.symbol}`}
+                                                                value={token.amount}
+                                                                onChange={(e) => handleTokenAmountChange(token.symbol, token.chain, e.target.value)}
+                                                                min="0"
+                                                                step="0.000001"
+                                                            />
+                                                            <div className="text-sm whitespace-nowrap">{token.symbol} ({token.chain})</div>
+                                                            <button
+                                                                onClick={() => handleTokenSelection(token)}
+                                                                className="text-red-500 hover:text-red-700"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="text-right text-sm font-medium mt-2">
+                                                    Approx. USD Value: ${calculateTotalUsdValue().toFixed(2)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-gray-500 italic">
+                                        Connect wallets and load assets to select tokens
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Expiration */}
