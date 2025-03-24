@@ -6,6 +6,11 @@
     --foreground-rgb: 0, 0, 0;
     --background-start-rgb: 247, 249, 253;
     --background-end-rgb: 255, 255, 255;
+    --primary-color: #0D9488;
+    --primary-hover: #0F766E;
+    --primary-light: #E6FFFA;
+    --zk-accent: #F6CA53;
+    --zk-accent-dark: #E5B93E;
 }
 
 body {
@@ -44,14 +49,14 @@ body {
 }
 
 .btn-primary {
-    background-color: #8B5CF6;
+    background-color: var(--primary-color);
     color: white;
-    border: 1px solid #8B5CF6;
+    border: 1px solid var(--primary-color);
 }
 
 .btn-primary:hover {
-    background-color: #7C3AED;
-    border-color: #7C3AED;
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
 }
 
 .btn-secondary {
@@ -68,6 +73,42 @@ body {
 .btn-disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.btn-zk {
+    background-color: var(--zk-accent);
+    color: #000;
+    border: 1px solid var(--zk-accent);
+    font-weight: 600;
+}
+
+.btn-zk:hover {
+    background-color: var(--zk-accent-dark);
+    border-color: var(--zk-accent-dark);
+}
+
+.text-zk {
+    color: var(--zk-accent-dark);
+    font-weight: 600;
+}
+
+.bg-zk-light {
+    background-color: rgba(246, 202, 83, 0.1);
+}
+
+/* Logo animation */
+.logo-pop {
+    transition: transform 0.3s ease;
+}
+
+.logo-pop:hover {
+    transform: scale(1.05);
+}
+
+/* Active nav item */
+.nav-link-active {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
 }
 
 /* Modal Styles */
@@ -110,4 +151,68 @@ body {
 .bg-white.rounded-lg.shadow-xl {
     position: relative;
     z-index: 10000 !important;
+}
+
+/* Animation classes */
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(13, 148, 136, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0);
+    }
+}
+
+.pulse-glow {
+    animation: pulse-glow 2s infinite;
+}
+
+/* Carousel styles */
+.carousel {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.carousel-inner {
+    display: flex;
+    transition: transform 0.5s ease;
+}
+
+.carousel-item {
+    flex: 0 0 100%;
+}
+
+/* Feature card */
+.feature-card {
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
 }

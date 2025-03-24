@@ -149,7 +149,6 @@ export default function ConnectWallet() {
                     ...prev,
                     [walletId]: false
                 }));
-                setShowWalletMenu(false);
             }, 300);
         } catch (error) {
             console.error('Error disconnecting wallet:', error);
@@ -192,6 +191,17 @@ export default function ConnectWallet() {
             modalVisible: !!document.querySelector('.wallet-modal-container')
         });
     }, [showWalletSelector, connectedWallets.length, buttonClicked]);
+
+    // Update the useEffect hook that monitors connected wallets
+    useEffect(() => {
+        // Close the wallet menu if there are no connected wallets left
+        if (showWalletMenu && connectedWallets.length === 0) {
+            // Close the menu after a short delay to show the empty state
+            setTimeout(() => {
+                setShowWalletMenu(false);
+            }, 1500);
+        }
+    }, [connectedWallets.length, showWalletMenu]);
 
     // Render the WalletSelector modal - separate from conditional rendering
     const renderWalletSelector = () => {
@@ -245,24 +255,31 @@ export default function ConnectWallet() {
                         </div>
 
                         <div className="max-h-80 overflow-y-auto py-1">
-                            {connectedWallets.map(wallet => (
-                                <div
-                                    key={wallet.id}
-                                    className="px-4 py-2 hover:bg-gray-50 flex justify-between items-center"
-                                >
-                                    <div>
-                                        <div className="text-sm font-medium">{wallet.name}</div>
-                                        <div className="text-xs text-gray-500">{wallet.address}</div>
-                                    </div>
-                                    <button
-                                        onClick={() => handleDisconnect(wallet.id)}
-                                        disabled={disconnectingWallets[wallet.id]}
-                                        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                            {connectedWallets.length > 0 ? (
+                                connectedWallets.map(wallet => (
+                                    <div
+                                        key={wallet.id}
+                                        className="px-4 py-2 hover:bg-gray-50 flex justify-between items-center"
                                     >
-                                        {disconnectingWallets[wallet.id] ? 'Disconnecting...' : 'Disconnect'}
-                                    </button>
+                                        <div>
+                                            <div className="text-sm font-medium">{wallet.name}</div>
+                                            <div className="text-xs text-gray-500">{wallet.address}</div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDisconnect(wallet.id)}
+                                            disabled={disconnectingWallets[wallet.id]}
+                                            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                                        >
+                                            {disconnectingWallets[wallet.id] ? 'Disconnecting...' : 'Disconnect'}
+                                        </button>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="px-4 py-6 text-center">
+                                    <div className="text-sm text-gray-500 mb-2">No wallets connected</div>
+                                    <div className="text-xs text-gray-400">Menu will close automatically...</div>
                                 </div>
-                            ))}
+                            )}
                         </div>
 
                         <div className="border-t border-gray-200 px-4 py-2">
