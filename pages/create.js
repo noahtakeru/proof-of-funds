@@ -66,8 +66,22 @@ export default function CreatePage() {
     const [assetSummary, setAssetSummary] = useState(null);
     const [isLoadingAssets, setIsLoadingAssets] = useState(false);
     const [assetError, setAssetError] = useState('');
-    const [showUSDValues, setShowUSDValues] = useState(false);
+    const [showUSDValues, setShowUSDValues] = useState(true);
     const [isConvertingUSD, setIsConvertingUSD] = useState(false);
+
+    // For asset summary expansion state
+    const [isAssetSummaryExpanded, setIsAssetSummaryExpanded] = useState(true);
+
+    // For amount input type selection
+    const [amountInputType, setAmountInputType] = useState('usd'); // 'usd' or 'tokens'
+    const [selectedTokens, setSelectedTokens] = useState([]); // Array of {token, amount}
+
+    // For wallet signatures tracking
+    const [walletSignatures, setWalletSignatures] = useState({});
+    const [isSigningWallet, setIsSigningWallet] = useState(false);
+    const [currentSigningWallet, setCurrentSigningWallet] = useState(null);
+    const [readyToSubmit, setReadyToSubmit] = useState(false);
+    const [proofData, setProofData] = useState(null);
 
     const { address, isConnected } = useAccount();
 
@@ -159,7 +173,23 @@ export default function CreatePage() {
 
     useEffect(() => {
         showUSDValuesRef.current = showUSDValues;
-    }, [showUSDValues]);
+        // If showUSDValues is true but we already have assets loaded without USD values,
+        // convert them to USD
+        if (showUSDValues && assetSummary && !assetSummary.convertedAssets) {
+            (async () => {
+                try {
+                    setIsConvertingUSD(true);
+                    const summaryWithUSD = await convertAssetsToUSD(assetSummary);
+                    setAssetSummary(summaryWithUSD);
+                } catch (error) {
+                    console.error('Error converting to USD:', error);
+                    setAssetError(`Failed to convert to USD: ${error.message || 'Unknown error'}`);
+                } finally {
+                    setIsConvertingUSD(false);
+                }
+            })();
+        }
+    }, [showUSDValues, assetSummary]);
 
     // This effect will handle asset loading
     useEffect(() => {
@@ -338,167 +368,437 @@ export default function CreatePage() {
         functionName: 'verifyAndStoreProof',
     });
 
-    // Handle proof submission
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (selectedWallets.length === 0) return;
+    // Handle token selection for multi-token input
+    const handleTokenSelection = (token) => {
+        setSelectedTokens(prev => {
+            // Check if token is already selected
+            const existingToken = prev.find(t => t.symbol === token.symbol && t.chain === token.chain);
+            if (existingToken) {
+                // If already selected, remove it
+                return prev.filter(t => t.symbol !== token.symbol || t.chain !== token.chain);
+            }
+            // Otherwise add it with empty amount
+            return [...prev, { ...token, amount: '' }];
+        });
+    };
+
+    // Handle token amount change
+    const handleTokenAmountChange = (symbol, chain, value) => {
+        setSelectedTokens(prev =>
+            prev.map(token =>
+                (token.symbol === symbol && token.chain === chain)
+                    ? { ...token, amount: value }
+                    : token
+            )
+        );
+    };
+
+    // Calculate total USD value from selected tokens
+    const calculateTotalUsdValue = () => {
+        if (!assetSummary || !assetSummary.convertedAssets) return 0;
+
+        return selectedTokens.reduce((total, token) => {
+            // Find the token in convertedAssets to get USD rate
+            const assetInfo = assetSummary.convertedAssets.find(
+                a => a.symbol === token.symbol && a.chain === token.chain
+            );
+
+            if (!assetInfo || !token.amount) return total;
+
+            // Calculate USD value based on rate
+            const usdRate = assetInfo.usdRate || 0;
+            return total + (parseFloat(token.amount) * usdRate);
+        }, 0);
+    };
+
+    // Handle signing for a specific wallet
+    const handleSignWallet = async (walletId) => {
+        try {
+            setIsSigningWallet(true);
+            setCurrentSigningWallet(walletId);
+
+            const wallet = connectedWallets.find(w => w.id === walletId);
+            if (!wallet) {
+                throw new Error(`Wallet with ID ${walletId} not found`);
+            }
+
+            // Prepare amount value based on input type
+            let finalAmount = amount;
+            if (amountInputType === 'tokens') {
+                finalAmount = calculateTotalUsdValue().toString();
+            }
+
+            // Create signature message for this wallet
+            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${finalAmount} ${amountInputType === 'usd' ? 'USD' : 'worth of tokens'} for proof of funds.`;
+
+            let signature = null;
+
+            // Handle signature based on wallet type
+            if (wallet.type === 'evm') {
+                // For EVM wallets (MetaMask, etc.)
+                try {
+                    // Get the correct provider
+                    let provider = window.ethereum;
+                    if (window.ethereum?.providers) {
+                        const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+                        if (metamaskProvider) {
+                            provider = metamaskProvider;
+                        }
+                    }
+
+                    if (!provider) {
+                        throw new Error('MetaMask extension not detected. Please install MetaMask to continue.');
+                    }
+
+                    // ALWAYS show the account selection popup
+                    console.log("Opening MetaMask account selection popup...");
+
+                    // Request account permissions - this will ALWAYS show the account selection popup
+                    await provider.request({
+                        method: 'wallet_requestPermissions',
+                        params: [{ eth_accounts: {} }]
+                    });
+
+                    // Get the accounts the user selected
+                    const selectedAccounts = await provider.request({
+                        method: 'eth_accounts'
+                    });
+
+                    // Normalize addresses for comparison (lowercase)
+                    const targetAddress = wallet.fullAddress.toLowerCase();
+                    const selectedAccount = selectedAccounts.length > 0 ? selectedAccounts[0].toLowerCase() : null;
+
+                    // Verify the user selected the correct account - only AFTER they've made their selection
+                    if (!selectedAccount) {
+                        throw new Error('No account was selected in MetaMask. Please try again and select an account.');
+                    }
+
+                    if (selectedAccount !== targetAddress) {
+                        throw new Error(`You selected a different account than required. Please select account ${wallet.fullAddress} in MetaMask.`);
+                    }
+
+                    // Get the signer from ethers
+                    const ethersProvider = new ethers.providers.Web3Provider(provider);
+                    const signer = ethersProvider.getSigner();
+
+                    // Double-check the signer address matches our target
+                    const signerAddress = await signer.getAddress();
+                    if (signerAddress.toLowerCase() !== targetAddress) {
+                        throw new Error(`The connected account doesn't match the wallet you're trying to sign with. Please select account ${wallet.fullAddress} in MetaMask.`);
+                    }
+
+                    // Sign the message
+                    signature = await signer.signMessage(walletSpecificMessage);
+                } catch (error) {
+                    if (error.code === 4001) {
+                        // User rejected the request
+                        throw new Error('You declined the signature request. Please approve the request to continue.');
+                    }
+                    throw new Error(`${error.message}`);
+                }
+            } else if (wallet.type === 'solana') {
+                // For Solana wallets (Phantom)
+                try {
+                    // Check if phantom exists
+                    if (!window.phantom || !window.phantom.solana) {
+                        throw new Error('Phantom wallet extension not detected. Please install Phantom wallet to continue.');
+                    }
+
+                    // Get the phantom provider
+                    const phantomProvider = window.phantom?.solana;
+
+                    if (!phantomProvider || !phantomProvider.isPhantom) {
+                        throw new Error('Phantom wallet not available. Please install Phantom wallet to continue.');
+                    }
+
+                    console.log("Opening Phantom popup without any pre-validation");
+
+                    // Always disconnect first to force the popup to appear
+                    try {
+                        if (phantomProvider.isConnected) {
+                            console.log("Disconnecting from Phantom to ensure UI shows up");
+                            await phantomProvider.disconnect();
+                            // Short delay to ensure disconnect completes
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                        }
+                    } catch (disconnectError) {
+                        console.log("Error disconnecting, but continuing anyway:", disconnectError);
+                    }
+
+                    // Request connection - this opens the Phantom popup
+                    console.log("Requesting Phantom wallet connection with popup...");
+                    const response = await phantomProvider.connect({ onlyIfTrusted: false });
+
+                    // Get the wallet address they selected
+                    const connectedPublicKey = response.publicKey.toString();
+                    console.log("Connected to Phantom wallet:", connectedPublicKey);
+
+                    // Now try to sign the message
+                    console.log("Requesting signature from Phantom...");
+                    const encodedMessage = new TextEncoder().encode(walletSpecificMessage);
+                    const signatureData = await phantomProvider.signMessage(encodedMessage, "utf8");
+                    signature = Buffer.from(signatureData.signature).toString('hex');
+                    console.log("Message signed successfully");
+
+                    // Only NOW after successful signing do we validate the wallet address
+                    if (connectedPublicKey !== wallet.fullAddress) {
+                        console.error(`Signed with wrong account. Expected: ${wallet.fullAddress}, Got: ${connectedPublicKey}`);
+                        throw new Error(`You signed with a different account than required. Please select account ${wallet.fullAddress} in Phantom.`);
+                    }
+
+                } catch (error) {
+                    console.error("Phantom error:", error);
+                    if (error.code === 4001) {
+                        throw new Error('You declined the signature request. Please approve the request to continue.');
+                    } else {
+                        throw new Error(error.message || 'Error with Phantom wallet');
+                    }
+                }
+            }
+
+            // Update signatures state
+            if (signature) {
+                setWalletSignatures(prev => ({
+                    ...prev,
+                    [walletId]: {
+                        signature,
+                        message: walletSpecificMessage,
+                        timestamp: Date.now()
+                    }
+                }));
+            }
+        } catch (error) {
+            console.error('Error signing with wallet:', error);
+            alert(`Unable to sign: ${error.message}`);
+        } finally {
+            setIsSigningWallet(false);
+            setCurrentSigningWallet(null);
+        }
+    };
+
+    // Prepare proof data and signatures
+    const prepareProofSubmission = () => {
+        // Prepare amount value based on input type
+        let finalAmount = amount;
+        let tokenDetails = [];
+
+        if (amountInputType === 'tokens') {
+            finalAmount = calculateTotalUsdValue().toString();
+            tokenDetails = selectedTokens.map(token => ({
+                symbol: token.symbol,
+                chain: token.chain,
+                amount: token.amount,
+                usdValue: token.amount * (
+                    assetSummary?.convertedAssets?.find(
+                        a => a.symbol === token.symbol && a.chain === token.chain
+                    )?.usdRate || 0
+                )
+            }));
+        }
+
+        const expiryTime = getExpiryTimestamp(expiryDays);
+
+        // Generate proof data that includes all selected wallets and token details if applicable
+        const proofDataObj = {
+            timestamp: Date.now(),
+            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+            proofType: proofCategory === 'standard' ? proofType : zkProofType,
+            wallets: selectedWallets.map(id => {
+                const wallet = connectedWallets.find(w => w.id === id);
+                return {
+                    id: wallet.id,
+                    address: wallet.fullAddress,
+                    chain: wallet.chain,
+                    type: wallet.type
+                };
+            }),
+            assets: assetSummary ? assetSummary.totalAssets : [],
+            totalValue: showUSDValues && assetSummary ?
+                assetSummary.totalUSDValue :
+                (assetSummary && assetSummary.totalAssets.length > 0 ?
+                    assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
+            currency: amountInputType === 'usd' ? "USD" : "tokens",
+            tokenDetails: tokenDetails,
+            signatures: walletSignatures,
+            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
+            isThresholdProof: proofType === 'threshold',
+            isMaximumProof: proofType === 'maximum'
+        };
+
+        setProofData(proofDataObj);
+        setReadyToSubmit(true);
+    };
+
+    // Submit final proof after all signatures are collected
+    const submitFinalProof = async () => {
+        if (!proofData || !readyToSubmit) return;
 
         try {
-            // For multi-wallet proof, we will generate a signature from the first wallet
-            // and include data about all selected wallets in the proof
             const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
             if (!primaryWallet) {
                 throw new Error('Primary wallet not found');
             }
 
-            const amountInWei = ethers.utils.parseEther(amount || '0');
+            // For demo purposes, we'll just submit the proof with the primary wallet
+            // In a real app, you might merge all signatures or submit different proofs
+
+            // Convert amount to Wei for blockchain submission
+            const amountInWei = ethers.utils.parseEther(
+                amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
+            );
+
             const expiryTime = getExpiryTimestamp(expiryDays);
 
-            // Generate proof data that includes all selected wallets
-            const proofData = {
-                timestamp: Date.now(),
-                expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
-                proofType: proofCategory === 'standard' ? proofType : zkProofType,
-                wallets: selectedWallets.map(id => {
-                    const wallet = connectedWallets.find(w => w.id === id);
-                    return {
-                        address: wallet.fullAddress,
-                        chain: wallet.chain,
-                        type: wallet.type
-                    };
-                }),
-                assets: assetSummary ? assetSummary.totalAssets : [],
-                totalValue: showUSDValues && assetSummary ?
-                    assetSummary.totalUSDValue :
-                    (assetSummary && assetSummary.totalAssets.length > 0 ?
-                        assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
-                currency: showUSDValues ? "USD" : "native",
-                signatures: {},
-                thresholdAmount: proofType === 'threshold' ? parseFloat(amount) : null,
-                maximumAmount: proofType === 'maximum' ? parseFloat(amount) : null,
-                isThresholdProof: proofType === 'threshold',
-                isMaximumProof: proofType === 'maximum'
-            };
-
-            console.log('Generated proof data:', proofData);
-
-            // Process based on wallet type
-            if (primaryWallet.type === 'evm') {
-                // Check if we need to switch to this MetaMask account
-                if (!address || primaryWallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
-                    try {
-                        // Get the correct provider for MetaMask
-                        let provider = window.ethereum;
-
-                        // If window.ethereum has providers (multiple wallets installed)
-                        if (window.ethereum?.providers) {
-                            // Find the MetaMask provider explicitly
-                            const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
-                            if (metamaskProvider) {
-                                provider = metamaskProvider;
-                                console.log('Using explicit MetaMask provider in create.js');
-                            }
-                        }
-
-                        // Show the account selector UI to let the user switch accounts
-                        await provider.request({
-                            method: 'wallet_requestPermissions',
-                            params: [{ eth_accounts: {} }]
-                        });
-
-                        // Get the currently selected account after user interaction
-                        const accounts = await provider.request({
-                            method: 'eth_requestAccounts'
-                        });
-
-                        // Verify if the user selected the correct account
-                        if (!accounts.some(acc => acc.toLowerCase() === primaryWallet.fullAddress.toLowerCase())) {
-                            throw new Error('Please select the wallet you want to use for creating this proof');
-                        }
-
-                        // Switch to the correct chain if needed
-                        await provider.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x13882' }], // Polygon Amoy testnet (80002 in decimal)
-                        });
-                    } catch (switchError) {
-                        // Handle errors from chain or account switch
-                        throw new Error(`Error switching to the selected wallet: ${switchError.message}`);
-                    }
-                }
-
-                // Submit Ethereum proof
-                if (proofCategory === 'standard') {
-                    if (proofType === 'standard') {
-                        writeStandardProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    } else if (proofType === 'threshold') {
-                        writeThresholdProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    } else if (proofType === 'maximum') {
-                        writeMaximumProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    }
-                } else if (proofCategory === 'zk') {
-                    // Zero-knowledge proofs
-                    // In a real implementation, this would generate a ZK proof first
-                    // For now, we'll mock the proof and public signals
-                    const mockProof = ethers.utils.defaultAbiCoder.encode(
-                        ['uint256[]'],
-                        [[1, 2, 3, 4, 5, 6, 7, 8]]
-                    );
-
-                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                        ['uint256[]'],
-                        [[amountInWei.toString()]]
-                    );
-
-                    let zkProofTypeValue;
-                    if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
-                    else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
-                    else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
-
-                    const mockSignature = ethers.utils.toUtf8Bytes("mock-signature"); // In a real app, this would be a real signature
-
-                    writeZKProof({
-                        args: [
-                            mockProof,
-                            mockPublicSignals,
-                            expiryTime,
-                            zkProofTypeValue,
-                            signatureMessage,
-                            mockSignature
-                        ],
+            if (proofCategory === 'standard') {
+                if (proofType === 'standard') {
+                    writeStandardProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
+                    });
+                } else if (proofType === 'threshold') {
+                    writeThresholdProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
+                    });
+                } else if (proofType === 'maximum') {
+                    writeMaximumProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
                     });
                 }
-            } else if (primaryWallet.type === 'solana') {
-                // Handle Solana wallet differently
-                if (!window.solana || !window.solana.isConnected) {
-                    throw new Error('Phantom wallet not connected');
-                }
+            } else if (proofCategory === 'zk') {
+                // Zero-knowledge proofs handling (mock implementation)
+                const mockProof = ethers.utils.defaultAbiCoder.encode(
+                    ['uint256[]'],
+                    [[1, 2, 3, 4, 5, 6, 7, 8]]
+                );
 
-                // Make sure we're using the right Phantom account
-                if (window.solana.publicKey?.toString() !== primaryWallet.fullAddress) {
-                    throw new Error('Please select the correct account in the Phantom wallet');
-                }
+                const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                    ['uint256[]'],
+                    [[amountInWei.toString()]]
+                );
 
-                // For now, just sign a message since we're mocking the Solana proof creation
-                const encodedMessage = new TextEncoder().encode(signatureMessage);
-                const signature = await window.solana.signMessage(encodedMessage, 'utf8');
+                let zkProofTypeValue;
+                if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
+                else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
+                else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
 
-                console.log('Solana proof created with signature:', signature);
+                // Use the signature from the primary wallet
+                const primarySignature = walletSignatures[primaryWallet.id]?.signature ||
+                    ethers.utils.toUtf8Bytes("mock-signature");
 
-                // Mock successful transaction for UI feedback
-                setTxHash('solana-' + Date.now().toString(16));
-                setSuccess(true);
+                writeZKProof({
+                    args: [
+                        mockProof,
+                        mockPublicSignals,
+                        expiryTime,
+                        zkProofTypeValue,
+                        signatureMessage,
+                        primarySignature
+                    ],
+                });
             }
+
+            // Reset states after submission
+            setReadyToSubmit(false);
+            setProofData(null);
+
         } catch (error) {
-            console.error('Error submitting proof:', error);
-            setError(`Failed to submit proof: ${error.message || 'Unknown error'}`);
+            console.error('Error submitting final proof:', error);
+            alert(`Failed to submit proof: ${error.message}`);
         }
+    };
+
+    // Check if all wallets have been signed
+    const areAllWalletsSigned = () => {
+        if (selectedWallets.length === 0) return false;
+        const allSigned = selectedWallets.every(walletId => !!walletSignatures[walletId]);
+
+        // If all are signed and we're in signing stage, move to ready stage
+        if (allSigned && proofStage === 'signing' && !readyToSubmit) {
+            setReadyToSubmit(true);
+            setProofStage('ready');
+        }
+
+        return allSigned;
+    };
+
+    // Reset wallet signatures when selected wallets change
+    useEffect(() => {
+        setWalletSignatures({});
+        setReadyToSubmit(false);
+        setProofData(null);
+    }, [selectedWallets]);
+
+    // Define the handleSubmit function for the button click
+    const handleSubmit = (e) => {
+        e.preventDefault();
+
+        if (selectedWallets.length === 0) {
+            alert('Please select at least one wallet');
+            return;
+        }
+
+        if (amountInputType === 'usd' && !amount) {
+            alert('Please enter an amount');
+            return;
+        }
+
+        if (amountInputType === 'tokens' && selectedTokens.length === 0) {
+            alert('Please select at least one token');
+            return;
+        }
+
+        // Prepare proof details first
+        const finalAmount = amountInputType === 'usd'
+            ? amount
+            : calculateTotalUsdValue().toString();
+
+        const tokenDetails = amountInputType === 'tokens'
+            ? selectedTokens.map(token => ({
+                symbol: token.symbol,
+                chain: token.chain,
+                amount: token.amount,
+                usdValue: token.amount * (
+                    assetSummary?.convertedAssets?.find(
+                        a => a.symbol === token.symbol && a.chain === token.chain
+                    )?.usdRate || 0
+                )
+            }))
+            : [];
+
+        const expiryTime = getExpiryTimestamp(expiryDays);
+
+        // Generate proof data
+        const proofDataObj = {
+            timestamp: Date.now(),
+            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+            proofType: proofCategory === 'standard' ? proofType : zkProofType,
+            wallets: selectedWallets.map(id => {
+                const wallet = connectedWallets.find(w => w.id === id);
+                return {
+                    id: wallet.id,
+                    address: wallet.fullAddress,
+                    chain: wallet.chain,
+                    type: wallet.type
+                };
+            }),
+            assets: assetSummary ? assetSummary.totalAssets : [],
+            totalValue: showUSDValues && assetSummary
+                ? assetSummary.totalUSDValue
+                : (assetSummary && assetSummary.totalAssets.length > 0
+                    ? assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0)
+                    : 0),
+            currency: amountInputType === 'usd' ? "USD" : "tokens",
+            tokenDetails: tokenDetails,
+            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
+            isThresholdProof: proofType === 'threshold',
+            isMaximumProof: proofType === 'maximum'
+        };
+
+        setProofData(proofDataObj);
+
+        // Move to signing stage
+        setProofStage('signing');
     };
 
     // Check for transaction completion
@@ -592,6 +892,22 @@ export default function CreatePage() {
         return 'ETH'; // Default for ethereum or other chains
     };
 
+    // Fix 2: Revise the proof submission flow and add state to track stages
+    const [proofStage, setProofStage] = useState('input'); // 'input', 'signing', 'ready'
+
+    // Add useEffect to reset signatures when critical proof details change
+    useEffect(() => {
+        // When the amount or proof details change, invalidate existing signatures
+        if (Object.keys(walletSignatures).length > 0) {
+            setWalletSignatures({});
+            if (proofStage !== 'input') {
+                setProofStage('input');
+                setReadyToSubmit(false);
+                setProofData(null);
+            }
+        }
+    }, [amount, proofCategory, proofType, zkProofType, amountInputType, selectedTokens, expiryDays]);
+
     return (
         <div className="max-w-4xl mx-auto mt-8">
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
@@ -648,7 +964,24 @@ export default function CreatePage() {
                     {selectedWallets.length > 0 && (
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
+                                <div className="flex items-center">
+                                    <button
+                                        onClick={() => setIsAssetSummaryExpanded(!isAssetSummaryExpanded)}
+                                        className="mr-2 text-gray-500 hover:text-gray-700"
+                                        aria-expanded={isAssetSummaryExpanded}
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className={`h-5 w-5 transition-transform ${isAssetSummaryExpanded ? 'transform rotate-0' : 'transform rotate-180'}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
+                                </div>
                                 <div className="flex items-center">
                                     <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
                                     <button
@@ -665,59 +998,63 @@ export default function CreatePage() {
                                 </div>
                             </div>
 
-                            {isLoadingAssets || isConvertingUSD ? (
-                                <div className="py-3 text-center text-sm text-gray-500">
-                                    <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Loading assets...
-                                </div>
-                            ) : assetSummary ? (
+                            {isAssetSummaryExpanded && (
                                 <>
-                                    <div className="mb-3">
-                                        <div className="text-sm font-medium">Total Value: {showUSDValues
-                                            ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
-                                            : 'Multiple Assets'}
+                                    {isLoadingAssets || isConvertingUSD ? (
+                                        <div className="py-3 text-center text-sm text-gray-500">
+                                            <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Loading assets...
                                         </div>
-                                    </div>
-                                    <div className="bg-gray-50 border rounded-md overflow-hidden mb-3">
-                                        <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
-                                            <div className="text-sm font-medium text-gray-700">Asset</div>
-                                            <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
-                                        </div>
-                                        {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
-                                            <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
-                                                <div className="text-sm text-gray-700">{asset.symbol}</div>
-                                                <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-700 mb-1">Chain Breakdown</div>
-                                        {Object.entries(assetSummary.chains).map(([chain, data]) => (
-                                            <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
-                                                <div className="font-medium text-sm capitalize">{chain}</div>
-                                                <div className="text-xs text-gray-700">
-                                                    Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                    ) : assetSummary ? (
+                                        <>
+                                            <div className="mb-3">
+                                                <div className="text-sm font-medium">Total Value: {showUSDValues
+                                                    ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
+                                                    : 'Multiple Assets'}
                                                 </div>
-                                                {Object.entries(data.tokens).length > 0 && (
-                                                    <div className="text-xs text-gray-700">
-                                                        Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
-                                                            <span key={symbol}>
-                                                                {i > 0 && ', '}
-                                                                {Number(balance).toFixed(6)} {symbol}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
-                                        ))}
-                                    </div>
+                                            <div className="bg-gray-50 border rounded-md overflow-hidden mb-3">
+                                                <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
+                                                    <div className="text-sm font-medium text-gray-700">Asset</div>
+                                                    <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
+                                                </div>
+                                                {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
+                                                    <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
+                                                        <div className="text-sm text-gray-700">{asset.symbol}</div>
+                                                        <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-700 mb-1">Chain Breakdown</div>
+                                                {Object.entries(assetSummary.chains).map(([chain, data]) => (
+                                                    <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
+                                                        <div className="font-medium text-sm capitalize">{chain}</div>
+                                                        <div className="text-xs text-gray-700">
+                                                            Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                        </div>
+                                                        {Object.entries(data.tokens).length > 0 && (
+                                                            <div className="text-xs text-gray-700">
+                                                                Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
+                                                                    <span key={symbol}>
+                                                                        {i > 0 && ', '}
+                                                                        {Number(balance).toFixed(6)} {symbol}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-sm text-gray-500 py-2">No assets found</div>
+                                    )}
                                 </>
-                            ) : (
-                                <div className="text-sm text-gray-500 py-2">No assets found</div>
                             )}
                         </div>
                     )}
@@ -847,24 +1184,119 @@ export default function CreatePage() {
 
                     {/* Amount Input */}
                     <div>
-                        <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                            Amount ({getCurrencySymbol(assetSummary)})
-                        </label>
-                        <div className="relative">
-                            <input
-                                type="number"
-                                id="amount"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                placeholder="Enter amount"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                min="0"
-                                step="0.001"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                <span className="text-gray-500 sm:text-sm">{getCurrencySymbol(assetSummary)}</span>
+                        <div className="flex justify-between items-center mb-2">
+                            <label htmlFor="amount-type" className="block text-sm font-medium text-gray-700">
+                                Amount Type
+                            </label>
+                            <div className="flex items-center">
+                                <button
+                                    onClick={() => setAmountInputType('usd')}
+                                    className={`mr-2 py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'usd'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    USD Value
+                                </button>
+                                <button
+                                    onClick={() => setAmountInputType('tokens')}
+                                    className={`py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'tokens'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    Token Amounts
+                                </button>
                             </div>
                         </div>
+
+                        {amountInputType === 'usd' ? (
+                            // USD Amount Input
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    id="amount"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                    placeholder="Enter USD amount"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                />
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    <span className="text-gray-500 sm:text-sm">USD</span>
+                                </div>
+                            </div>
+                        ) : (
+                            // Token Amounts Input
+                            <div className="space-y-3">
+                                {assetSummary && assetSummary.convertedAssets ? (
+                                    <>
+                                        <div className="text-xs text-gray-500 mb-2">
+                                            Select tokens and specify amounts to include in your proof
+                                        </div>
+
+                                        {/* Token selector */}
+                                        <div className="bg-gray-50 p-3 rounded-md border">
+                                            <div className="text-sm font-medium mb-2">Available Tokens</div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {assetSummary.convertedAssets.map((asset, idx) => (
+                                                    <button
+                                                        key={`${asset.chain}-${asset.symbol}-${idx}`}
+                                                        onClick={() => handleTokenSelection(asset)}
+                                                        className={`px-2 py-1 text-xs rounded-md border flex justify-between items-center ${selectedTokens.some(t => t.symbol === asset.symbol && t.chain === asset.chain)
+                                                            ? 'bg-blue-100 border-blue-300'
+                                                            : 'bg-white border-gray-200'
+                                                            }`}
+                                                    >
+                                                        <span>{asset.symbol}</span>
+                                                        <span className="text-gray-500 text-xs">{asset.chain}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Selected tokens and amounts */}
+                                        {selectedTokens.length > 0 && (
+                                            <div className="bg-white p-3 rounded-md border">
+                                                <div className="text-sm font-medium mb-2">Selected Tokens</div>
+                                                <div className="space-y-2">
+                                                    {selectedTokens.map((token, idx) => (
+                                                        <div key={idx} className="flex items-center space-x-2">
+                                                            <input
+                                                                type="number"
+                                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-xs p-1 border"
+                                                                placeholder={`Amount of ${token.symbol}`}
+                                                                value={token.amount}
+                                                                onChange={(e) => handleTokenAmountChange(token.symbol, token.chain, e.target.value)}
+                                                                min="0"
+                                                                step="0.000001"
+                                                            />
+                                                            <div className="text-sm whitespace-nowrap">{token.symbol} ({token.chain})</div>
+                                                            <button
+                                                                onClick={() => handleTokenSelection(token)}
+                                                                className="text-red-500 hover:text-red-700"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="text-right text-sm font-medium mt-2">
+                                                    Approx. USD Value: ${calculateTotalUsdValue().toFixed(2)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-gray-500 italic">
+                                        Connect wallets and load assets to select tokens
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Expiration */}
@@ -900,20 +1332,140 @@ export default function CreatePage() {
                         </select>
                     </div>
 
+                    {/* Wallet Signatures */}
+                    {proofStage === 'signing' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sign with Your Wallets
+                            </label>
+
+                            <div className="bg-blue-50 p-4 rounded-md mb-4">
+                                <h3 className="font-medium text-blue-800 mb-2">Signing Instructions</h3>
+                                <p className="text-sm text-blue-700 mb-2">
+                                    To create your proof of funds, you need to sign a message with each selected wallet:
+                                </p>
+                                <ol className="list-decimal pl-5 text-sm text-blue-700 space-y-1">
+                                    <li>Click "Sign with Wallet" for each wallet in the list below</li>
+                                    <li>Your wallet extension will open with a signature request</li>
+                                    <li>Make sure to select the correct account in your wallet</li>
+                                    <li>Approve the signature request in your wallet</li>
+                                </ol>
+                            </div>
+
+                            <div className="space-y-3 mb-4">
+                                {selectedWallets.length > 0 ? (
+                                    <div className="border rounded-md divide-y">
+                                        {selectedWallets.map(walletId => {
+                                            const wallet = connectedWallets.find(w => w.id === walletId);
+                                            const isSigned = !!walletSignatures[walletId];
+                                            const isCurrentSigning = currentSigningWallet === walletId && isSigningWallet;
+
+                                            return (
+                                                <div key={walletId} className="p-3 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <div className="font-medium">{wallet?.name || 'Wallet'}</div>
+                                                        <div className="text-xs text-gray-500">{wallet?.address || wallet?.fullAddress}</div>
+                                                        <div className="text-xs text-gray-500">{wallet?.chain}</div>
+                                                        {!isSigned && !isCurrentSigning && (
+                                                            <div className="text-xs text-blue-600 mt-1">
+                                                                {wallet?.type === 'evm' ?
+                                                                    'You\'ll need to select this account in MetaMask' :
+                                                                    'You\'ll need to select this account in Phantom'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center space-x-2">
+                                                        {isSigned ? (
+                                                            <div className="flex items-center text-green-600">
+                                                                <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                </svg>
+                                                                <span className="text-xs">Signed Successfully</span>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSignWallet(walletId)}
+                                                                disabled={isSigningWallet}
+                                                                className={`py-1 px-3 text-xs font-medium rounded-md border ${isCurrentSigning
+                                                                    ? 'bg-gray-100 text-gray-400 cursor-wait'
+                                                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                                    }`}
+                                                            >
+                                                                {isCurrentSigning ? 'Waiting for wallet...' : 'Sign with Wallet'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-gray-500 italic">
+                                        Please select at least one wallet to sign
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Signature status summary */}
+                            {selectedWallets.length > 0 && (
+                                <div className="text-sm mb-2">
+                                    {areAllWalletsSigned() ? (
+                                        <div className="flex items-center text-green-600">
+                                            <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            All wallets signed successfully! You can now submit your proof.
+                                        </div>
+                                    ) : (
+                                        <div className="text-blue-600">
+                                            Progress: {Object.keys(walletSignatures).length} of {selectedWallets.length} wallets signed
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Submit Button */}
                     <div>
                         <button
                             type="button"
-                            onClick={handleSubmit}
-                            disabled={isPending || amount === ''}
-                            className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isPending || amount === ''
+                            onClick={
+                                proofStage === 'input'
+                                    ? handleSubmit
+                                    : proofStage === 'ready'
+                                        ? submitFinalProof
+                                        : null // No action in signing stage, just display status
+                            }
+                            disabled={
+                                isPending ||
+                                (selectedWallets.length === 0) ||
+                                (amountInputType === 'usd' && !amount) ||
+                                (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                (proofStage === 'signing' && !areAllWalletsSigned())
+                            }
+                            className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isPending ||
+                                (selectedWallets.length === 0) ||
+                                (amountInputType === 'usd' && !amount) ||
+                                (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                (proofStage === 'signing' && !areAllWalletsSigned())
                                 ? 'bg-gray-400 cursor-not-allowed'
-                                : proofCategory === 'standard'
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : 'bg-purple-600 hover:bg-purple-700'
+                                : proofStage === 'ready'
+                                    ? 'bg-green-600 hover:bg-green-700'
+                                    : proofCategory === 'standard'
+                                        ? 'bg-blue-600 hover:bg-blue-700'
+                                        : 'bg-purple-600 hover:bg-purple-700'
                                 }`}
                         >
-                            {isPending ? 'Processing...' : 'Create Proof'}
+                            {isPending
+                                ? 'Processing...'
+                                : proofStage === 'input'
+                                    ? 'Prepare Proof'
+                                    : proofStage === 'signing'
+                                        ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
+                                        : 'Submit Proof to Blockchain'}
                         </button>
                     </div>
 
