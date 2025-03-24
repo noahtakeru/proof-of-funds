@@ -6,6 +6,31 @@
     --foreground-rgb: 0, 0, 0;
     --background-start-rgb: 247, 249, 253;
     --background-end-rgb: 255, 255, 255;
+    --color-primary-50: 245, 243, 255;
+    --color-primary-100: 237, 233, 254;
+    --color-primary-200: 221, 214, 254;
+    --color-primary-300: 196, 181, 253;
+    --color-primary-400: 167, 139, 250;
+    --color-primary-500: 139, 92, 246;
+    --color-primary-600: 124, 58, 237;
+    --color-primary-700: 109, 40, 217;
+    --color-primary-800: 91, 33, 182;
+    --color-primary-900: 76, 29, 149;
+    --color-primary-950: 46, 16, 101;
+    --primary-color: #8B5CF6;
+    --primary-hover: #7C3AED;
+    --primary-light: #EDE9FE;
+    --zk-accent: #10B981;
+    --zk-accent-dark: #059669;
+    --zk-accent-light: #ECFDF5;
+    --color-zk-accent: 16, 185, 129;
+    /* #10B981 - Main Emerald */
+    --color-zk-accent-dark: 5, 150, 105;
+    /* #059669 - Dark Emerald */
+    --color-zk: 4, 120, 87;
+    /* #047857 - Darker emerald for text */
+    --color-zk-light: 209, 250, 229;
+    /* #D1FAE5 - Light emerald for backgrounds */
 }
 
 body {
@@ -44,14 +69,14 @@ body {
 }
 
 .btn-primary {
-    background-color: #8B5CF6;
+    background-color: var(--primary-color);
     color: white;
-    border: 1px solid #8B5CF6;
+    border: 1px solid var(--primary-color);
 }
 
 .btn-primary:hover {
-    background-color: #7C3AED;
-    border-color: #7C3AED;
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
 }
 
 .btn-secondary {
@@ -68,6 +93,45 @@ body {
 .btn-disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.btn-zk {
+    background-color: var(--zk-accent);
+    color: white;
+    border: 1px solid var(--zk-accent);
+    font-weight: 600;
+}
+
+.btn-zk:hover {
+    background-color: var(--zk-accent-dark);
+    border-color: var(--zk-accent-dark);
+}
+
+.text-zk {
+    color: rgb(var(--color-zk));
+}
+
+.text-zk-accent {
+    color: rgb(var(--color-zk-accent));
+}
+
+.bg-zk-light {
+    background-color: var(--zk-accent-light);
+}
+
+/* Logo animation */
+.logo-pop {
+    transition: transform 0.3s ease;
+}
+
+.logo-pop:hover {
+    transform: scale(1.05);
+}
+
+/* Active nav item */
+.nav-link-active {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
 }
 
 /* Modal Styles */
@@ -110,4 +174,100 @@ body {
 .bg-white.rounded-lg.shadow-xl {
     position: relative;
     z-index: 10000 !important;
+}
+
+/* Fix for z-index layering in About page */
+.about-page .bg-white.rounded-lg.shadow-xl,
+section .bg-white.rounded-lg.shadow-xl {
+    z-index: 1;
+}
+
+/* Animation classes */
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    }
+}
+
+.pulse-glow {
+    animation: pulse-glow 2s infinite;
+}
+
+/* Carousel styles */
+.carousel {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.carousel-inner {
+    display: flex;
+    transition: transform 0.5s ease;
+}
+
+.carousel-item {
+    flex: 0 0 100%;
+}
+
+/* Feature card */
+.feature-card {
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Add these utility classes at the end of the file */
+.bg-zk-accent {
+    background-color: rgb(var(--color-zk-accent));
+}
+
+.bg-zk-accent-dark {
+    background-color: rgb(var(--color-zk-accent-dark));
+}
+
+.bg-zk-light {
+    background-color: rgb(var(--color-zk-light));
+}
+
+.border-zk-accent {
+    border-color: rgb(var(--color-zk-accent));
+}
+
+/* Add hover variants for completeness */
+.hover\:bg-zk-accent:hover {
+    background-color: rgb(var(--color-zk-accent));
+}
+
+.hover\:bg-zk-accent-dark:hover {
+    background-color: rgb(var(--color-zk-accent-dark));
 }
