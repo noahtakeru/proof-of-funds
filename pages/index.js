@@ -2,6 +2,13 @@ import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 
+// Add a simple Lock icon component
+const LockIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>
+);
+
 export default function Home() {
     const [currentSlide, setCurrentSlide] = useState(0);
     const carouselRef = useRef(null);
@@ -42,6 +49,22 @@ export default function Home() {
         }
     ];
 
+    const FloatingElement = ({ delay, duration, size, left, top, opacity }) => {
+        return (
+            <div
+                className="absolute rounded-lg bg-primary-300 opacity-30"
+                style={{
+                    width: size,
+                    height: size,
+                    left: `${left}%`,
+                    top: `${top}%`,
+                    opacity: opacity,
+                    animation: `float ${duration}s ease-in-out infinite ${delay}s`,
+                }}
+            ></div>
+        );
+    };
+
     return (
         <div className="text-center">
             {/* Hero Section with Animation */}
@@ -67,11 +90,11 @@ export default function Home() {
                         </p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                        <Link href="/create" className="btn btn-primary px-8 py-3 text-lg">
+                    <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                        <Link href="/create" className="px-6 py-3 text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700">
                             Create Proof
                         </Link>
-                        <Link href="/verify" className="btn btn-secondary px-8 py-3 text-lg">
+                        <Link href="/verify" className="px-6 py-3 text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700">
                             Verify Proof
                         </Link>
                     </div>
@@ -123,9 +146,16 @@ export default function Home() {
             </section>
 
             {/* How It Works Carousel */}
-            <section className="py-16 bg-gray-50">
-                <div className="max-w-4xl mx-auto px-4">
-                    <h2 className="text-3xl font-bold mb-12">How Arbitr Works</h2>
+            <section className="py-12 bg-gray-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center">
+                        <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+                            How It Works
+                        </h2>
+                        <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto">
+                            Arbitr Proof of Funds makes it easy to verify assets without compromising privacy.
+                        </p>
+                    </div>
 
                     <div className="carousel overflow-hidden mb-8">
                         <div

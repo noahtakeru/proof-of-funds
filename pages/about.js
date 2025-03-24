@@ -4,6 +4,33 @@ export default function AboutPage() {
             <h1 className="text-4xl font-bold text-center mb-10">About <span className="text-primary-600">Arbitr<span className="text-zk">.</span></span></h1>
 
             <div className="space-y-12">
+                <section className="py-12 border-b border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="lg:grid lg:grid-cols-12 lg:gap-8">
+                            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left">
+                                <h1 className="mt-1 text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight xl:text-6xl xl:tracking-tight">
+                                    <span className="block">About</span>
+                                    <span className="block text-primary-600">Arbitr Proof of Funds</span>
+                                </h1>
+                                <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-xl lg:text-lg xl:text-xl">
+                                    Revolutionizing financial verifications through secure, private, and reliable proof of funds solutions.
+                                </p>
+                            </div>
+                            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+                                <div className="relative mx-auto w-full rounded-lg shadow-lg">
+                                    <div className="relative block w-full bg-white rounded-lg overflow-hidden">
+                                        <img
+                                            className="w-full"
+                                            src="/images/team.jpg"
+                                            alt="Arbitr team"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <section>
                     <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
                     <p className="text-lg text-gray-700 mb-6">
@@ -45,20 +72,41 @@ export default function AboutPage() {
                     </div>
                 </div>
 
-                <section className="bg-zk-light p-8 rounded-xl">
-                    <div className="flex items-center mb-6">
-                        <div className="h-14 w-14 bg-white rounded-full flex items-center justify-center mr-4 pulse-glow">
-                            <span className="text-zk text-xl font-bold">ZK</span>
+                <section className="py-12 bg-zk-light">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="lg:grid lg:grid-cols-2 lg:gap-8">
+                            <div>
+                                <h2 className="text-3xl font-extrabold text-gray-900">
+                                    Zero-Knowledge Technology
+                                </h2>
+                                <p className="mt-4 text-lg text-gray-500">
+                                    Our platform uses advanced zero-knowledge proofs to verify asset ownership without revealing sensitive information. This cryptographic breakthrough ensures your financial privacy remains intact.
+                                </p>
+                                <div className="mt-6">
+                                    <a href="#" className="text-zk font-medium hover:text-zk-accent-dark">
+                                        Learn more about our tech &rarr;
+                                    </a>
+                                </div>
+                            </div>
+                            <div className="mt-12 lg:mt-0">
+                                <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+                                    <div className="px-6 py-8 sm:p-10">
+                                        <div className="flex items-center">
+                                            <div className="flex-shrink-0 bg-zk-accent rounded-md p-3">
+                                                <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                </svg>
+                                            </div>
+                                            <div className="ml-5">
+                                                <h3 className="text-lg font-medium text-gray-900">Private by Design</h3>
+                                                <p className="mt-2 text-sm text-gray-500">Enhanced privacy protection using zero-knowledge cryptography.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <h2 className="text-2xl font-semibold">Zero-Knowledge Technology</h2>
                     </div>
-                    <p className="text-lg text-gray-700 mb-4">
-                        At the heart of Arbitr is our proprietary zero-knowledge proof system that allows users to
-                        create verifiable cryptographic proofs without disclosing sensitive data.
-                    </p>
-                    <p className="text-lg text-gray-700">
-                        Our ZK-proof technology is audited, reliable, and built for the future of secure financial verification.
-                    </p>
                 </section>
 
                 <section>

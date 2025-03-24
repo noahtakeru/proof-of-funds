@@ -305,6 +305,7 @@ export default function ConnectWallet() {
         <>
             <button
                 ref={connectBtnRef}
+                id="connect-wallet-button"
                 onClick={initiateConnection}
                 className="btn btn-primary"
                 style={{ zIndex: 50 }} // Ensure button is clickable

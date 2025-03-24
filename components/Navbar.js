@@ -12,8 +12,9 @@ export default function Navbar() {
         setActiveRoute(router.pathname);
     }, [router.pathname]);
 
-    const isActive = (path) => {
-        return path === activeRoute;
+    const getActiveClass = (href) => {
+        const isActive = router.pathname === href;
+        return isActive ? 'text-primary-600 border-primary-600' : 'text-gray-500 hover:text-gray-700 border-transparent hover:border-gray-300';
     };
 
     const handleRefresh = () => {
@@ -42,41 +43,31 @@ export default function Navbar() {
                         <div className="hidden md:ml-6 md:flex md:space-x-8">
                             <Link
                                 href="/"
-                                className={`px-3 py-2 text-sm font-medium ${isActive('/')
-                                    ? 'nav-link-active'
-                                    : 'text-gray-600 hover:text-primary-600'}`}
+                                className={getActiveClass('/')}
                             >
                                 Home
                             </Link>
                             <Link
                                 href="/create"
-                                className={`px-3 py-2 text-sm font-medium ${isActive('/create')
-                                    ? 'nav-link-active'
-                                    : 'text-gray-600 hover:text-primary-600'}`}
+                                className={getActiveClass('/create')}
                             >
                                 Create Proof
                             </Link>
                             <Link
                                 href="/verify"
-                                className={`px-3 py-2 text-sm font-medium ${isActive('/verify')
-                                    ? 'nav-link-active'
-                                    : 'text-gray-600 hover:text-primary-600'}`}
+                                className={getActiveClass('/verify')}
                             >
                                 Verify Proof
                             </Link>
                             <Link
                                 href="/manage"
-                                className={`px-3 py-2 text-sm font-medium ${isActive('/manage')
-                                    ? 'nav-link-active'
-                                    : 'text-gray-600 hover:text-primary-600'}`}
+                                className={getActiveClass('/manage')}
                             >
                                 Manage Proofs
                             </Link>
                             <Link
                                 href="/about"
-                                className={`px-3 py-2 text-sm font-medium ${isActive('/about')
-                                    ? 'nav-link-active'
-                                    : 'text-gray-600 hover:text-primary-600'}`}
+                                className={getActiveClass('/about')}
                             >
                                 About
                             </Link>
