@@ -447,7 +447,7 @@ export default function CreatePage() {
                     }
 
                     if (!provider) {
-                        throw new Error('MetaMask provider not found. Please install MetaMask.');
+                        throw new Error('MetaMask extension not detected. Please install MetaMask to continue.');
                     }
 
                     // ALWAYS show the account selection popup
@@ -470,11 +470,11 @@ export default function CreatePage() {
 
                     // Verify the user selected the correct account - only AFTER they've made their selection
                     if (!selectedAccount) {
-                        throw new Error('No account selected in MetaMask');
+                        throw new Error('No account was selected in MetaMask. Please try again and select an account.');
                     }
 
                     if (selectedAccount !== targetAddress) {
-                        throw new Error(`Wrong account selected. Expected: ${wallet.fullAddress}, Got: ${selectedAccount}`);
+                        throw new Error(`You selected a different account than required. Please select account ${wallet.fullAddress} in MetaMask.`);
                     }
 
                     // Get the signer from ethers
@@ -484,7 +484,7 @@ export default function CreatePage() {
                     // Double-check the signer address matches our target
                     const signerAddress = await signer.getAddress();
                     if (signerAddress.toLowerCase() !== targetAddress) {
-                        throw new Error(`Connected account (${signerAddress}) does not match the wallet you're trying to sign with (${wallet.fullAddress})`);
+                        throw new Error(`The connected account doesn't match the wallet you're trying to sign with. Please select account ${wallet.fullAddress} in MetaMask.`);
                     }
 
                     // Sign the message
@@ -492,23 +492,23 @@ export default function CreatePage() {
                 } catch (error) {
                     if (error.code === 4001) {
                         // User rejected the request
-                        throw new Error('Signature request rejected by user');
+                        throw new Error('You declined the signature request. Please approve the request to continue.');
                     }
-                    throw new Error(`Error signing with MetaMask: ${error.message}`);
+                    throw new Error(`${error.message}`);
                 }
             } else if (wallet.type === 'solana') {
                 // For Solana wallets (Phantom)
                 try {
                     // Check if phantom exists
                     if (!window.phantom || !window.phantom.solana) {
-                        throw new Error('Phantom wallet extension not detected. Please install Phantom wallet.');
+                        throw new Error('Phantom wallet extension not detected. Please install Phantom wallet to continue.');
                     }
 
                     // Get the phantom provider
                     const phantomProvider = window.phantom?.solana;
 
                     if (!phantomProvider || !phantomProvider.isPhantom) {
-                        throw new Error('Phantom wallet not available');
+                        throw new Error('Phantom wallet not available. Please install Phantom wallet to continue.');
                     }
 
                     console.log("Opening Phantom popup without any pre-validation");
@@ -543,13 +543,13 @@ export default function CreatePage() {
                     // Only NOW after successful signing do we validate the wallet address
                     if (connectedPublicKey !== wallet.fullAddress) {
                         console.error(`Signed with wrong account. Expected: ${wallet.fullAddress}, Got: ${connectedPublicKey}`);
-                        throw new Error(`Error signing with Phantom: Wrong account selected. Please select ${wallet.fullAddress} in Phantom.`);
+                        throw new Error(`You signed with a different account than required. Please select account ${wallet.fullAddress} in Phantom.`);
                     }
 
                 } catch (error) {
                     console.error("Phantom error:", error);
                     if (error.code === 4001) {
-                        throw new Error('User rejected the signing request');
+                        throw new Error('You declined the signature request. Please approve the request to continue.');
                     } else {
                         throw new Error(error.message || 'Error with Phantom wallet');
                     }
@@ -569,7 +569,7 @@ export default function CreatePage() {
             }
         } catch (error) {
             console.error('Error signing with wallet:', error);
-            alert(`Error signing: ${error.message}`);
+            alert(`Unable to sign: ${error.message}`);
         } finally {
             setIsSigningWallet(false);
             setCurrentSigningWallet(null);
@@ -1339,6 +1339,19 @@ export default function CreatePage() {
                                 Sign with Your Wallets
                             </label>
 
+                            <div className="bg-blue-50 p-4 rounded-md mb-4">
+                                <h3 className="font-medium text-blue-800 mb-2">Signing Instructions</h3>
+                                <p className="text-sm text-blue-700 mb-2">
+                                    To create your proof of funds, you need to sign a message with each selected wallet:
+                                </p>
+                                <ol className="list-decimal pl-5 text-sm text-blue-700 space-y-1">
+                                    <li>Click "Sign with Wallet" for each wallet in the list below</li>
+                                    <li>Your wallet extension will open with a signature request</li>
+                                    <li>Make sure to select the correct account in your wallet</li>
+                                    <li>Approve the signature request in your wallet</li>
+                                </ol>
+                            </div>
+
                             <div className="space-y-3 mb-4">
                                 {selectedWallets.length > 0 ? (
                                     <div className="border rounded-md divide-y">
@@ -1353,6 +1366,13 @@ export default function CreatePage() {
                                                         <div className="font-medium">{wallet?.name || 'Wallet'}</div>
                                                         <div className="text-xs text-gray-500">{wallet?.address || wallet?.fullAddress}</div>
                                                         <div className="text-xs text-gray-500">{wallet?.chain}</div>
+                                                        {!isSigned && !isCurrentSigning && (
+                                                            <div className="text-xs text-blue-600 mt-1">
+                                                                {wallet?.type === 'evm' ?
+                                                                    'You\'ll need to select this account in MetaMask' :
+                                                                    'You\'ll need to select this account in Phantom'}
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div className="flex items-center space-x-2">
@@ -1361,7 +1381,7 @@ export default function CreatePage() {
                                                                 <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                                 </svg>
-                                                                <span className="text-xs">Signed</span>
+                                                                <span className="text-xs">Signed Successfully</span>
                                                             </div>
                                                         ) : (
                                                             <button
@@ -1373,7 +1393,7 @@ export default function CreatePage() {
                                                                     : 'bg-blue-600 text-white hover:bg-blue-700'
                                                                     }`}
                                                             >
-                                                                {isCurrentSigning ? 'Signing...' : 'Sign with Wallet'}
+                                                                {isCurrentSigning ? 'Waiting for wallet...' : 'Sign with Wallet'}
                                                             </button>
                                                         )}
                                                     </div>
@@ -1392,12 +1412,15 @@ export default function CreatePage() {
                             {selectedWallets.length > 0 && (
                                 <div className="text-sm mb-2">
                                     {areAllWalletsSigned() ? (
-                                        <div className="text-green-600">
-                                            ✓ All wallets signed successfully
+                                        <div className="flex items-center text-green-600">
+                                            <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            All wallets signed successfully! You can now submit your proof.
                                         </div>
                                     ) : (
-                                        <div className="text-gray-600">
-                                            {Object.keys(walletSignatures).length} of {selectedWallets.length} wallets signed
+                                        <div className="text-blue-600">
+                                            Progress: {Object.keys(walletSignatures).length} of {selectedWallets.length} wallets signed
                                         </div>
                                     )}
                                 </div>
