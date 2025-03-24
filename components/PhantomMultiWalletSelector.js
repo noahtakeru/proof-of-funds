@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { saveWalletConnection } from '../lib/walletHelpers';
+import { usePhantomMultiWallet } from '../lib/PhantomMultiWalletContext';
 
 export default function PhantomMultiWalletSelector({ onClose }) {
     const [connectedWallets, setConnectedWallets] = useState([]);
     const [status, setStatus] = useState('initial'); // initial, connecting, paused, success, error
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+
+    // Get context for multi wallet functionality
+    const phantomMultiWallet = usePhantomMultiWallet();
 
     // References for managing connection state
     const connectionInProgressRef = useRef(false);
@@ -186,6 +190,8 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 // Log the result
                 if (saveSuccess) {
                     console.log(`Successfully saved ${walletAddresses.length} Phantom wallets`);
+                    // Refresh the wallet list in the context
+                    phantomMultiWallet.refreshConnectedWallets();
                 } else {
                     console.warn('Some wallets may not have been saved properly');
                 }
