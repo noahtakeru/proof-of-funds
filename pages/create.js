@@ -76,6 +76,13 @@ export default function CreatePage() {
     const [amountInputType, setAmountInputType] = useState('usd'); // 'usd' or 'tokens'
     const [selectedTokens, setSelectedTokens] = useState([]); // Array of {token, amount}
 
+    // For wallet signatures tracking
+    const [walletSignatures, setWalletSignatures] = useState({});
+    const [isSigningWallet, setIsSigningWallet] = useState(false);
+    const [currentSigningWallet, setCurrentSigningWallet] = useState(null);
+    const [readyToSubmit, setReadyToSubmit] = useState(false);
+    const [proofData, setProofData] = useState(null);
+
     const { address, isConnected } = useAccount();
 
     // Use refs to track previous values to avoid infinite loops
@@ -404,187 +411,394 @@ export default function CreatePage() {
         }, 0);
     };
 
-    // Handle submission with both USD and token amounts
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (selectedWallets.length === 0) return;
-
+    // Handle signing for a specific wallet
+    const handleSignWallet = async (walletId) => {
         try {
-            // Prepare the amount value based on input type
-            let finalAmount = amount;
-            let tokenDetails = [];
+            setIsSigningWallet(true);
+            setCurrentSigningWallet(walletId);
 
-            if (amountInputType === 'tokens') {
-                // Calculate total USD value if using token inputs
-                finalAmount = calculateTotalUsdValue().toString();
-                tokenDetails = selectedTokens.map(token => ({
-                    symbol: token.symbol,
-                    chain: token.chain,
-                    amount: token.amount,
-                    usdValue: token.amount * (
-                        assetSummary?.convertedAssets?.find(
-                            a => a.symbol === token.symbol && a.chain === token.chain
-                        )?.usdRate || 0
-                    )
-                }));
+            const wallet = connectedWallets.find(w => w.id === walletId);
+            if (!wallet) {
+                throw new Error(`Wallet with ID ${walletId} not found`);
             }
 
-            // For multi-wallet proof, we will generate a signature from the first wallet
-            // and include data about all selected wallets in the proof
+            // Prepare amount value based on input type
+            let finalAmount = amount;
+            if (amountInputType === 'tokens') {
+                finalAmount = calculateTotalUsdValue().toString();
+            }
+
+            // Create signature message for this wallet
+            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${finalAmount} ${amountInputType === 'usd' ? 'USD' : 'worth of tokens'} for proof of funds.`;
+
+            let signature = null;
+
+            // Handle signature based on wallet type
+            if (wallet.type === 'evm') {
+                // For EVM wallets (MetaMask, etc.)
+                try {
+                    // Get the correct provider
+                    let provider = window.ethereum;
+                    if (window.ethereum?.providers) {
+                        const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+                        if (metamaskProvider) {
+                            provider = metamaskProvider;
+                        }
+                    }
+
+                    if (!provider) {
+                        throw new Error('MetaMask provider not found. Please install MetaMask.');
+                    }
+
+                    // ALWAYS show the account selection popup
+                    console.log("Opening MetaMask account selection popup...");
+
+                    // Request account permissions - this will ALWAYS show the account selection popup
+                    await provider.request({
+                        method: 'wallet_requestPermissions',
+                        params: [{ eth_accounts: {} }]
+                    });
+
+                    // Get the accounts the user selected
+                    const selectedAccounts = await provider.request({
+                        method: 'eth_accounts'
+                    });
+
+                    // Normalize addresses for comparison (lowercase)
+                    const targetAddress = wallet.fullAddress.toLowerCase();
+                    const selectedAccount = selectedAccounts.length > 0 ? selectedAccounts[0].toLowerCase() : null;
+
+                    // Verify the user selected the correct account - only AFTER they've made their selection
+                    if (!selectedAccount) {
+                        throw new Error('No account selected in MetaMask');
+                    }
+
+                    if (selectedAccount !== targetAddress) {
+                        throw new Error(`Wrong account selected. Expected: ${wallet.fullAddress}, Got: ${selectedAccount}`);
+                    }
+
+                    // Get the signer from ethers
+                    const ethersProvider = new ethers.providers.Web3Provider(provider);
+                    const signer = ethersProvider.getSigner();
+
+                    // Double-check the signer address matches our target
+                    const signerAddress = await signer.getAddress();
+                    if (signerAddress.toLowerCase() !== targetAddress) {
+                        throw new Error(`Connected account (${signerAddress}) does not match the wallet you're trying to sign with (${wallet.fullAddress})`);
+                    }
+
+                    // Sign the message
+                    signature = await signer.signMessage(walletSpecificMessage);
+                } catch (error) {
+                    if (error.code === 4001) {
+                        // User rejected the request
+                        throw new Error('Signature request rejected by user');
+                    }
+                    throw new Error(`Error signing with MetaMask: ${error.message}`);
+                }
+            } else if (wallet.type === 'solana') {
+                // For Solana wallets (Phantom)
+                try {
+                    // Check if phantom exists
+                    if (!window.phantom || !window.phantom.solana) {
+                        throw new Error('Phantom wallet extension not detected. Please install Phantom wallet.');
+                    }
+
+                    // Get the phantom provider
+                    const phantomProvider = window.phantom?.solana;
+
+                    if (!phantomProvider || !phantomProvider.isPhantom) {
+                        throw new Error('Phantom wallet not available');
+                    }
+
+                    console.log("Opening Phantom popup without any pre-validation");
+
+                    // Always disconnect first to force the popup to appear
+                    try {
+                        if (phantomProvider.isConnected) {
+                            console.log("Disconnecting from Phantom to ensure UI shows up");
+                            await phantomProvider.disconnect();
+                            // Short delay to ensure disconnect completes
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                        }
+                    } catch (disconnectError) {
+                        console.log("Error disconnecting, but continuing anyway:", disconnectError);
+                    }
+
+                    // Request connection - this opens the Phantom popup
+                    console.log("Requesting Phantom wallet connection with popup...");
+                    const response = await phantomProvider.connect({ onlyIfTrusted: false });
+
+                    // Get the wallet address they selected
+                    const connectedPublicKey = response.publicKey.toString();
+                    console.log("Connected to Phantom wallet:", connectedPublicKey);
+
+                    // Now try to sign the message
+                    console.log("Requesting signature from Phantom...");
+                    const encodedMessage = new TextEncoder().encode(walletSpecificMessage);
+                    const signatureData = await phantomProvider.signMessage(encodedMessage, "utf8");
+                    signature = Buffer.from(signatureData.signature).toString('hex');
+                    console.log("Message signed successfully");
+
+                    // Only NOW after successful signing do we validate the wallet address
+                    if (connectedPublicKey !== wallet.fullAddress) {
+                        console.error(`Signed with wrong account. Expected: ${wallet.fullAddress}, Got: ${connectedPublicKey}`);
+                        throw new Error(`Error signing with Phantom: Wrong account selected. Please select ${wallet.fullAddress} in Phantom.`);
+                    }
+
+                } catch (error) {
+                    console.error("Phantom error:", error);
+                    if (error.code === 4001) {
+                        throw new Error('User rejected the signing request');
+                    } else {
+                        throw new Error(error.message || 'Error with Phantom wallet');
+                    }
+                }
+            }
+
+            // Update signatures state
+            if (signature) {
+                setWalletSignatures(prev => ({
+                    ...prev,
+                    [walletId]: {
+                        signature,
+                        message: walletSpecificMessage,
+                        timestamp: Date.now()
+                    }
+                }));
+            }
+        } catch (error) {
+            console.error('Error signing with wallet:', error);
+            alert(`Error signing: ${error.message}`);
+        } finally {
+            setIsSigningWallet(false);
+            setCurrentSigningWallet(null);
+        }
+    };
+
+    // Prepare proof data and signatures
+    const prepareProofSubmission = () => {
+        // Prepare amount value based on input type
+        let finalAmount = amount;
+        let tokenDetails = [];
+
+        if (amountInputType === 'tokens') {
+            finalAmount = calculateTotalUsdValue().toString();
+            tokenDetails = selectedTokens.map(token => ({
+                symbol: token.symbol,
+                chain: token.chain,
+                amount: token.amount,
+                usdValue: token.amount * (
+                    assetSummary?.convertedAssets?.find(
+                        a => a.symbol === token.symbol && a.chain === token.chain
+                    )?.usdRate || 0
+                )
+            }));
+        }
+
+        const expiryTime = getExpiryTimestamp(expiryDays);
+
+        // Generate proof data that includes all selected wallets and token details if applicable
+        const proofDataObj = {
+            timestamp: Date.now(),
+            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+            proofType: proofCategory === 'standard' ? proofType : zkProofType,
+            wallets: selectedWallets.map(id => {
+                const wallet = connectedWallets.find(w => w.id === id);
+                return {
+                    id: wallet.id,
+                    address: wallet.fullAddress,
+                    chain: wallet.chain,
+                    type: wallet.type
+                };
+            }),
+            assets: assetSummary ? assetSummary.totalAssets : [],
+            totalValue: showUSDValues && assetSummary ?
+                assetSummary.totalUSDValue :
+                (assetSummary && assetSummary.totalAssets.length > 0 ?
+                    assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
+            currency: amountInputType === 'usd' ? "USD" : "tokens",
+            tokenDetails: tokenDetails,
+            signatures: walletSignatures,
+            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
+            isThresholdProof: proofType === 'threshold',
+            isMaximumProof: proofType === 'maximum'
+        };
+
+        setProofData(proofDataObj);
+        setReadyToSubmit(true);
+    };
+
+    // Submit final proof after all signatures are collected
+    const submitFinalProof = async () => {
+        if (!proofData || !readyToSubmit) return;
+
+        try {
             const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
             if (!primaryWallet) {
                 throw new Error('Primary wallet not found');
             }
 
-            const amountInWei = ethers.utils.parseEther(finalAmount || '0');
+            // For demo purposes, we'll just submit the proof with the primary wallet
+            // In a real app, you might merge all signatures or submit different proofs
+
+            // Convert amount to Wei for blockchain submission
+            const amountInWei = ethers.utils.parseEther(
+                amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
+            );
+
             const expiryTime = getExpiryTimestamp(expiryDays);
 
-            // Generate proof data that includes all selected wallets and token details if applicable
-            const proofData = {
-                timestamp: Date.now(),
-                expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
-                proofType: proofCategory === 'standard' ? proofType : zkProofType,
-                wallets: selectedWallets.map(id => {
-                    const wallet = connectedWallets.find(w => w.id === id);
-                    return {
-                        address: wallet.fullAddress,
-                        chain: wallet.chain,
-                        type: wallet.type
-                    };
-                }),
-                assets: assetSummary ? assetSummary.totalAssets : [],
-                totalValue: showUSDValues && assetSummary ?
-                    assetSummary.totalUSDValue :
-                    (assetSummary && assetSummary.totalAssets.length > 0 ?
-                        assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
-                currency: amountInputType === 'usd' ? "USD" : "tokens",
-                tokenDetails: tokenDetails,
-                signatures: {},
-                thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
-                maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
-                isThresholdProof: proofType === 'threshold',
-                isMaximumProof: proofType === 'maximum'
-            };
-
-            console.log('Generated proof data:', proofData);
-
-            // Process based on wallet type
-            if (primaryWallet.type === 'evm') {
-                // Check if we need to switch to this MetaMask account
-                if (!address || primaryWallet.fullAddress.toLowerCase() !== address.toLowerCase()) {
-                    try {
-                        // Get the correct provider for MetaMask
-                        let provider = window.ethereum;
-
-                        // If window.ethereum has providers (multiple wallets installed)
-                        if (window.ethereum?.providers) {
-                            // Find the MetaMask provider explicitly
-                            const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
-                            if (metamaskProvider) {
-                                provider = metamaskProvider;
-                                console.log('Using explicit MetaMask provider in create.js');
-                            }
-                        }
-
-                        // Show the account selector UI to let the user switch accounts
-                        await provider.request({
-                            method: 'wallet_requestPermissions',
-                            params: [{ eth_accounts: {} }]
-                        });
-
-                        // Get the currently selected account after user interaction
-                        const accounts = await provider.request({
-                            method: 'eth_requestAccounts'
-                        });
-
-                        // Verify if the user selected the correct account
-                        if (!accounts.some(acc => acc.toLowerCase() === primaryWallet.fullAddress.toLowerCase())) {
-                            throw new Error('Please select the wallet you want to use for creating this proof');
-                        }
-
-                        // Switch to the correct chain if needed
-                        await provider.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x13882' }], // Polygon Amoy testnet (80002 in decimal)
-                        });
-                    } catch (switchError) {
-                        // Handle errors from chain or account switch
-                        throw new Error(`Error switching to the selected wallet: ${switchError.message}`);
-                    }
-                }
-
-                // Submit Ethereum proof
-                if (proofCategory === 'standard') {
-                    if (proofType === 'standard') {
-                        writeStandardProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    } else if (proofType === 'threshold') {
-                        writeThresholdProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    } else if (proofType === 'maximum') {
-                        writeMaximumProof({
-                            args: [amountInWei, expiryTime, signatureMessage],
-                        });
-                    }
-                } else if (proofCategory === 'zk') {
-                    // Zero-knowledge proofs
-                    // In a real implementation, this would generate a ZK proof first
-                    // For now, we'll mock the proof and public signals
-                    const mockProof = ethers.utils.defaultAbiCoder.encode(
-                        ['uint256[]'],
-                        [[1, 2, 3, 4, 5, 6, 7, 8]]
-                    );
-
-                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                        ['uint256[]'],
-                        [[amountInWei.toString()]]
-                    );
-
-                    let zkProofTypeValue;
-                    if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
-                    else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
-                    else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
-
-                    const mockSignature = ethers.utils.toUtf8Bytes("mock-signature"); // In a real app, this would be a real signature
-
-                    writeZKProof({
-                        args: [
-                            mockProof,
-                            mockPublicSignals,
-                            expiryTime,
-                            zkProofTypeValue,
-                            signatureMessage,
-                            mockSignature
-                        ],
+            if (proofCategory === 'standard') {
+                if (proofType === 'standard') {
+                    writeStandardProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
+                    });
+                } else if (proofType === 'threshold') {
+                    writeThresholdProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
+                    });
+                } else if (proofType === 'maximum') {
+                    writeMaximumProof({
+                        args: [amountInWei, expiryTime, signatureMessage],
                     });
                 }
-            } else if (primaryWallet.type === 'solana') {
-                // Handle Solana wallet differently
-                if (!window.solana || !window.solana.isConnected) {
-                    throw new Error('Phantom wallet not connected');
-                }
+            } else if (proofCategory === 'zk') {
+                // Zero-knowledge proofs handling (mock implementation)
+                const mockProof = ethers.utils.defaultAbiCoder.encode(
+                    ['uint256[]'],
+                    [[1, 2, 3, 4, 5, 6, 7, 8]]
+                );
 
-                // Make sure we're using the right Phantom account
-                if (window.solana.publicKey?.toString() !== primaryWallet.fullAddress) {
-                    throw new Error('Please select the correct account in the Phantom wallet');
-                }
+                const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                    ['uint256[]'],
+                    [[amountInWei.toString()]]
+                );
 
-                // For now, just sign a message since we're mocking the Solana proof creation
-                const encodedMessage = new TextEncoder().encode(signatureMessage);
-                const signature = await window.solana.signMessage(encodedMessage, 'utf8');
+                let zkProofTypeValue;
+                if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
+                else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
+                else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
 
-                console.log('Solana proof created with signature:', signature);
+                // Use the signature from the primary wallet
+                const primarySignature = walletSignatures[primaryWallet.id]?.signature ||
+                    ethers.utils.toUtf8Bytes("mock-signature");
 
-                // Mock successful transaction for UI feedback
-                setTxHash('solana-' + Date.now().toString(16));
-                setSuccess(true);
+                writeZKProof({
+                    args: [
+                        mockProof,
+                        mockPublicSignals,
+                        expiryTime,
+                        zkProofTypeValue,
+                        signatureMessage,
+                        primarySignature
+                    ],
+                });
             }
+
+            // Reset states after submission
+            setReadyToSubmit(false);
+            setProofData(null);
+
         } catch (error) {
-            console.error('Error submitting proof:', error);
-            setError(`Failed to submit proof: ${error.message || 'Unknown error'}`);
+            console.error('Error submitting final proof:', error);
+            alert(`Failed to submit proof: ${error.message}`);
         }
+    };
+
+    // Check if all wallets have been signed
+    const areAllWalletsSigned = () => {
+        if (selectedWallets.length === 0) return false;
+        const allSigned = selectedWallets.every(walletId => !!walletSignatures[walletId]);
+
+        // If all are signed and we're in signing stage, move to ready stage
+        if (allSigned && proofStage === 'signing' && !readyToSubmit) {
+            setReadyToSubmit(true);
+            setProofStage('ready');
+        }
+
+        return allSigned;
+    };
+
+    // Reset wallet signatures when selected wallets change
+    useEffect(() => {
+        setWalletSignatures({});
+        setReadyToSubmit(false);
+        setProofData(null);
+    }, [selectedWallets]);
+
+    // Define the handleSubmit function for the button click
+    const handleSubmit = (e) => {
+        e.preventDefault();
+
+        if (selectedWallets.length === 0) {
+            alert('Please select at least one wallet');
+            return;
+        }
+
+        if (amountInputType === 'usd' && !amount) {
+            alert('Please enter an amount');
+            return;
+        }
+
+        if (amountInputType === 'tokens' && selectedTokens.length === 0) {
+            alert('Please select at least one token');
+            return;
+        }
+
+        // Prepare proof details first
+        const finalAmount = amountInputType === 'usd'
+            ? amount
+            : calculateTotalUsdValue().toString();
+
+        const tokenDetails = amountInputType === 'tokens'
+            ? selectedTokens.map(token => ({
+                symbol: token.symbol,
+                chain: token.chain,
+                amount: token.amount,
+                usdValue: token.amount * (
+                    assetSummary?.convertedAssets?.find(
+                        a => a.symbol === token.symbol && a.chain === token.chain
+                    )?.usdRate || 0
+                )
+            }))
+            : [];
+
+        const expiryTime = getExpiryTimestamp(expiryDays);
+
+        // Generate proof data
+        const proofDataObj = {
+            timestamp: Date.now(),
+            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+            proofType: proofCategory === 'standard' ? proofType : zkProofType,
+            wallets: selectedWallets.map(id => {
+                const wallet = connectedWallets.find(w => w.id === id);
+                return {
+                    id: wallet.id,
+                    address: wallet.fullAddress,
+                    chain: wallet.chain,
+                    type: wallet.type
+                };
+            }),
+            assets: assetSummary ? assetSummary.totalAssets : [],
+            totalValue: showUSDValues && assetSummary
+                ? assetSummary.totalUSDValue
+                : (assetSummary && assetSummary.totalAssets.length > 0
+                    ? assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0)
+                    : 0),
+            currency: amountInputType === 'usd' ? "USD" : "tokens",
+            tokenDetails: tokenDetails,
+            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
+            isThresholdProof: proofType === 'threshold',
+            isMaximumProof: proofType === 'maximum'
+        };
+
+        setProofData(proofDataObj);
+
+        // Move to signing stage
+        setProofStage('signing');
     };
 
     // Check for transaction completion
@@ -677,6 +891,22 @@ export default function CreatePage() {
         if (firstChain === 'solana') return 'SOL';
         return 'ETH'; // Default for ethereum or other chains
     };
+
+    // Fix 2: Revise the proof submission flow and add state to track stages
+    const [proofStage, setProofStage] = useState('input'); // 'input', 'signing', 'ready'
+
+    // Add useEffect to reset signatures when critical proof details change
+    useEffect(() => {
+        // When the amount or proof details change, invalidate existing signatures
+        if (Object.keys(walletSignatures).length > 0) {
+            setWalletSignatures({});
+            if (proofStage !== 'input') {
+                setProofStage('input');
+                setReadyToSubmit(false);
+                setProofData(null);
+            }
+        }
+    }, [amount, proofCategory, proofType, zkProofType, amountInputType, selectedTokens, expiryDays]);
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
@@ -962,8 +1192,8 @@ export default function CreatePage() {
                                 <button
                                     onClick={() => setAmountInputType('usd')}
                                     className={`mr-2 py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'usd'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
                                     USD Value
@@ -971,8 +1201,8 @@ export default function CreatePage() {
                                 <button
                                     onClick={() => setAmountInputType('tokens')}
                                     className={`py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'tokens'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
                                     Token Amounts
@@ -1015,8 +1245,8 @@ export default function CreatePage() {
                                                         key={`${asset.chain}-${asset.symbol}-${idx}`}
                                                         onClick={() => handleTokenSelection(asset)}
                                                         className={`px-2 py-1 text-xs rounded-md border flex justify-between items-center ${selectedTokens.some(t => t.symbol === asset.symbol && t.chain === asset.chain)
-                                                                ? 'bg-blue-100 border-blue-300'
-                                                                : 'bg-white border-gray-200'
+                                                            ? 'bg-blue-100 border-blue-300'
+                                                            : 'bg-white border-gray-200'
                                                             }`}
                                                     >
                                                         <span>{asset.symbol}</span>
@@ -1102,20 +1332,117 @@ export default function CreatePage() {
                         </select>
                     </div>
 
+                    {/* Wallet Signatures */}
+                    {proofStage === 'signing' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sign with Your Wallets
+                            </label>
+
+                            <div className="space-y-3 mb-4">
+                                {selectedWallets.length > 0 ? (
+                                    <div className="border rounded-md divide-y">
+                                        {selectedWallets.map(walletId => {
+                                            const wallet = connectedWallets.find(w => w.id === walletId);
+                                            const isSigned = !!walletSignatures[walletId];
+                                            const isCurrentSigning = currentSigningWallet === walletId && isSigningWallet;
+
+                                            return (
+                                                <div key={walletId} className="p-3 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <div className="font-medium">{wallet?.name || 'Wallet'}</div>
+                                                        <div className="text-xs text-gray-500">{wallet?.address || wallet?.fullAddress}</div>
+                                                        <div className="text-xs text-gray-500">{wallet?.chain}</div>
+                                                    </div>
+
+                                                    <div className="flex items-center space-x-2">
+                                                        {isSigned ? (
+                                                            <div className="flex items-center text-green-600">
+                                                                <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                </svg>
+                                                                <span className="text-xs">Signed</span>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSignWallet(walletId)}
+                                                                disabled={isSigningWallet}
+                                                                className={`py-1 px-3 text-xs font-medium rounded-md border ${isCurrentSigning
+                                                                    ? 'bg-gray-100 text-gray-400 cursor-wait'
+                                                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                                    }`}
+                                                            >
+                                                                {isCurrentSigning ? 'Signing...' : 'Sign with Wallet'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-gray-500 italic">
+                                        Please select at least one wallet to sign
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Signature status summary */}
+                            {selectedWallets.length > 0 && (
+                                <div className="text-sm mb-2">
+                                    {areAllWalletsSigned() ? (
+                                        <div className="text-green-600">
+                                            ✓ All wallets signed successfully
+                                        </div>
+                                    ) : (
+                                        <div className="text-gray-600">
+                                            {Object.keys(walletSignatures).length} of {selectedWallets.length} wallets signed
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Submit Button */}
                     <div>
                         <button
                             type="button"
-                            onClick={handleSubmit}
-                            disabled={isPending || amount === ''}
-                            className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isPending || amount === ''
+                            onClick={
+                                proofStage === 'input'
+                                    ? handleSubmit
+                                    : proofStage === 'ready'
+                                        ? submitFinalProof
+                                        : null // No action in signing stage, just display status
+                            }
+                            disabled={
+                                isPending ||
+                                (selectedWallets.length === 0) ||
+                                (amountInputType === 'usd' && !amount) ||
+                                (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                (proofStage === 'signing' && !areAllWalletsSigned())
+                            }
+                            className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isPending ||
+                                (selectedWallets.length === 0) ||
+                                (amountInputType === 'usd' && !amount) ||
+                                (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                (proofStage === 'signing' && !areAllWalletsSigned())
                                 ? 'bg-gray-400 cursor-not-allowed'
-                                : proofCategory === 'standard'
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : 'bg-purple-600 hover:bg-purple-700'
+                                : proofStage === 'ready'
+                                    ? 'bg-green-600 hover:bg-green-700'
+                                    : proofCategory === 'standard'
+                                        ? 'bg-blue-600 hover:bg-blue-700'
+                                        : 'bg-purple-600 hover:bg-purple-700'
                                 }`}
                         >
-                            {isPending ? 'Processing...' : 'Create Proof'}
+                            {isPending
+                                ? 'Processing...'
+                                : proofStage === 'input'
+                                    ? 'Prepare Proof'
+                                    : proofStage === 'signing'
+                                        ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
+                                        : 'Submit Proof to Blockchain'}
                         </button>
                     </div>
 
