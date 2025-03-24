@@ -33,7 +33,7 @@ export default function Navbar() {
                                 <div className="logo-pop flex items-center">
                                     <span className="text-2xl font-extrabold text-primary-600">
                                         <span>Arbitr</span>
-                                        <span className="text-zk">.</span>
+                                        <span className="text-zk-accent">.</span>
                                     </span>
                                 </div>
                                 <span className="text-xs text-gray-500 -mt-1">Proof of Funds</span>
@@ -70,6 +70,12 @@ export default function Navbar() {
                                 className={getActiveClass('/about')}
                             >
                                 About
+                            </Link>
+                            <Link
+                                href="/tech"
+                                className={getActiveClass('/tech')}
+                            >
+                                Tech
                             </Link>
                         </div>
                     </div>

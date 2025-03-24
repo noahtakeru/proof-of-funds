@@ -73,7 +73,7 @@ export default function Home() {
 
                 <div className="max-w-4xl mx-auto relative z-10">
                     <h1 className="text-5xl md:text-6xl font-bold mb-4">
-                        <span className="text-primary-600">Arbitr<span className="text-zk">.</span></span>
+                        <span className="text-primary-600">Arbitr<span className="text-zk-accent">.</span></span>
                     </h1>
                     <p className="text-xl text-gray-600 mb-6">
                         Securely verify blockchain assets with privacy-preserving proofs
@@ -90,11 +90,18 @@ export default function Home() {
                         </p>
                     </div>
 
-                    <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                        <Link href="/create" className="px-6 py-3 text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700">
+                    {/* Enhanced Action Buttons */}
+                    <div className="flex justify-center items-center gap-8 my-12">
+                        <Link href="/create" className="px-8 py-4 text-lg font-bold rounded-lg shadow-lg bg-primary-600 hover:bg-primary-700 text-white transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
                             Create Proof
                         </Link>
-                        <Link href="/verify" className="px-6 py-3 text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700">
+                        <Link href="/verify" className="px-8 py-4 text-lg font-bold rounded-lg shadow-lg bg-zk-accent hover:bg-zk-accent-dark text-white transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
                             Verify Proof
                         </Link>
                     </div>

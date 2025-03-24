@@ -1,7 +1,9 @@
+import Link from 'next/link';
+
 export default function AboutPage() {
     return (
-        <div className="max-w-4xl mx-auto py-10 px-4">
-            <h1 className="text-4xl font-bold text-center mb-10">About <span className="text-primary-600">Arbitr<span className="text-zk">.</span></span></h1>
+        <div className="max-w-4xl mx-auto py-10 px-4 about-page">
+            <h1 className="text-4xl font-bold text-center mb-10">About <span className="text-primary-600">Arbitr<span className="text-zk-accent">.</span></span></h1>
 
             <div className="space-y-12">
                 <section className="py-12 border-b border-gray-200">
@@ -83,9 +85,9 @@ export default function AboutPage() {
                                     Our platform uses advanced zero-knowledge proofs to verify asset ownership without revealing sensitive information. This cryptographic breakthrough ensures your financial privacy remains intact.
                                 </p>
                                 <div className="mt-6">
-                                    <a href="#" className="text-zk font-medium hover:text-zk-accent-dark">
+                                    <Link href="/tech" className="text-zk font-medium hover:text-zk-accent-dark">
                                         Learn more about our tech &rarr;
-                                    </a>
+                                    </Link>
                                 </div>
                             </div>
                             <div className="mt-12 lg:mt-0">
@@ -132,7 +134,7 @@ export default function AboutPage() {
                         </div>
                         <div>
                             <h3 className="text-xl font-semibold">Noah Karpel</h3>
-                            <p className="text-gray-600">Founder & CEO</p>
+                            <p className="text-gray-600">Kenny's Boyfriend</p>
                         </div>
                     </div>
                 </section>

@@ -108,8 +108,11 @@ body {
 }
 
 .text-zk {
-    color: var(--zk-accent-dark);
-    font-weight: 600;
+    color: rgb(var(--color-zk));
+}
+
+.text-zk-accent {
+    color: rgb(var(--color-zk-accent));
 }
 
 .bg-zk-light {
@@ -171,6 +174,12 @@ body {
 .bg-white.rounded-lg.shadow-xl {
     position: relative;
     z-index: 10000 !important;
+}
+
+/* Fix for z-index layering in About page */
+.about-page .bg-white.rounded-lg.shadow-xl,
+section .bg-white.rounded-lg.shadow-xl {
+    z-index: 1;
 }
 
 /* Animation classes */
@@ -248,10 +257,6 @@ body {
 
 .bg-zk-light {
     background-color: rgb(var(--color-zk-light));
-}
-
-.text-zk {
-    color: rgb(var(--color-zk));
 }
 
 .border-zk-accent {
