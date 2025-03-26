@@ -1102,7 +1102,11 @@ export default function CreatePage() {
                                         ? 'bg-primary-600 text-white border-primary-600'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                         }`}
-                                    onClick={() => setProofCategory('standard')}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setProofCategory('standard');
+                                    }}
                                 >
                                     Standard Proofs
                                 </button>
@@ -1112,7 +1116,11 @@ export default function CreatePage() {
                                         ? 'bg-zk-accent text-white border-zk-accent'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                         }`}
-                                    onClick={() => setProofCategory('zk')}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setProofCategory('zk');
+                                    }}
                                 >
                                     Zero-Knowledge Proofs
                                 </button>
@@ -1480,9 +1488,6 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 hover:bg-primary-700 text-white'
                                             : 'bg-zk-accent hover:bg-zk-accent-dark text-white'
                                     }`}
-                                onClick={() => {
-                                    console.log("Submit button clicked via onClick");
-                                }}
                             >
                                 {isPending
                                     ? 'Processing...'
