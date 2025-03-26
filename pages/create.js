@@ -250,8 +250,14 @@ export default function CreatePage() {
         };
     }, [selectedWallets]); // Only depend on selectedWallets
 
-    // Toggle USD conversion
-    const handleToggleUSDConversion = async () => {
+    // Fix the toggle USD values function to prevent form submission
+    const handleToggleUSDConversion = async (e) => {
+        // Stop propagation to prevent the form from submitting
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
         if (!showUSDValues && assetSummary) {
             // If turning on USD conversion, convert existing assets
             try {
@@ -918,7 +924,18 @@ export default function CreatePage() {
             <div className="bg-white p-8 rounded-lg shadow-md">
                 <h2 className="text-xl font-semibold mb-6">Proof Creation</h2>
 
-                <form onSubmit={handleSubmit}>
+                <form
+                    onSubmit={(e) => {
+                        // Only process submit when it comes from the actual submit button
+                        if (e.nativeEvent.submitter &&
+                            e.nativeEvent.submitter.getAttribute('type') === 'submit') {
+                            handleSubmit(e);
+                        } else {
+                            // Prevent form submission for other interactions
+                            e.preventDefault();
+                        }
+                    }}
+                >
                     <div className="space-y-6">
                         {/* Wallet Selection Section */}
                         <div>
@@ -970,7 +987,12 @@ export default function CreatePage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center">
                                         <button
-                                            onClick={() => setIsAssetSummaryExpanded(!isAssetSummaryExpanded)}
+                                            onClick={(e) => {
+                                                // Prevent form submission when toggling asset summary
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setIsAssetSummaryExpanded(!isAssetSummaryExpanded);
+                                            }}
                                             className="mr-2 text-gray-500 hover:text-gray-700"
                                             aria-expanded={isAssetSummaryExpanded}
                                         >
@@ -989,7 +1011,12 @@ export default function CreatePage() {
                                     <div className="flex items-center">
                                         <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
                                         <button
-                                            onClick={handleToggleUSDConversion}
+                                            onClick={(e) => {
+                                                // Prevent form submission when toggling USD display
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleToggleUSDConversion();
+                                            }}
                                             disabled={isLoadingAssets || isConvertingUSD}
                                             className={`relative inline-flex h-6 w-11 items-center rounded-full ${showUSDValues ? 'bg-primary-600' : 'bg-gray-300'}`}
                                             aria-checked={showUSDValues}
