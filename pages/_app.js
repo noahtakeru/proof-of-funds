@@ -1,3 +1,14 @@
+/**
+ * Main Application Component
+ * 
+ * This is the top-level component that wraps all pages in the Proof of Funds application.
+ * It handles global configuration including:
+ *  - Blockchain network setup (Polygon Amoy testnet)
+ *  - Wallet connection providers (MetaMask and other injected wallets)
+ *  - Global layout and styling
+ *  - Persistence management for wallet connections
+ */
+
 import '../styles/globals.css';
 // import '@rainbow-me/rainbowkit/styles.css';
 import { AppProps } from 'next/app';
@@ -9,7 +20,11 @@ import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { InjectedConnector } from 'wagmi/connectors/injected';
 import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext';
 
-// Define Polygon Amoy testnet
+/**
+ * Polygon Amoy Testnet Configuration
+ * Used for development and testing of blockchain interactions
+ * Chain ID 80002 identifies this specific test network
+ */
 const polygonAmoy = {
     id: 80002,
     name: 'Polygon Amoy',
@@ -28,7 +43,11 @@ const polygonAmoy = {
     testnet: true,
 };
 
-// Configure chains & providers
+/**
+ * Chain Configuration
+ * Sets up the blockchain networks and RPC providers for the application
+ * Currently only using Polygon Amoy testnet
+ */
 const { chains, provider } = configureChains(
     [polygonAmoy],
     [
@@ -40,7 +59,12 @@ const { chains, provider } = configureChains(
     ]
 );
 
-// Set up MetaMask connector with explicit options
+/**
+ * MetaMask Wallet Connector
+ * Primary connector for Ethereum wallets via MetaMask extension
+ * shimDisconnect: Provides consistent disconnect behavior across browsers
+ * UNSTABLE_shimOnConnectSelectAccount: Forces account selection popup on connect
+ */
 const metaMaskConnector = new MetaMaskConnector({
     chains,
     options: {
@@ -49,7 +73,11 @@ const metaMaskConnector = new MetaMaskConnector({
     },
 });
 
-// Set up injected connector as fallback
+/**
+ * Generic Injected Wallet Connector
+ * Fallback connector for other browser wallet extensions
+ * Supports any wallet that injects an Ethereum provider
+ */
 const injectedConnector = new InjectedConnector({
     chains,
     options: {
@@ -58,18 +86,30 @@ const injectedConnector = new InjectedConnector({
     },
 });
 
-// Set up client - explicitly set autoConnect to false to prevent automatic connections
+/**
+ * Wagmi Client Configuration
+ * Creates the client that handles wallet connections and blockchain interactions
+ * autoConnect: false prevents automatic wallet connection on page load
+ */
 const client = createClient({
     autoConnect: false, // This ensures no automatic connection happens
     connectors: [metaMaskConnector, injectedConnector],
     provider,
 });
 
-// Import layout
+/**
+ * Dynamically import Layout component
+ * Using dynamic import to prevent SSR issues with browser-specific components
+ */
 const Layout = dynamic(() => import('../components/Layout'), {
     ssr: false,
 });
 
+/**
+ * Main Application Component
+ * Wraps all pages with necessary providers and global layout
+ * Handles wallet connection persistence logic
+ */
 function MyApp({ Component, pageProps }) {
     // Check and clear any stored connection state on initial load
     useEffect(() => {

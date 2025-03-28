@@ -1,3 +1,24 @@
+/**
+ * ConnectWallet Component
+ * 
+ * A reusable component that handles wallet connections across the application.
+ * This component provides a unified interface for connecting to different blockchain
+ * wallets (Ethereum/EVM and Solana), displaying connected wallet information,
+ * and managing wallet connections.
+ * 
+ * Key Features:
+ * - Wallet connection button that opens a wallet selector modal
+ * - Connected wallet display with dropdown menu
+ * - Ability to connect multiple wallets simultaneously
+ * - Wallet disconnection functionality
+ * - Synchronized wallet state across multiple components using localStorage
+ * - Support for both MetaMask (EVM chains) and Phantom (Solana) wallets
+ * 
+ * The component actively listens for wallet connection changes from other
+ * components using a custom localStorage interceptor, ensuring consistent
+ * wallet state across the application.
+ */
+
 import { useEffect, useState, useRef } from 'react';
 import WalletSelector from './WalletSelector';
 import { getConnectedWallets, disconnectWallet } from '../lib/walletHelpers';

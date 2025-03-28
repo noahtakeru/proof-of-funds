@@ -1,3 +1,24 @@
+/**
+ * Proof Verification Page
+ * 
+ * This page allows users to verify proof of funds created on the Arbitr platform.
+ * It interacts with smart contracts on the Polygon blockchain to validate various
+ * types of fund verification proofs.
+ * 
+ * Key features:
+ * - Support for multiple verification types:
+ *   - Standard proofs (exact amount verification)
+ *   - Threshold proofs (minimum amount verification)
+ *   - Maximum proofs (maximum amount verification)
+ *   - Zero-knowledge proofs (private verification)
+ * - Blockchain-based verification through smart contract calls
+ * - User-friendly verification UI with status indicators
+ * - Detailed verification results display
+ * 
+ * The page uses wagmi hooks for contract interaction, enabling direct verification
+ * against the deployed Arbitr proof of funds contracts on Polygon network.
+ */
+
 import { useState, useEffect } from 'react';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';

@@ -1,3 +1,39 @@
+/**
+ * Audit Logs Component
+ * 
+ * Administrative interface for monitoring and reviewing all system activities
+ * within the Arbitr platform. Provides a comprehensive audit trail for compliance,
+ * security monitoring, and troubleshooting purposes.
+ * 
+ * Key features:
+ * - Activity Tracking: Records all significant platform events, including:
+ *   - Proof creation, verification, and revocation events
+ *   - Administrative actions and system configuration changes
+ *   - Authentication events (wallet connections)
+ * 
+ * - Advanced Filtering: Multiple ways to filter log data
+ *   - Full-text search across all log fields
+ *   - Category-based filtering (proofs, auth, admin actions)
+ *   - Time-based filtering (today, yesterday, last 7/30 days)
+ * 
+ * - Export Capabilities: Export logs in different formats
+ *   - CSV format for spreadsheet analysis
+ *   - JSON format for programmatic processing
+ *   - PDF format for formal reporting
+ * 
+ * - Detailed Log Inspection: View comprehensive details for each log entry
+ * 
+ * Each log entry captures important metadata:
+ * - Timestamp of the action
+ * - User/wallet address that performed the action
+ * - IP address for security tracking
+ * - Detailed description of the event
+ * 
+ * Note: Currently using mock data for demonstration.
+ * Production implementation would integrate with backend logging systems
+ * and comply with data retention policies and privacy regulations.
+ */
+
 import { useState, useEffect } from 'react';
 
 export default function AuditLogs() {
@@ -203,8 +239,8 @@ export default function AuditLogs() {
                                 <td className="p-2">{log.user}</td>
                                 <td className="p-2">
                                     <span className={`px-2 py-1 rounded-full text-xs ${log.category === 'admin' ? 'bg-purple-100 text-purple-800' :
-                                            log.category === 'auth' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-green-100 text-green-800'
+                                        log.category === 'auth' ? 'bg-blue-100 text-blue-800' :
+                                            'bg-green-100 text-green-800'
                                         }`}>
                                         {log.action}
                                     </span>

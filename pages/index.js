@@ -1,8 +1,20 @@
+/**
+ * Home Page / Landing Page Component
+ * 
+ * This is the main landing page for the Arbitr (Proof of Funds) application.
+ * It provides an overview of the platform's features and capabilities,
+ * with interactive elements to engage users and explain the concept.
+ */
+
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 
-// Add a simple Lock icon component
+/**
+ * LockIcon Component
+ * A simple SVG icon representing security/locking
+ * Used in various places to emphasize the security aspects of the platform
+ */
 const LockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -10,27 +22,44 @@ const LockIcon = () => (
 );
 
 export default function Home() {
+    // State to track the current slide in the carousel
     const [currentSlide, setCurrentSlide] = useState(0);
+
+    // Reference to the carousel DOM element for animation
     const carouselRef = useRef(null);
+
+    // Total number of slides in the carousel
     const slidesCount = 3;
 
-    // Autoplay function for carousel
+    /**
+     * Carousel Autoplay Effect
+     * Automatically advances the carousel to the next slide every 5 seconds
+     */
     useEffect(() => {
         const interval = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % slidesCount);
         }, 5000);
 
+        // Clean up the interval when component unmounts
         return () => clearInterval(interval);
     }, []);
 
-    // Update carousel position when slide changes
+    /**
+     * Carousel Animation Effect
+     * Updates the carousel's transform property when the slide changes
+     * Creates a smooth sliding animation
+     */
     useEffect(() => {
         if (carouselRef.current) {
             carouselRef.current.style.transform = `translateX(-${currentSlide * 100}%)`;
         }
     }, [currentSlide]);
 
-    // Testimonial data
+    /**
+     * Testimonial Data
+     * Collection of user testimonials to display on the page
+     * Includes quote, author name, and author title for each testimonial
+     */
     const testimonials = [
         {
             quote: "Arbitr has completely transformed how we verify clients' financial capacity. Fast, secure, and private.",
@@ -49,6 +78,18 @@ export default function Home() {
         }
     ];
 
+    /**
+     * FloatingElement Component
+     * Creates decorative floating elements in the background
+     * Adds visual interest and a modern feel to the landing page
+     * 
+     * @param {number} delay - Animation delay in seconds
+     * @param {number} duration - Animation duration in seconds
+     * @param {number} size - Element size in pixels
+     * @param {number} left - Horizontal position as percentage
+     * @param {number} top - Vertical position as percentage
+     * @param {number} opacity - Element opacity (0-1)
+     */
     const FloatingElement = ({ delay, duration, size, left, top, opacity }) => {
         return (
             <div
@@ -90,7 +131,7 @@ export default function Home() {
                         </p>
                     </div>
 
-                    {/* Enhanced Action Buttons */}
+                    {/* Call-to-Action Buttons */}
                     <div className="flex justify-center items-center gap-8 my-12">
                         <Link href="/create" className="px-8 py-4 text-lg font-bold rounded-lg shadow-lg bg-primary-600 hover:bg-primary-700 text-white transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,11 +147,12 @@ export default function Home() {
                         </Link>
                     </div>
 
-                    {/* Clear visual representation of what Arbitr does */}
+                    {/* Value Proposition Cards */}
                     <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
                         <h2 className="text-2xl font-bold mb-6">Why Proof of Funds Matters</h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                            {/* Business Use Case Card */}
                             <div className="bg-primary-50 p-6 rounded-lg">
                                 <div className="h-12 w-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -124,6 +166,7 @@ export default function Home() {
                                 </p>
                             </div>
 
+                            {/* Individual Use Case Card */}
                             <div className="bg-primary-50 p-6 rounded-lg">
                                 <div className="h-12 w-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -137,6 +180,7 @@ export default function Home() {
                                 </p>
                             </div>
 
+                            {/* Zero-Knowledge Feature Card */}
                             <div className="bg-zk-light p-6 rounded-lg">
                                 <div className="h-12 w-12 bg-white text-zk-accent-dark rounded-full flex items-center justify-center mb-4">
                                     <span className="font-bold">ZK</span>
@@ -152,7 +196,7 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* How It Works Carousel */}
+            {/* How It Works Section - Interactive Carousel */}
             <section className="py-12 bg-gray-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center">
@@ -164,12 +208,13 @@ export default function Home() {
                         </p>
                     </div>
 
+                    {/* Step-by-Step Carousel */}
                     <div className="carousel overflow-hidden mb-8">
                         <div
                             ref={carouselRef}
                             className="carousel-inner flex transition-transform duration-500 ease-in-out"
                         >
-                            {/* Slide 1 */}
+                            {/* Step 1: Connect Wallet */}
                             <div className="carousel-item w-full flex-shrink-0 px-4">
                                 <div className="bg-white rounded-xl shadow-md p-8">
                                     <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-2xl font-bold mb-6 mx-auto">1</div>
@@ -200,7 +245,7 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            {/* Slide 2 */}
+                            {/* Step 2: Generate Proof */}
                             <div className="carousel-item w-full flex-shrink-0 px-4">
                                 <div className="bg-white rounded-xl shadow-md p-8">
                                     <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-2xl font-bold mb-6 mx-auto">2</div>
@@ -217,7 +262,7 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            {/* Slide 3 */}
+                            {/* Step 3: Share Proof */}
                             <div className="carousel-item w-full flex-shrink-0 px-4">
                                 <div className="bg-white rounded-xl shadow-md p-8">
                                     <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-2xl font-bold mb-6 mx-auto">3</div>
@@ -246,7 +291,7 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* Carousel navigation */}
+                    {/* Carousel Navigation Dots */}
                     <div className="flex justify-center space-x-2">
                         {[...Array(slidesCount)].map((_, i) => (
                             <button

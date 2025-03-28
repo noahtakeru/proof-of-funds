@@ -1,3 +1,30 @@
+/**
+ * Proof Management Component
+ * 
+ * Administrative interface for managing proof of funds records within the Arbitr platform.
+ * Allows administrators to view, filter, search, and perform actions on proofs created by users.
+ * 
+ * Key features:
+ * - Searchable and filterable table of all proof records
+ * - Filtering by proof type (standard, threshold, maximum, zero-knowledge)
+ * - Filtering by status (active, expired, revoked)
+ * - Detail view for individual proofs
+ * - Administrative actions:
+ *   - Revoking active proofs (for compliance or security reasons)
+ *   - Extending proof expiration dates
+ * 
+ * Each proof record contains:
+ * - Unique identifier
+ * - User wallet address
+ * - Proof type
+ * - Status
+ * - Creation and expiration dates
+ * 
+ * Note: Currently using mock data for demonstration.
+ * Production implementation would connect to blockchain contracts
+ * and backend services for actual proof management.
+ */
+
 import { useState, useEffect } from 'react';
 import { PROOF_TYPES, ZK_PROOF_TYPES } from '../../config/constants';
 
@@ -112,8 +139,8 @@ export default function ProofManagement() {
                                 <td className="p-2 capitalize">{proof.type}</td>
                                 <td className="p-2">
                                     <span className={`px-2 py-1 rounded-full text-xs ${proof.status === 'active' ? 'bg-green-100 text-green-800' :
-                                            proof.status === 'expired' ? 'bg-yellow-100 text-yellow-800' :
-                                                'bg-red-100 text-red-800'
+                                        proof.status === 'expired' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-red-100 text-red-800'
                                         }`}>
                                         {proof.status}
                                     </span>

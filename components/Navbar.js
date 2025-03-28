@@ -1,3 +1,21 @@
+/**
+ * Navigation Bar Component
+ * 
+ * Provides the primary navigation for the Arbitr platform, allowing users
+ * to move between different sections of the application.
+ * 
+ * Key features:
+ * - Responsive design that adapts to different screen sizes
+ * - Visual indication of the currently active route
+ * - Branding elements with the Arbitr logo and name
+ * - Integrated wallet connection interface via the ConnectWallet component
+ * - Dynamic route highlighting based on the current page
+ * 
+ * The navbar is sticky-positioned at the top of the viewport to ensure
+ * navigation controls are always accessible to the user regardless of
+ * scroll position.
+ */
+
 import Link from 'next/link';
 import ConnectWallet from './ConnectWallet';
 import { useState, useEffect } from 'react';

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { PROOF_TYPES, ZK_PROOF_TYPES } from '@/config/constants';
 
 export default function EducationalGuide() {
     const [activeTab, setActiveTab] = useState<'overview' | 'proofTypes' | 'verification' | 'security'>('overview');
