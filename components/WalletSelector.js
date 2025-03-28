@@ -2,12 +2,41 @@ import { useState, useEffect, useRef } from 'react';
 import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
 import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
 import { SUPPORTED_CHAINS } from '../config/constants';
+import { useConnect } from 'wagmi';
 
 export default function WalletSelector({ onClose }) {
     console.log('WalletSelector component rendered');
 
+    // Get the wagmi connect function and connectors
+    const { connect: wagmiConnect, connectors } = useConnect();
+
     // Add ref to main container
     const selectorRef = useRef(null);
+
+    // Make wagmi connect and MetaMask connector available globally for walletHelpers
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            // Make wagmi's connect function available globally for the walletHelpers.js
+            window.wagmiConnect = wagmiConnect;
+
+            // Find the MetaMask connector and make it available globally
+            const metaMaskConnector = connectors.find(c => c.id === 'metaMask');
+            if (metaMaskConnector) {
+                window.wagmiMetaMaskConnector = metaMaskConnector;
+                console.log('MetaMask connector made available globally');
+            } else {
+                console.warn('MetaMask connector not found among wagmi connectors');
+            }
+        }
+
+        // Clean up the global references when component unmounts
+        return () => {
+            if (typeof window !== 'undefined') {
+                delete window.wagmiConnect;
+                delete window.wagmiMetaMaskConnector;
+            }
+        };
+    }, [wagmiConnect, connectors]);
 
     const [availableWallets, setAvailableWallets] = useState([
         {
@@ -144,9 +173,50 @@ export default function WalletSelector({ onClose }) {
 
         try {
             if (walletId === 'metamask') {
-                // Use our centralized util for MetaMask connection
+                // Find the MetaMask connector from wagmi
+                const metaMaskConnector = connectors.find(c => c.id === 'metaMask');
+
+                if (metaMaskConnector) {
+                    // First try to connect using wagmi
+                    console.log('Connecting with wagmi MetaMask connector...');
+                    try {
+                        // Use wagmi connect with MetaMask connector
+                        const result = await wagmiConnect({ connector: metaMaskConnector });
+
+                        if (result?.account) {
+                            console.log('Wagmi connection successful:', result);
+
+                            // Save to localStorage AFTER wagmi connection is confirmed
+                            saveWalletConnection('metamask', [result.account]);
+
+                            // Mark as user initiated to start asset scanning
+                            localStorage.setItem('userInitiatedConnection', 'true');
+
+                            // Dispatch event for connection change
+                            const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                                detail: { timestamp: Date.now(), walletType: 'metamask' }
+                            });
+                            window.dispatchEvent(walletChangeEvent);
+
+                            // Close the dialog after successful connection
+                            setTimeout(() => {
+                                if (typeof onClose === 'function') {
+                                    onClose();
+                                }
+                            }, 500);
+
+                            return;
+                        }
+                    } catch (wagmiError) {
+                        console.error('Wagmi connection failed, falling back to direct connection:', wagmiError);
+                        // Continue to fallback connection method
+                    }
+                }
+
+                // Fallback to our custom connection method if wagmi fails
                 const accounts = await connectMetaMask();
                 console.log('MetaMask accounts:', accounts);
+
                 // Save the connection data
                 saveWalletConnection('metamask', accounts);
 

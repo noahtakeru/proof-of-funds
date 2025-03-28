@@ -22,6 +22,7 @@
 import { useEffect, useState, useRef } from 'react';
 import WalletSelector from './WalletSelector';
 import { getConnectedWallets, disconnectWallet } from '../lib/walletHelpers';
+import { useDisconnect } from 'wagmi';
 
 export default function ConnectWallet() {
     const [showWalletSelector, setShowWalletSelector] = useState(false);
@@ -31,6 +32,21 @@ export default function ConnectWallet() {
     const [buttonClicked, setButtonClicked] = useState(false);
     const walletMenuRef = useRef(null);
     const connectBtnRef = useRef(null);
+
+    // Get the wagmi disconnect function
+    const { disconnect: wagmiDisconnect } = useDisconnect();
+
+    // Make wagmi disconnect function available globally for walletHelpers.js
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.wagmiDisconnect = wagmiDisconnect;
+
+            // Clean up on unmount
+            return () => {
+                delete window.wagmiDisconnect;
+            };
+        }
+    }, [wagmiDisconnect]);
 
     // Utility function to add a synthetic event listener for localStorage changes
     const setupLocalStorageListener = () => {
@@ -160,7 +176,7 @@ export default function ConnectWallet() {
 
             console.log('Disconnecting wallet:', wallet);
 
-            // Use the centralized disconnect helper
+            // Use the centralized disconnect helper which now handles wagmi disconnect
             await disconnectWallet(wallet.type, wallet.fullAddress);
 
             // Force an immediate update of the wallet list
@@ -170,6 +186,12 @@ export default function ConnectWallet() {
                     ...prev,
                     [walletId]: false
                 }));
+
+                // Dispatch an event to notify other components about wallet changes
+                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                    detail: { timestamp: Date.now() }
+                });
+                window.dispatchEvent(walletChangeEvent);
             }, 300);
         } catch (error) {
             console.error('Error disconnecting wallet:', error);

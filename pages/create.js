@@ -24,75 +24,61 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
-import { ethers } from 'ethers';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
 import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash } from '../lib/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-
-// Smart contract address on Polygon Amoy testnet
-const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const CONTRACT_ABI = [
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitThresholdProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_maxAmount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitMaximumProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-];
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { isValidAmount } from '../lib/ethersUtils';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {
-    // Use ethers.js or web3.js to fetch balance
-    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
-    const balance = await provider.getBalance(walletAddress);
-    return ethers.utils.formatEther(balance); // Convert from wei to ETH
+    try {
+        // Dynamically import ethers
+        const { getEthers } = await import('../lib/ethersUtils');
+        const { ethers } = await getEthers();
+
+        // Use ethers.js to fetch balance
+        const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+        const balance = await provider.getBalance(walletAddress);
+        return ethers.utils.formatEther(balance); // Convert from wei to ETH
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+        throw error;
+    }
 };
 
 // Helper function to fetch USD value
 const fetchUSDValue = async (balance, chain) => {
-    // Use CoinGecko API to fetch token price
-    const tokenId = chain === "Ethereum" ? "ethereum" : "matic-network";
-    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`);
-    const data = await response.json();
-    const price = data[tokenId].usd;
-    return (balance * price).toFixed(2); // Convert balance to USD
+    try {
+        // Use CoinGecko API to fetch token price
+        const tokenId = chain === "Ethereum" ? "ethereum" : "matic-network";
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`);
+        const data = await response.json();
+        const price = data[tokenId].usd;
+        return (balance * price).toFixed(2); // Convert balance to USD
+    } catch (error) {
+        console.error('Error fetching USD value:', error);
+        throw error;
+    }
 };
 
 // Helper function to sign a message
 const signMessage = async (walletAddress, message) => {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-    const signature = await signer.signMessage(message);
-    return signature;
+    try {
+        // Dynamically import ethers
+        const { getEthers } = await import('../lib/ethersUtils');
+        const { ethers } = await getEthers();
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const signature = await signer.signMessage(message);
+        return signature;
+    } catch (error) {
+        console.error('Error signing message:', error);
+        throw error;
+    }
 };
 
 /**
@@ -105,18 +91,34 @@ const signMessage = async (walletAddress, message) => {
  */
 const generateProof = async (walletAddress, chain, proofType, amount) => {
     try {
+        // Validate inputs before proceeding
+        if (!walletAddress) {
+            throw new Error('Wallet address is required');
+        }
+
+        if (!amount || amount.trim() === '' || isNaN(Number(amount))) {
+            console.error("Invalid amount:", amount);
+            throw new Error('Valid amount is required. Please enter a number.');
+        }
+
+        console.log(`Generating proof with: address=${walletAddress}, chain=${chain}, proofType=${proofType}, amount=${amount}`);
+
+        // Dynamically import ethers and our utils
+        const { getEthers, parseAmount } = await import('../lib/ethersUtils');
+
         // Convert from string proof type to enum value
         let proofTypeEnum = PROOF_TYPES.STANDARD;
         if (proofType === 'threshold') proofTypeEnum = PROOF_TYPES.THRESHOLD;
         else if (proofType === 'maximum') proofTypeEnum = PROOF_TYPES.MAXIMUM;
 
-        // Convert to Wei for blockchain
-        const amountInWei = ethers.utils.parseEther(amount);
+        // Convert amount to Wei with proper decimal handling
+        const amountInWei = await parseAmount(amount);
+        console.log(`Converted amount ${amount} to wei: ${amountInWei}`);
 
         // Generate hash based on proof type
         const proofHash = await generateProofHash(
             walletAddress,
-            amountInWei.toString(),
+            amountInWei,
             proofTypeEnum
         );
 
@@ -128,7 +130,7 @@ const generateProof = async (walletAddress, chain, proofType, amount) => {
             walletAddress,
             chain,
             proofType,
-            amount: amountInWei.toString(),
+            amount: amountInWei,
             proofHash,
             timestamp: Date.now(),
             expiration: expiry,
@@ -238,10 +240,43 @@ export default function CreatePage() {
     // Get connected account from wagmi
     const { address, isConnected } = useAccount();
 
-    // Debugging: Log the connection status
+    // Debugging: Log the connection status and synchronize with localStorage
     useEffect(() => {
         console.log("Wallet connection status:", isConnected);
         console.log("Connected wallet address:", address);
+
+        // When wagmi reports a connected wallet, ensure localStorage is synchronized
+        if (isConnected && address) {
+            // Check if this address is already in localStorage walletData
+            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
+
+            // If we don't have this address in walletData.wallets.metamask, add it
+            const existingWallets = walletData?.wallets?.metamask || [];
+            const hasAddress = existingWallets.some(addr =>
+                addr.toLowerCase() === address.toLowerCase()
+            );
+
+            if (!hasAddress) {
+                console.log("Synchronizing wagmi connected address with localStorage:", address);
+
+                // Add the address to localStorage
+                if (!walletData.wallets.metamask) {
+                    walletData.wallets.metamask = [];
+                }
+                walletData.wallets.metamask.push(address);
+                walletData.timestamp = Date.now();
+
+                // Save updated wallet data
+                localStorage.setItem('walletData', JSON.stringify(walletData));
+                localStorage.setItem('userInitiatedConnection', 'true');
+
+                // Trigger a wallet connection changed event
+                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                    detail: { timestamp: Date.now() }
+                });
+                window.dispatchEvent(walletChangeEvent);
+            }
+        }
     }, [isConnected, address]);
 
     // --- REFS FOR STATE TRACKING ---
@@ -1016,11 +1051,37 @@ export default function CreatePage() {
             return;
         }
 
+        // Validate selected wallets
+        if (!selectedWallets || selectedWallets.length === 0) {
+            alert('Please select at least one wallet to generate a proof.');
+            return;
+        }
+
+        // Validate amount using our centralized validation helper
+        if (!isValidAmount(amount)) {
+            alert('Please enter a valid amount. Decimal values are supported.');
+            return;
+        }
+
+        // Get wallet details
+        const selectedWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+        if (!selectedWallet) {
+            alert('Selected wallet not found. Please try reconnecting your wallet.');
+            return;
+        }
+
+        console.log('Submitting proof with:', {
+            wallet: selectedWallet.fullAddress,
+            chain: selectedWallet.chain || 'Ethereum',
+            proofType,
+            amount
+        });
+
         // Proceed with proof generation and submission
         try {
             const proof = await generateProof(
-                selectedWallets[0], // Use the first selected wallet
-                "Ethereum", // Default to Ethereum for now
+                selectedWallet.fullAddress, // Use the full address
+                selectedWallet.chain || "Ethereum", // Use actual chain or default to Ethereum
                 proofType,
                 amount
             );
@@ -1750,12 +1811,12 @@ export default function CreatePage() {
                                 type="submit"
                                 disabled={
                                     (selectedWallets.length === 0) ||
-                                    (amountInputType === 'usd' && !amount) ||
+                                    (amountInputType === 'usd' && !isValidAmount(amount)) ||
                                     (amountInputType === 'tokens' && selectedTokens.length === 0) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned())
                                 }
                                 className={`w-full py-2 px-4 font-medium rounded-md ${(selectedWallets.length === 0) ||
-                                    (amountInputType === 'usd' && !amount) ||
+                                    (amountInputType === 'usd' && !isValidAmount(amount)) ||
                                     (amountInputType === 'tokens' && selectedTokens.length === 0) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned())
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
