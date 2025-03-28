@@ -82,9 +82,9 @@ export const SIGNATURE_MESSAGE_TEMPLATES = [
 export const CONTRACT_ABI = [
     {
         "inputs": [
+            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
             { "internalType": "bytes32", "name": "_proofHash", "type": "bytes32" },
             { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
             { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
             { "internalType": "string", "name": "_signatureMessage", "type": "string" },
             { "internalType": "bytes", "name": "_signature", "type": "bytes" }
@@ -116,7 +116,7 @@ export const CONTRACT_ABI = [
             { "internalType": "address", "name": "_user", "type": "address" },
             { "internalType": "uint256", "name": "_claimedAmount", "type": "uint256" }
         ],
-        "name": "verifyProof",
+        "name": "verifyStandardProof",
         "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
         "stateMutability": "view",
         "type": "function"
@@ -142,6 +142,17 @@ export const CONTRACT_ABI = [
         "type": "function"
     },
     {
+        "inputs": [
+            { "internalType": "address", "name": "_user", "type": "address" },
+            { "internalType": "uint256", "name": "_amount", "type": "uint256" },
+            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" }
+        ],
+        "name": "generateProofHash",
+        "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+        "stateMutability": "pure",
+        "type": "function"
+    },
+    {
         "inputs": [{ "internalType": "string", "name": "_reason", "type": "string" }],
         "name": "revokeProof",
         "outputs": [],
@@ -149,13 +160,10 @@ export const CONTRACT_ABI = [
         "type": "function"
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "string", "name": "_message", "type": "string" }
-        ],
-        "name": "addSignatureMessage",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+        "name": "isProofValid",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -164,13 +172,6 @@ export const CONTRACT_ABI = [
             { "internalType": "string", "name": "_message", "type": "string" }
         ],
         "name": "verifySignature",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "isProofValid",
         "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
         "stateMutability": "view",
         "type": "function"

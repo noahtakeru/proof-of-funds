@@ -22,42 +22,10 @@
 import { useState, useEffect } from 'react';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
-import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES } from '../config/constants';
+import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI } from '../config/constants';
 
 // Smart contract address on Polygon Amoy testnet
 const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ABI = [
-    {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" }
-        ],
-        "name": "verifyProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" }
-        ],
-        "name": "verifyThresholdProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" }
-        ],
-        "name": "verifyMaximumProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
-    }
-];
 
 export default function VerifyPage() {
     // Add a flag to track user-initiated connection, initialized from localStorage
@@ -90,8 +58,8 @@ export default function VerifyPage() {
     // Read contract for standard proof verification
     const { data: standardProofResult, isLoading: isLoadingStandard, refetch: refetchStandard } = useContractRead({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'verifyProof',
+        abi: CONTRACT_ABI,
+        functionName: 'verifyStandardProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
         enabled: false, // Only run when explicitly initiated by verification
     });
@@ -99,7 +67,7 @@ export default function VerifyPage() {
     // Read contract for threshold proof verification
     const { data: thresholdProofResult, isLoading: isLoadingThreshold, refetch: refetchThreshold } = useContractRead({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'verifyThresholdProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
         enabled: false,
@@ -108,7 +76,7 @@ export default function VerifyPage() {
     // Read contract for maximum proof verification
     const { data: maximumProofResult, isLoading: isLoadingMaximum, refetch: refetchMaximum } = useContractRead({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'verifyMaximumProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
         enabled: false,
@@ -144,18 +112,30 @@ export default function VerifyPage() {
                 // Verify standard proofs
                 if (proofType === 'standard') {
                     await refetchStandard();
-                    setVerificationStatus(standardProofResult);
+                    // Wait for the result to be available
+                    setTimeout(() => {
+                        setVerificationStatus(standardProofResult);
+                    }, 500);
                 } else if (proofType === 'threshold') {
                     await refetchThreshold();
-                    setVerificationStatus(thresholdProofResult);
+                    // Wait for the result to be available
+                    setTimeout(() => {
+                        setVerificationStatus(thresholdProofResult);
+                    }, 500);
                 } else if (proofType === 'maximum') {
                     await refetchMaximum();
-                    setVerificationStatus(maximumProofResult);
+                    // Wait for the result to be available
+                    setTimeout(() => {
+                        setVerificationStatus(maximumProofResult);
+                    }, 500);
                 }
             } else if (proofCategory === 'zk') {
                 // Verify ZK proofs
                 await refetchZK();
-                setVerificationStatus(zkProofResult);
+                // Wait for the result to be available
+                setTimeout(() => {
+                    setVerificationStatus(zkProofResult);
+                }, 500);
             }
         } catch (error) {
             console.error('Error verifying proof:', error);
@@ -220,19 +200,25 @@ export default function VerifyPage() {
                                 <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-1">
                                     Proof Type
                                 </label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setProofType('standard');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'standard'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'standard'
+                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        Standard
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="font-medium">Standard</h3>
+                                        <p className="text-sm text-gray-500">Exact amount</p>
                                     </button>
                                     <button
                                         type="button"
@@ -240,12 +226,18 @@ export default function VerifyPage() {
                                             setProofType('threshold');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'threshold'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'threshold'
+                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        Threshold
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="font-medium">Threshold</h3>
+                                        <p className="text-sm text-gray-500">At least this amount</p>
                                     </button>
                                     <button
                                         type="button"
@@ -253,71 +245,99 @@ export default function VerifyPage() {
                                             setProofType('maximum');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'maximum'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'maximum'
+                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        Maximum
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="font-medium">Maximum</h3>
+                                        <p className="text-sm text-gray-500">At most this amount</p>
                                     </button>
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {proofType === 'standard' && 'Verify that the wallet has exactly this amount'}
-                                    {proofType === 'threshold' && 'Verify that the wallet has at least this amount'}
-                                    {proofType === 'maximum' && 'Verify that the wallet has less than this amount'}
-                                </p>
+
+                                <div className="mb-6 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
+                                    {proofType === 'standard' && (
+                                        <p>
+                                            <strong>Standard Verification:</strong> This verifies that the wallet contains exactly the specified amount.
+                                        </p>
+                                    )}
+                                    {proofType === 'threshold' && (
+                                        <p>
+                                            <strong>Threshold Verification:</strong> This verifies that the wallet contains at least the specified amount.
+                                        </p>
+                                    )}
+                                    {proofType === 'maximum' && (
+                                        <p>
+                                            <strong>Maximum Verification:</strong> This verifies that the wallet contains no more than the specified amount.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <div>
-                                <label htmlFor="zk-proof-type" className="block text-sm font-medium text-gray-700 mb-1">
+                                <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-1">
                                     Zero-Knowledge Proof Type
                                 </label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setZkProofType('standard');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'standard'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
+                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        ZK Standard
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
+                                            <span className="font-bold">ZK</span>
+                                        </div>
+                                        <h3 className="font-medium">ZK Standard</h3>
+                                        <p className="text-sm text-gray-500">Private exact amount</p>
                                     </button>
+
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setZkProofType('threshold');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'threshold'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
+                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        ZK Threshold
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
+                                            <span className="font-bold">ZK</span>
+                                        </div>
+                                        <h3 className="font-medium">ZK Threshold</h3>
+                                        <p className="text-sm text-gray-500">Private minimum amount</p>
                                     </button>
+
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setZkProofType('maximum');
                                             setVerificationStatus(null);
                                         }}
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'maximum'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
+                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                                : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        ZK Maximum
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
+                                            <span className="font-bold">ZK</span>
+                                        </div>
+                                        <h3 className="font-medium">ZK Maximum</h3>
+                                        <p className="text-sm text-gray-500">Private maximum amount</p>
                                     </button>
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {zkProofType === 'standard' && 'Verify a private proof of exactly this amount'}
-                                    {zkProofType === 'threshold' && 'Verify a private proof of at least this amount'}
-                                    {zkProofType === 'maximum' && 'Verify a private proof of less than this amount'}
-                                </p>
                             </div>
                         )}
 

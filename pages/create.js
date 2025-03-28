@@ -23,16 +23,17 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useAccount, useContractWrite } from 'wagmi';
+import { useAccount, useContractWrite, useConnect } from 'wagmi';
 import { ethers } from 'ethers';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet } from '../lib/walletHelpers';
+import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash } from '../lib/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 
 // Smart contract address on Polygon Amoy testnet
 const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ABI = [
+const CONTRACT_ABI = [
     {
         "inputs": [
             { "internalType": "uint256", "name": "_amount", "type": "uint256" },
@@ -67,6 +68,80 @@ const ABI = [
         "type": "function"
     }
 ];
+
+// Helper function to fetch wallet balance
+const fetchBalance = async (walletAddress, chain) => {
+    // Use ethers.js or web3.js to fetch balance
+    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+    const balance = await provider.getBalance(walletAddress);
+    return ethers.utils.formatEther(balance); // Convert from wei to ETH
+};
+
+// Helper function to fetch USD value
+const fetchUSDValue = async (balance, chain) => {
+    // Use CoinGecko API to fetch token price
+    const tokenId = chain === "Ethereum" ? "ethereum" : "matic-network";
+    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`);
+    const data = await response.json();
+    const price = data[tokenId].usd;
+    return (balance * price).toFixed(2); // Convert balance to USD
+};
+
+// Helper function to sign a message
+const signMessage = async (walletAddress, message) => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const signature = await signer.signMessage(message);
+    return signature;
+};
+
+/**
+ * Main proof generation function
+ * Generates proof data based on wallet, chain, and proof type
+ * @param {string} walletAddress - Address of the wallet
+ * @param {string} chain - The blockchain (e.g., "Ethereum")
+ * @param {string} proofType - Type of proof ("standard", "threshold", "maximum")
+ * @param {string} amount - Amount for verification
+ */
+const generateProof = async (walletAddress, chain, proofType, amount) => {
+    try {
+        // Convert from string proof type to enum value
+        let proofTypeEnum = PROOF_TYPES.STANDARD;
+        if (proofType === 'threshold') proofTypeEnum = PROOF_TYPES.THRESHOLD;
+        else if (proofType === 'maximum') proofTypeEnum = PROOF_TYPES.MAXIMUM;
+
+        // Convert to Wei for blockchain
+        const amountInWei = ethers.utils.parseEther(amount);
+
+        // Generate hash based on proof type
+        const proofHash = await generateProofHash(
+            walletAddress,
+            amountInWei.toString(),
+            proofTypeEnum
+        );
+
+        // Define proof expiry time (e.g., 24 hours from now)
+        const expiry = Math.floor(Date.now() / 1000) + 86400; // 24 hours in seconds
+
+        // Create the proof object
+        const proof = {
+            walletAddress,
+            chain,
+            proofType,
+            amount: amountInWei.toString(),
+            proofHash,
+            timestamp: Date.now(),
+            expiration: expiry,
+            // The message will be signed by the wallet
+            signatureMessage: `I verify that I control wallet ${walletAddress} with ${amount} tokens on ${chain} as of ${new Date().toISOString()}`
+        };
+
+        return proof;
+    } catch (error) {
+        console.error("Error generating proof:", error);
+        throw error;
+    }
+};
 
 export default function CreatePage() {
     // --- PROOF CONFIGURATION STATE ---
@@ -162,6 +237,12 @@ export default function CreatePage() {
 
     // Get connected account from wagmi
     const { address, isConnected } = useAccount();
+
+    // Debugging: Log the connection status
+    useEffect(() => {
+        console.log("Wallet connection status:", isConnected);
+        console.log("Connected wallet address:", address);
+    }, [isConnected, address]);
 
     // --- REFS FOR STATE TRACKING ---
     // Used to track previous values to avoid infinite loops in effects
@@ -450,48 +531,39 @@ export default function CreatePage() {
      * Contract interaction hook for standard proof submission
      * Uses wagmi's useContractWrite to prepare the transaction
      */
-    const {
-        write: writeStandardProof,
-        isLoading: isPendingStandard,
-        isError: isErrorStandard,
-        error: errorStandard,
-        data: dataStandard
-    } = useContractWrite({
+    const { config: standardProofConfig, error: standardProofError, write: writeStandardProof, data: dataStandard, isLoading: isStandardLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
      * Contract interaction hook for threshold proof submission
-     * Creates a proof that the user has AT LEAST the specified amount
+     * Used for "at least X amount" verification
      */
-    const {
-        write: writeThresholdProof,
-        isLoading: isPendingThreshold,
-        isError: isErrorThreshold,
-        error: errorThreshold,
-        data: dataThreshold
-    } = useContractWrite({
+    const { config: thresholdProofConfig, error: thresholdProofError, write: writeThresholdProof, data: dataThreshold, isLoading: isThresholdLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitThresholdProof',
+        abi: CONTRACT_ABI,
+        functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
      * Contract interaction hook for maximum proof submission
-     * Creates a proof that the user has NO MORE THAN the specified amount
+     * Used for "at most X amount" verification
      */
-    const {
-        write: writeMaximumProof,
-        isLoading: isPendingMaximum,
-        isError: isErrorMaximum,
-        error: errorMaximum,
-        data: dataMaximum
-    } = useContractWrite({
+    const { config: maximumProofConfig, error: maximumProofError, write: writeMaximumProof, data: dataMaximum, isLoading: isMaximumLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitMaximumProof',
+        abi: CONTRACT_ABI,
+        functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
@@ -811,7 +883,6 @@ export default function CreatePage() {
 
     /**
      * Submits the finalized proof to the blockchain
-     * Uses the appropriate contract function based on proof type
      * Creates and submits the transaction when all signatures are collected
      */
     const submitFinalProof = async () => {
@@ -823,9 +894,6 @@ export default function CreatePage() {
                 throw new Error('Primary wallet not found');
             }
 
-            // For demo purposes, we'll just submit the proof with the primary wallet
-            // In a real app, you might merge all signatures or submit different proofs
-
             // Convert amount to Wei for blockchain submission
             const amountInWei = ethers.utils.parseEther(
                 amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
@@ -833,20 +901,40 @@ export default function CreatePage() {
 
             const expiryTime = getExpiryTimestamp(expiryDays);
 
+            // Get the signature for this wallet
+            const walletSignature = walletSignatures[primaryWallet.id]?.signature ||
+                ethers.utils.toUtf8Bytes("mock-signature");
+
             if (proofCategory === 'standard') {
-                if (proofType === 'standard') {
-                    writeStandardProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'threshold') {
-                    writeThresholdProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'maximum') {
-                    writeMaximumProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
-                }
+                // Determine the proof type value (enum) based on the selected proof type
+                let proofTypeValue;
+                if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
+                else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
+                else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+
+                // Generate the appropriate proof hash
+                const proofHash = await generateProofHash(
+                    primaryWallet.address,
+                    amountInWei.toString(),
+                    proofTypeValue
+                );
+
+                // For threshold and maximum types, we use the threshold amount
+                const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
+                    ? amountInWei
+                    : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+
+                // Use the same submitProof function for all standard proof types
+                writeStandardProof({
+                    args: [
+                        proofTypeValue,   // Proof type enum
+                        proofHash,        // Proof hash
+                        expiryTime,       // Expiry time
+                        thresholdAmount,  // Threshold amount (used for threshold and maximum)
+                        signatureMessage, // Signature message
+                        walletSignature   // Wallet signature
+                    ],
+                });
             } else if (proofCategory === 'zk') {
                 // Zero-knowledge proofs handling (mock implementation)
                 const mockProof = ethers.utils.defaultAbiCoder.encode(
@@ -864,10 +952,6 @@ export default function CreatePage() {
                 else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
                 else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
 
-                // Use the signature from the primary wallet
-                const primarySignature = walletSignatures[primaryWallet.id]?.signature ||
-                    ethers.utils.toUtf8Bytes("mock-signature");
-
                 writeZKProof({
                     args: [
                         mockProof,
@@ -875,7 +959,7 @@ export default function CreatePage() {
                         expiryTime,
                         zkProofTypeValue,
                         signatureMessage,
-                        primarySignature
+                        walletSignature
                     ],
                 });
             }
@@ -923,88 +1007,31 @@ export default function CreatePage() {
      * Validates inputs and moves to the signing stage
      * @param {Event} e - Form submission event
      */
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Submit button clicked, current proofStage:", proofStage);
 
-        // If we're in 'ready' stage, submit the proof rather than starting over
-        if (proofStage === 'ready') {
-            console.log("In ready stage, submitting final proof");
-            submitFinalProof();
+        // Check if wallet is connected
+        if (!isConnected) {
+            alert('Please connect your wallet first.');
             return;
         }
 
-        // Validate required inputs
-        if (selectedWallets.length === 0) {
-            alert('Please select at least one wallet');
-            return;
+        // Proceed with proof generation and submission
+        try {
+            const proof = await generateProof(
+                selectedWallets[0], // Use the first selected wallet
+                "Ethereum", // Default to Ethereum for now
+                proofType,
+                amount
+            );
+
+            const txHash = await submitFinalProof(proof);
+            setSuccess(true);
+            setTxHash(txHash);
+        } catch (error) {
+            console.error('Error creating or submitting proof:', error);
+            alert(`Error: ${error.message}`);
         }
-
-        if (amountInputType === 'usd' && !amount) {
-            alert('Please enter an amount');
-            return;
-        }
-
-        if (amountInputType === 'tokens' && selectedTokens.length === 0) {
-            alert('Please select at least one token');
-            return;
-        }
-
-        // Prepare proof details first
-        const finalAmount = amountInputType === 'usd'
-            ? amount
-            : calculateTotalUsdValue().toString();
-
-        console.log("Creating proof with amount:", finalAmount, "proof type:", proofCategory === 'standard' ? proofType : zkProofType);
-
-        // Format token details if using token-based amount
-        const tokenDetails = amountInputType === 'tokens'
-            ? selectedTokens.map(token => ({
-                symbol: token.symbol,
-                chain: token.chain,
-                amount: token.amount,
-                usdValue: token.amount * (
-                    assetSummary?.convertedAssets?.find(
-                        a => a.symbol === token.symbol && a.chain === token.chain
-                    )?.usdRate || 0
-                )
-            }))
-            : [];
-
-        const expiryTime = getExpiryTimestamp(expiryDays);
-
-        // Generate proof data
-        const proofDataObj = {
-            timestamp: Date.now(),
-            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
-            proofType: proofCategory === 'standard' ? proofType : zkProofType,
-            wallets: selectedWallets.map(id => {
-                const wallet = connectedWallets.find(w => w.id === id);
-                return {
-                    id: wallet.id,
-                    address: wallet.fullAddress,
-                    chain: wallet.chain,
-                    type: wallet.type
-                };
-            }),
-            assets: assetSummary ? assetSummary.totalAssets : [],
-            totalValue: showUSDValues && assetSummary
-                ? assetSummary.totalUSDValue
-                : (assetSummary && assetSummary.totalAssets.length > 0
-                    ? assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0)
-                    : 0),
-            currency: amountInputType === 'usd' ? "USD" : "tokens",
-            tokenDetails: tokenDetails,
-            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
-            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
-            isThresholdProof: proofType === 'threshold',
-            isMaximumProof: proofType === 'maximum'
-        };
-
-        setProofData(proofDataObj);
-
-        // Move to signing stage
-        setProofStage('signing');
     };
 
     /**
@@ -1094,9 +1121,9 @@ export default function CreatePage() {
     };
 
     // Combined loading state from all contract interactions
-    const isPending = isPendingStandard || isPendingThreshold || isPendingMaximum || isPendingZK;
-    const isError = isErrorStandard || isErrorThreshold || isErrorMaximum || isErrorZK;
-    const error = errorStandard || errorThreshold || errorMaximum || errorZK;
+    const isPending = isStandardLoading || isThresholdLoading || isMaximumLoading || isPendingZK;
+    const isError = standardProofError || thresholdProofError || maximumProofError || isErrorZK;
+    const error = standardProofError || thresholdProofError || maximumProofError || errorZK;
 
     /**
      * Reset success state to create another proof
@@ -1138,6 +1165,11 @@ export default function CreatePage() {
             }
         }
     }, [amount, proofCategory, proofType, zkProofType, amountInputType, selectedTokens, expiryDays]);
+
+    // Add a connector configuration
+    const { connect, connectors } = useConnect({
+        connector: new MetaMaskConnector(),
+    });
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
@@ -1354,116 +1386,107 @@ export default function CreatePage() {
                             </p>
                         </div>
 
-                        {/* Proof Type */}
-                        {proofCategory === 'standard' ? (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {/* Proof Type Selection - Only shown for Standard Proof Category */}
+                        {proofCategory === 'standard' && (
+                            <div className="mb-6">
+                                <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-2">
                                     Proof Type
                                 </label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'standard'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('standard');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'standard'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Standard
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Standard Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has exactly this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
+
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'threshold'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('threshold');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'threshold'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Threshold
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Threshold Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has at least this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
+
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'maximum'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('maximum');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'maximum'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Maximum
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Maximum Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has at most this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {proofType === 'standard' && 'Verify that the wallet has exactly this amount'}
-                                    {proofType === 'threshold' && 'Verify that the wallet has at least this amount'}
-                                    {proofType === 'maximum' && 'Verify that the wallet has less than this amount'}
-                                </p>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Zero-Knowledge Proof Type
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'standard'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('standard');
-                                        }}
-                                    >
-                                        ZK Standard
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'threshold'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('threshold');
-                                        }}
-                                    >
-                                        ZK Threshold
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'maximum'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('maximum');
-                                        }}
-                                    >
-                                        ZK Maximum
-                                    </button>
+
+                                {/* Proof Type Explanation */}
+                                <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
+                                    {proofType === 'standard' && (
+                                        <p>
+                                            <strong>Standard Proof:</strong> This proof verifies that your wallet contains exactly the specified amount.
+                                            Use this for precise verification requirements.
+                                        </p>
+                                    )}
+                                    {proofType === 'threshold' && (
+                                        <p>
+                                            <strong>Threshold Proof:</strong> This proof verifies that your wallet contains at least the specified minimum amount.
+                                            Ideal for qualification requirements where you need to meet a minimum threshold.
+                                        </p>
+                                    )}
+                                    {proofType === 'maximum' && (
+                                        <p>
+                                            <strong>Maximum Proof:</strong> This proof verifies that your wallet contains no more than the specified maximum amount.
+                                            Useful for verification where an upper limit is required.
+                                        </p>
+                                    )}
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {zkProofType === 'standard' && 'Create a private proof of exactly this amount'}
-                                    {zkProofType === 'threshold' && 'Create a private proof of at least this amount'}
-                                    {zkProofType === 'maximum' && 'Create a private proof of less than this amount'}
-                                </p>
                             </div>
                         )}
 
