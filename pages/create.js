@@ -1145,7 +1145,11 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 text-white border-primary-600'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setProofType('standard')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setProofType('standard');
+                                        }}
                                     >
                                         Standard
                                     </button>
@@ -1155,7 +1159,11 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 text-white border-primary-600'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setProofType('threshold')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setProofType('threshold');
+                                        }}
                                     >
                                         Threshold
                                     </button>
@@ -1165,7 +1173,11 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 text-white border-primary-600'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setProofType('maximum')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setProofType('maximum');
+                                        }}
                                     >
                                         Maximum
                                     </button>
@@ -1188,7 +1200,11 @@ export default function CreatePage() {
                                             ? 'bg-zk-accent text-white border-zk-accent'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setZkProofType('standard')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZkProofType('standard');
+                                        }}
                                     >
                                         ZK Standard
                                     </button>
@@ -1198,7 +1214,11 @@ export default function CreatePage() {
                                             ? 'bg-zk-accent text-white border-zk-accent'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setZkProofType('threshold')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZkProofType('threshold');
+                                        }}
                                     >
                                         ZK Threshold
                                     </button>
@@ -1208,7 +1228,11 @@ export default function CreatePage() {
                                             ? 'bg-zk-accent text-white border-zk-accent'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                             }`}
-                                        onClick={() => setZkProofType('maximum')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZkProofType('maximum');
+                                        }}
                                     >
                                         ZK Maximum
                                     </button>
@@ -1229,7 +1253,11 @@ export default function CreatePage() {
                                 </label>
                                 <div className="flex items-center">
                                     <button
-                                        onClick={() => setAmountInputType('usd')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setAmountInputType('usd');
+                                        }}
                                         className={`py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'usd'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1238,7 +1266,11 @@ export default function CreatePage() {
                                         USD Amount
                                     </button>
                                     <button
-                                        onClick={() => setAmountInputType('tokens')}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setAmountInputType('tokens');
+                                        }}
                                         className={`py-1 px-3 text-xs font-medium rounded-md ${amountInputType === 'tokens'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
