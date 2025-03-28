@@ -198,38 +198,27 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             // Save the connection information - 
             // We need to save each wallet address individually since saveWalletConnection
             // only processes the first item in the array for phantom wallets
-            if (walletAddresses.length > 0) {
-                // Track successful saves
-                let saveSuccess = true;
-
-                // Save each wallet address individually
-                walletAddresses.forEach(address => {
-                    const result = saveWalletConnection('phantom', [address]);
-                    if (!result) {
-                        saveSuccess = false;
-                        console.error('Failed to save wallet:', address);
-                    }
-                });
-
-                // Log the result
-                if (saveSuccess) {
-                    console.log(`Successfully saved ${walletAddresses.length} Phantom wallets`);
-                    // Refresh the wallet list in the context
-                    phantomMultiWallet.refreshConnectedWallets();
-                } else {
-                    console.warn('Some wallets may not have been saved properly');
-                }
+            for (const walletAddress of walletAddresses) {
+                saveWalletConnection('phantom', [walletAddress]);
             }
 
-            // Close the selector after a short delay
+            // Mark as user initiated to start asset scanning
+            localStorage.setItem('userInitiatedConnection', 'true');
+
+            // Dispatch an event to notify other components about the wallet connection change
+            const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                detail: { timestamp: Date.now(), walletType: 'phantom' }
+            });
+            window.dispatchEvent(walletChangeEvent);
+            console.log('Dispatched wallet-connection-changed event from PhantomMultiWalletSelector');
+
+            // Notify parent about connection completion
             setTimeout(() => {
-                if (typeof onClose === 'function') {
-                    onClose();
-                }
+                onClose();
             }, 1500);
         } catch (error) {
-            console.error('Error saving wallet connections:', error);
-            setError(`Failed to save connections: ${error.message}`);
+            console.error('Error in finish process:', error);
+            setError(`Error saving wallets: ${error.message || 'Unknown error'}`);
             setStatus('error');
         }
     };

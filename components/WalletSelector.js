@@ -150,6 +150,16 @@ export default function WalletSelector({ onClose }) {
                 // Save the connection data
                 saveWalletConnection('metamask', accounts);
 
+                // Mark as user initiated to start asset scanning
+                localStorage.setItem('userInitiatedConnection', 'true');
+
+                // Dispatch an event to notify other components about the wallet connection change
+                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                    detail: { timestamp: Date.now(), walletType: 'metamask' }
+                });
+                window.dispatchEvent(walletChangeEvent);
+                console.log('Dispatched wallet-connection-changed event from WalletSelector');
+
                 // Close the dialog after successful connection
                 setTimeout(() => {
                     console.log('Connection successful, closing wallet selector');
