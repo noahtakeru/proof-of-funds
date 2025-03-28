@@ -70,6 +70,7 @@ const metaMaskConnector = new MetaMaskConnector({
     options: {
         shimDisconnect: true,
         UNSTABLE_shimOnConnectSelectAccount: true,
+        chainId: 80002,
     },
 });
 
@@ -89,10 +90,10 @@ const injectedConnector = new InjectedConnector({
 /**
  * Wagmi Client Configuration
  * Creates the client that handles wallet connections and blockchain interactions
- * autoConnect: false prevents automatic wallet connection on page load
+ * autoConnect: true enables automatic wallet connection for previously connected wallets
  */
 const client = createClient({
-    autoConnect: false, // This ensures no automatic connection happens
+    autoConnect: true, // Enable auto-connection for better UX
     connectors: [metaMaskConnector, injectedConnector],
     provider,
 });

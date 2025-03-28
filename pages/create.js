@@ -235,6 +235,13 @@ export default function CreatePage() {
         // Listen for changes from other tabs
         window.addEventListener('storage', handleStorageChange);
 
+        // Listen for the custom wallet connection changed event
+        const handleWalletConnectionChanged = () => {
+            console.log('Wallet connection changed event received in create.js');
+            updateConnectedWallets();
+        };
+        window.addEventListener('wallet-connection-changed', handleWalletConnectionChanged);
+
         // Set up for changes in current tab using custom events
         if (typeof window !== 'undefined' && !window._createPageStorageSetup) {
             window.addEventListener('localStorage-changed', (e) => {
@@ -251,6 +258,7 @@ export default function CreatePage() {
         // Clean up event listeners on component unmount
         return () => {
             window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('wallet-connection-changed', handleWalletConnectionChanged);
         };
     }, []); // Empty dependency array to run only once on mount
 
@@ -918,6 +926,13 @@ export default function CreatePage() {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log("Submit button clicked, current proofStage:", proofStage);
+
+        // If we're in 'ready' stage, submit the proof rather than starting over
+        if (proofStage === 'ready') {
+            console.log("In ready stage, submitting final proof");
+            submitFinalProof();
+            return;
+        }
 
         // Validate required inputs
         if (selectedWallets.length === 0) {

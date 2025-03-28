@@ -186,6 +186,13 @@ export default function ConnectWallet() {
         setShowWalletSelector(false);
         // Refresh the wallet list when closing the selector
         updateConnectedWallets();
+
+        // Dispatch a custom event to notify other components about wallet changes
+        const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+            detail: { timestamp: Date.now() }
+        });
+        window.dispatchEvent(walletChangeEvent);
+        console.log('Dispatched wallet-connection-changed event');
     };
 
     // Toggle the wallet menu
