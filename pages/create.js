@@ -720,6 +720,10 @@ export default function CreatePage() {
             if (wallet.type === 'evm') {
                 // For EVM wallets (MetaMask, etc.)
                 try {
+                    // Dynamically import ethers
+                    const { getEthers } = await import('../lib/ethersUtils');
+                    const { ethers } = await getEthers();
+
                     // Get the correct provider
                     let provider = window.ethereum;
                     if (window.ethereum?.providers) {
@@ -912,8 +916,14 @@ export default function CreatePage() {
             isMaximumProof: proofType === 'maximum'
         };
 
+        // Update state with the proof data
         setProofData(proofDataObj);
         setReadyToSubmit(true);
+
+        // Move to the next stage
+        setProofStage('ready');
+
+        console.log('Proof data prepared and ready for submission:', proofDataObj);
     };
 
     /**
@@ -1045,8 +1055,8 @@ export default function CreatePage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Check if wallet is connected
-        if (!isConnected) {
+        // Check if wallet is connected - check both wagmi state and local state
+        if (!isConnected && connectedWallets.length === 0) {
             alert('Please connect your wallet first.');
             return;
         }
@@ -1063,35 +1073,133 @@ export default function CreatePage() {
             return;
         }
 
-        // Get wallet details
-        const selectedWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
-        if (!selectedWallet) {
-            alert('Selected wallet not found. Please try reconnecting your wallet.');
+        // If we're in the input stage, move to the signing stage
+        if (proofStage === 'input') {
+            setProofStage('signing');
             return;
         }
 
-        console.log('Submitting proof with:', {
-            wallet: selectedWallet.fullAddress,
-            chain: selectedWallet.chain || 'Ethereum',
-            proofType,
-            amount
-        });
+        // If we're in the signing stage, check if all wallets are signed
+        if (proofStage === 'signing') {
+            if (!areAllWalletsSigned()) {
+                alert('Please sign with all selected wallets before proceeding.');
+                return;
+            }
+            // Prepare proof data for submission
+            prepareProofSubmission();
+            return;
+        }
 
-        // Proceed with proof generation and submission
-        try {
-            const proof = await generateProof(
-                selectedWallet.fullAddress, // Use the full address
-                selectedWallet.chain || "Ethereum", // Use actual chain or default to Ethereum
-                proofType,
-                amount
-            );
+        // If we're in the ready stage, submit the proof to the blockchain
+        if (proofStage === 'ready' && proofData) {
+            try {
+                const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+                if (!primaryWallet) {
+                    throw new Error('Primary wallet not found');
+                }
 
-            const txHash = await submitFinalProof(proof);
-            setSuccess(true);
-            setTxHash(txHash);
-        } catch (error) {
-            console.error('Error creating or submitting proof:', error);
-            alert(`Error: ${error.message}`);
+                // Dynamically import ethers
+                const { getEthers } = await import('../lib/ethersUtils');
+                const { ethers } = await getEthers();
+
+                // Convert amount to Wei for blockchain submission
+                const amountInWei = ethers.utils.parseEther(
+                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
+                );
+
+                const expiryTime = getExpiryTimestamp(expiryDays);
+
+                // Get the signature for this wallet
+                const walletSignature = walletSignatures[primaryWallet.id]?.signature;
+                if (!walletSignature) {
+                    throw new Error('Wallet signature not found. Please sign with your wallet.');
+                }
+
+                console.log('Submitting proof to blockchain with signature:',
+                    walletSignature.substring(0, 10) + '...');
+
+                if (proofCategory === 'standard') {
+                    // Determine the proof type value (enum) based on the selected proof type
+                    let proofTypeValue;
+                    if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
+                    else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
+                    else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+
+                    // Generate the appropriate proof hash
+                    const proofHash = await generateProofHash(
+                        primaryWallet.fullAddress,
+                        amountInWei.toString(),
+                        proofTypeValue
+                    );
+
+                    // For threshold and maximum types, we use the threshold amount
+                    const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
+                        ? amountInWei
+                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+
+                    console.log('Submitting proof to blockchain:', {
+                        proofType: proofTypeValue,
+                        proofHash,
+                        expiryTime,
+                        thresholdAmount: thresholdAmount.toString(),
+                        signatureMessage,
+                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
+                    });
+
+                    // Use the same submitProof function for all standard proof types
+                    writeStandardProof({
+                        args: [
+                            proofTypeValue,   // Proof type enum
+                            proofHash,        // Proof hash
+                            expiryTime,       // Expiry time
+                            thresholdAmount,  // Threshold amount (used for threshold and maximum)
+                            signatureMessage, // Signature message
+                            walletSignature   // Wallet signature
+                        ],
+                    });
+                } else if (proofCategory === 'zk') {
+                    // Zero-knowledge proofs handling
+                    const mockProof = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[1, 2, 3, 4, 5, 6, 7, 8]]
+                    );
+
+                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[amountInWei.toString()]]
+                    );
+
+                    let zkProofTypeValue;
+                    if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
+                    else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
+                    else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
+
+                    console.log('Submitting ZK proof to blockchain:', {
+                        proofType: zkProofTypeValue,
+                        expiryTime,
+                        signatureMessage,
+                        hasSignature: !!walletSignature
+                    });
+
+                    writeZKProof({
+                        args: [
+                            mockProof,
+                            mockPublicSignals,
+                            expiryTime,
+                            zkProofTypeValue,
+                            signatureMessage,
+                            walletSignature
+                        ],
+                    });
+                }
+
+                // Note: Success will be set by the useEffect monitoring transaction status
+                // We don't set success=true here because we need to wait for the transaction
+
+            } catch (error) {
+                console.error('Error submitting proof:', error);
+                alert(`Error: ${error.message}`);
+            }
         }
     };
 
@@ -1100,11 +1208,52 @@ export default function CreatePage() {
      * Updates UI when a transaction is completed
      */
     useEffect(() => {
-        if (dataStandard || dataThreshold || dataMaximum || dataZK) {
-            const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
+        const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
+
+        if (txData) {
+            console.log('Transaction data received:', txData);
+
             if (txData.hash) {
+                // We have a transaction hash - the transaction has been submitted
+                console.log('Transaction hash:', txData.hash);
                 setTxHash(txData.hash);
-                setSuccess(true);
+
+                // Wait for transaction to be confirmed
+                const checkTransactionReceipt = async () => {
+                    try {
+                        // Dynamically import ethers
+                        const { getEthers } = await import('../lib/ethersUtils');
+                        const { ethers } = await getEthers();
+
+                        // Create provider to check transaction status
+                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+                        // Wait for transaction receipt
+                        const receipt = await provider.getTransactionReceipt(txData.hash);
+
+                        if (receipt) {
+                            console.log('Transaction confirmed with receipt:', receipt);
+
+                            if (receipt.status === 1) {
+                                // Transaction was successful
+                                console.log('Transaction successful!');
+                                setSuccess(true);
+                            } else {
+                                // Transaction failed on-chain
+                                console.error('Transaction failed on-chain');
+                                alert('Transaction failed during execution. Please check the transaction details.');
+                            }
+                        } else {
+                            // Transaction not yet confirmed, try again in 2 seconds
+                            setTimeout(checkTransactionReceipt, 2000);
+                        }
+                    } catch (error) {
+                        console.error('Error checking transaction receipt:', error);
+                    }
+                };
+
+                // Start checking for transaction confirmation
+                checkTransactionReceipt();
             }
         }
     }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
@@ -1231,6 +1380,35 @@ export default function CreatePage() {
     const { connect, connectors } = useConnect({
         connector: new MetaMaskConnector(),
     });
+
+    /**
+     * Ensure wagmi connector is initialized if we have wallets in localStorage
+     */
+    useEffect(() => {
+        // If wagmi reports disconnected but we have wallet data in localStorage,
+        // try to connect the wallet using wagmi to synchronize states
+        const connectWagmiIfNeeded = async () => {
+            if (!isConnected && connectedWallets.length > 0) {
+                try {
+                    console.log("Detected wallet in localStorage but wagmi reports disconnected. Attempting to connect...");
+
+                    // Find MetaMask connector
+                    const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+
+                    if (metamaskConnector && await metamaskConnector.isAuthorized()) {
+                        // Connect using the MetaMask connector
+                        await connect({ connector: metamaskConnector });
+                        console.log("Successfully reconnected to wagmi");
+                    }
+                } catch (error) {
+                    console.error("Failed to synchronize wagmi connection:", error);
+                }
+            }
+        };
+
+        // Try to connect when component mounts or connectedWallets change
+        connectWagmiIfNeeded();
+    }, [isConnected, connectedWallets, connect, connectors]);
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
@@ -1807,18 +1985,51 @@ export default function CreatePage() {
 
                         {/* Submit Button */}
                         <div>
+                            {(isPending || (txHash && !success)) && (
+                                <div className="mb-4 p-3 bg-blue-50 rounded-md">
+                                    <div className="flex items-center">
+                                        <svg className="animate-spin h-5 w-5 mr-2 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span className="text-sm font-medium text-blue-700">
+                                            {txHash
+                                                ? 'Transaction submitted. Waiting for blockchain confirmation...'
+                                                : 'Preparing transaction...'}
+                                        </span>
+                                    </div>
+                                    {txHash && (
+                                        <div className="mt-2 text-xs">
+                                            <span className="text-gray-600">Transaction hash: </span>
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 break-all hover:underline"
+                                            >
+                                                {txHash}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={
                                     (selectedWallets.length === 0) ||
                                     (amountInputType === 'usd' && !isValidAmount(amount)) ||
                                     (amountInputType === 'tokens' && selectedTokens.length === 0) ||
-                                    (proofStage === 'signing' && !areAllWalletsSigned())
+                                    (proofStage === 'signing' && !areAllWalletsSigned()) ||
+                                    isPending ||
+                                    (txHash && !success)
                                 }
                                 className={`w-full py-2 px-4 font-medium rounded-md ${(selectedWallets.length === 0) ||
                                     (amountInputType === 'usd' && !isValidAmount(amount)) ||
                                     (amountInputType === 'tokens' && selectedTokens.length === 0) ||
-                                    (proofStage === 'signing' && !areAllWalletsSigned())
+                                    (proofStage === 'signing' && !areAllWalletsSigned()) ||
+                                    isPending ||
+                                    (txHash && !success)
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
                                     : proofStage === 'ready'
                                         ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -1828,12 +2039,14 @@ export default function CreatePage() {
                                     }`}
                             >
                                 {isPending
-                                    ? 'Processing...'
-                                    : proofStage === 'input'
-                                        ? 'Prepare Proof'
-                                        : proofStage === 'signing'
-                                            ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
-                                            : 'Submit Proof to Blockchain'}
+                                    ? 'Processing Transaction...'
+                                    : (txHash && !success)
+                                        ? 'Waiting for Confirmation...'
+                                        : proofStage === 'input'
+                                            ? 'Prepare Proof'
+                                            : proofStage === 'signing'
+                                                ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
+                                                : 'Submit Proof to Blockchain'}
                             </button>
                         </div>
                     </div>
@@ -1848,31 +2061,68 @@ export default function CreatePage() {
 
                     {/* Success Message */}
                     {success && (
-                        <div className="p-4 bg-green-50 rounded-md">
-                            <div className="flex items-center text-green-800 font-medium mb-2">
-                                <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="mt-6 p-6 bg-green-50 rounded-md border border-green-200">
+                            <div className="flex items-center text-green-800 font-medium mb-3">
+                                <svg className="mr-2 h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
-                                Proof of Funds created successfully!
+                                <span className="text-lg">Proof of Funds created successfully!</span>
                             </div>
-                            <p className="text-sm text-gray-600 mb-2">
-                                Your proof has been submitted to the blockchain and can now be verified.
+
+                            <div className="bg-white p-4 rounded-md border border-green-200 mb-4">
+                                <h4 className="font-medium text-gray-700 mb-2">Transaction Details</h4>
+                                <div className="space-y-2">
+                                    <div>
+                                        <span className="text-sm text-gray-600">Status:</span>
+                                        <span className="ml-2 text-sm font-medium text-green-600">Confirmed</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Transaction Hash:</span>
+                                        <div className="mt-1">
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 text-sm break-all hover:underline"
+                                            >
+                                                {txHash}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Network:</span>
+                                        <span className="ml-2 text-sm font-medium">Polygon Amoy Testnet</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Verification:</span>
+                                        <div className="mt-1">
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full hover:bg-blue-200"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                                Verify on Block Explorer
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-gray-600 mb-4">
+                                Your proof has been permanently recorded on the blockchain and can now be verified by anyone with the transaction hash.
                             </p>
-                            <div className="flex flex-wrap items-center text-sm">
-                                <span className="text-gray-600 mr-1">Transaction:</span>
-                                <a
-                                    href={`https://amoy.polygonscan.com/tx/${txHash}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 break-all hover:underline"
-                                >
-                                    {txHash}
-                                </a>
-                            </div>
+
                             <button
                                 onClick={handleCreateAnother}
-                                className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md inline-flex items-center"
                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
                                 Create Another Proof
                             </button>
                         </div>
