@@ -1,3 +1,32 @@
+/**
+ * Contract Management Component
+ * 
+ * Administrative interface for managing smart contracts within the Arbitr platform.
+ * Allows administrators to monitor, inspect, and upgrade the deployed smart contracts
+ * that power the proof of funds verification system.
+ * 
+ * Key features:
+ * - Overview of all deployed contracts with status and metrics
+ * - Detailed contract information including:
+ *   - Contract address
+ *   - Version history
+ *   - Deployment date
+ *   - Network information
+ *   - Usage statistics (function calls and gas consumption)
+ * - Contract upgrade workflow:
+ *   - Input new contract address
+ *   - Document upgrade notes
+ *   - Safety warnings and confirmation
+ * 
+ * The component handles two primary contracts:
+ * - ProofOfFunds: Main contract for standard proof verification
+ * - ZKVerifier: Zero-knowledge proof verification contract
+ * 
+ * Note: Currently using mock data for demonstration.
+ * Production implementation would interact with blockchain networks
+ * to fetch real contract data and perform upgrades.
+ */
+
 import { useState, useEffect } from 'react';
 import { CONTRACT_ADDRESS, ZK_VERIFIER_ADDRESS } from '../../config/constants';
 

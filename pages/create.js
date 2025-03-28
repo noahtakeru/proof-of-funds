@@ -1,3 +1,27 @@
+/**
+ * Proof of Funds Creator Page
+ * 
+ * This application allows users to create verifiable proofs that they control cryptocurrency funds
+ * of specific amounts without exposing private details of their holdings.
+ * 
+ * Key Features:
+ * - Support for multiple blockchain networks (Ethereum, Polygon, Solana)
+ * - Multiple proof types:
+ *   - Standard Proofs: Verify exact amounts
+ *   - Threshold Proofs: Verify minimum amounts (at least X)
+ *   - Maximum Proofs: Verify maximum amounts (less than X)
+ *   - Zero-Knowledge Proofs: Private verification without revealing actual amounts
+ * - Multi-wallet support with signature collection
+ * - Asset scanning across chains with USD value conversion
+ * - Blockchain verification through smart contract integration
+ * 
+ * Technical Implementation:
+ * - React frontend with extensive state management
+ * - Interaction with wallets (MetaMask, Phantom) through their extensions
+ * - Smart contract integration via the wagmi library and ethers.js
+ * - Multi-chain asset scanning with support for custom token selection
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite } from 'wagmi';
 import { ethers } from 'ethers';
@@ -45,92 +69,159 @@ const ABI = [
 ];
 
 export default function CreatePage() {
+    // --- PROOF CONFIGURATION STATE ---
+    // Controls switching between standard proof and zero-knowledge proof modes
     const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
+
+    // Specific type of proof within the standard category
     const [proofType, setProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
+
+    // Specific type of proof within the zero-knowledge category
     const [zkProofType, setZkProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
+
+    // Amount of funds to verify (in USD or token amounts)
     const [amount, setAmount] = useState('');
+
+    // How long the proof will remain valid
     const [expiryDays, setExpiryDays] = useState('seven_days');
+
+    // Message to be signed by the user's wallet
     const [signatureMessage, setSignatureMessage] = useState('');
+
+    // Pre-defined message template for the signature
     const [selectedTemplate, setSelectedTemplate] = useState(SIGNATURE_MESSAGE_TEMPLATES[0].id);
+
+    // Custom fields that can be inserted into the signature message
     const [customFields, setCustomFields] = useState({});
+
+    // Whether to include KYC verification in the proof
     const [useKYC, setUseKYC] = useState(false);
+
+    // --- TRANSACTION STATE ---
+    // Whether a proof was successfully created
     const [success, setSuccess] = useState(false);
+
+    // Transaction hash of the successful proof creation
     const [txHash, setTxHash] = useState('');
 
-    // For wallet connection state management
+    // --- WALLET CONNECTION STATE ---
+    // List of all connected wallets across multiple chains
     const [connectedWallets, setConnectedWallets] = useState([]);
+
+    // Wallets selected by the user for creating this proof
     const [selectedWallets, setSelectedWallets] = useState([]);
+
+    // Whether the user has actively initiated a wallet connection
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
 
-    // For multi-chain assets
+    // --- ASSET MANAGEMENT STATE ---
+    // Summary of all assets across selected wallets
     const [assetSummary, setAssetSummary] = useState(null);
+
+    // Whether assets are currently being loaded
     const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+
+    // Error message if asset loading fails
     const [assetError, setAssetError] = useState('');
+
+    // Whether to display asset values in USD
     const [showUSDValues, setShowUSDValues] = useState(true);
+
+    // Whether USD values are currently being calculated
     const [isConvertingUSD, setIsConvertingUSD] = useState(false);
 
-    // For asset summary expansion state
+    // --- UI STATE ---
+    // Controls expansion/collapse of the asset summary section
     const [isAssetSummaryExpanded, setIsAssetSummaryExpanded] = useState(true);
 
-    // For amount input type selection
+    // --- AMOUNT INPUT STATE ---
+    // Controls whether the user inputs USD value or specific token amounts
     const [amountInputType, setAmountInputType] = useState('usd'); // 'usd' or 'tokens'
+
+    // Selected tokens and their amounts when using token-based input
     const [selectedTokens, setSelectedTokens] = useState([]); // Array of {token, amount}
 
-    // For wallet signatures tracking
+    // --- WALLET SIGNATURES STATE ---
+    // Tracks signatures collected from each wallet
     const [walletSignatures, setWalletSignatures] = useState({});
+
+    // Whether a wallet signature is in progress
     const [isSigningWallet, setIsSigningWallet] = useState(false);
+
+    // The wallet currently being signed
     const [currentSigningWallet, setCurrentSigningWallet] = useState(null);
+
+    // Whether all required wallets have been signed
     const [readyToSubmit, setReadyToSubmit] = useState(false);
+
+    // Compiled proof data ready for submission
     const [proofData, setProofData] = useState(null);
 
+    // Current stage in the proof creation workflow
+    const [proofStage, setProofStage] = useState('input'); // 'input', 'signing', 'ready'
+
+    // Get connected account from wagmi
     const { address, isConnected } = useAccount();
 
-    // Use refs to track previous values to avoid infinite loops
+    // --- REFS FOR STATE TRACKING ---
+    // Used to track previous values to avoid infinite loops in effects
     const prevSelectedWalletsRef = useRef([]);
     const prevConnectedWalletsRef = useRef([]);
     const prevShowUSDValuesRef = useRef(false);
     const assetsLoadedRef = useRef(false);
 
-    // Add the missing refs for current values
+    // Refs for current values to access in async operations
     const selectedWalletsRef = useRef([]);
     const connectedWalletsRef = useRef([]);
     const showUSDValuesRef = useRef(false);
 
-    // Format address for display
+    // --- UTILITY FUNCTIONS ---
+
+    /**
+     * Formats a blockchain address for display by truncating the middle section
+     * Returns the first 6 and last 4 characters with ellipsis in between
+     * @param {string} address - The full blockchain address
+     * @return {string} Formatted address (e.g., "0x1234...5678")
+     */
     const formatAddress = (address) => {
         if (!address) return '';
         return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     };
 
-    // Import and use the getConnectedWallets helper from walletHelpers
+    /**
+     * Initializes wallet connections and sets up listeners for wallet changes
+     * Uses local storage to persist wallet connections across page refreshes
+     * Triggers wallet scanning when connections change
+     */
     useEffect(() => {
         // Function to update connected wallets from localStorage
         const updateConnectedWallets = () => {
-            // Use the centralized helper to get wallets
+            // Use the centralized helper to get wallets from all supported chains
             const wallets = getConnectedWallets();
             console.log('Updated wallet list in create.js:', wallets);
             setConnectedWallets(wallets);
 
-            // Update user connection state
+            // Update user connection state to track if user initiated the connection
             const userInitiated = localStorage.getItem('userInitiatedConnection') === 'true';
             setUserInitiatedConnection(userInitiated);
 
             // Update selected wallets if needed - only update state if needed
             if (selectedWallets.length === 0 && wallets.length > 0) {
+                // Automatically select first wallet if none are selected
                 setSelectedWallets([wallets[0].id]);
             } else if (selectedWallets.length > 0) {
-                // Keep only valid wallets in selected list
+                // Keep only valid wallets in selected list (in case some were disconnected)
                 const validWalletIds = wallets.map(w => w.id);
                 const filteredWallets = selectedWallets.filter(id => validWalletIds.includes(id));
 
-                // Only update if the arrays are different
+                // Only update if the arrays are different to avoid unnecessary re-renders
                 if (filteredWallets.length !== selectedWallets.length) {
                     setSelectedWallets(filteredWallets);
                 }
             }
         };
 
-        // Initial update
+        // Initial update when component mounts
         updateConnectedWallets();
 
         // Set up listeners for wallet changes across the app
@@ -144,7 +235,7 @@ export default function CreatePage() {
         // Listen for changes from other tabs
         window.addEventListener('storage', handleStorageChange);
 
-        // Set up for changes in current tab
+        // Set up for changes in current tab using custom events
         if (typeof window !== 'undefined' && !window._createPageStorageSetup) {
             window.addEventListener('localStorage-changed', (e) => {
                 if (e.detail && (e.detail.key === 'walletData' || e.detail.key === 'userInitiatedConnection')) {
@@ -153,28 +244,42 @@ export default function CreatePage() {
                 }
             });
 
+            // Flag to prevent multiple event listeners
             window._createPageStorageSetup = true;
         }
 
-        // Clean up
+        // Clean up event listeners on component unmount
         return () => {
             window.removeEventListener('storage', handleStorageChange);
         };
     }, []); // Empty dependency array to run only once on mount
 
-    // Update refs when values change
+    // --- REF SYNCHRONIZATION EFFECTS ---
+
+    /**
+     * Keep the selectedWallets ref synchronized with the state
+     * This allows access to current selectedWallets value in async operations
+     */
     useEffect(() => {
         selectedWalletsRef.current = selectedWallets;
     }, [selectedWallets]);
 
+    /**
+     * Keep the connectedWallets ref synchronized with the state
+     * This allows access to current connectedWallets value in async operations
+     */
     useEffect(() => {
         connectedWalletsRef.current = connectedWallets;
     }, [connectedWallets]);
 
+    /**
+     * Keep the showUSDValues ref synchronized with the state
+     * Also handles conversion of existing assets to USD when the setting is changed
+     */
     useEffect(() => {
         showUSDValuesRef.current = showUSDValues;
-        // If showUSDValues is true but we already have assets loaded without USD values,
-        // convert them to USD
+
+        // If USD values are requested but we don't have them yet, convert existing assets
         if (showUSDValues && assetSummary && !assetSummary.convertedAssets) {
             (async () => {
                 try {
@@ -191,7 +296,11 @@ export default function CreatePage() {
         }
     }, [showUSDValues, assetSummary]);
 
-    // This effect will handle asset loading
+    /**
+     * Asset Loading Effect
+     * Triggers when selected wallets change to load assets from all selected wallets
+     * Handles loading states, errors, and USD conversion
+     */
     useEffect(() => {
         let isMounted = true;
 
@@ -243,14 +352,21 @@ export default function CreatePage() {
             }
         };
 
+        // Start asset loading
         loadAssets();
 
+        // Cleanup function to prevent state updates if component unmounts
         return () => {
             isMounted = false;
         };
-    }, [selectedWallets]); // Only depend on selectedWallets
+    }, [selectedWallets]); // Only depend on selectedWallets to trigger asset loading
 
-    // Fix the toggle USD values function to prevent form submission
+    /**
+     * Toggles between showing native asset values and USD-converted values
+     * When turning on USD conversion, it fetches price data for all assets
+     * Prevents form submission when used as button click handler
+     * @param {Event} e - The click event (optional)
+     */
     const handleToggleUSDConversion = async (e) => {
         // Stop propagation to prevent the form from submitting
         if (e) {
@@ -277,7 +393,12 @@ export default function CreatePage() {
         }
     };
 
-    // Handle wallet selection (now supports multiple selection)
+    /**
+     * Handles wallet selection toggle for proof creation
+     * Supports multi-select - adds wallet to selection if not present, removes if already selected
+     * Triggers asset loading when selection changes via the useEffect
+     * @param {string} walletId - The unique ID of the wallet to toggle
+     */
     const handleWalletSelection = (walletId) => {
         setSelectedWallets(prev => {
             // If already selected, remove it
@@ -289,7 +410,10 @@ export default function CreatePage() {
         });
     };
 
-    // Set up listener for MetaMask account changes
+    /**
+     * Listens for MetaMask account changes to update wallet connections
+     * If a user disconnects their wallet, it removes it from selection
+     */
     useEffect(() => {
         const handleAccountsChanged = async (accounts) => {
             // This will trigger the wallet tracking effect that rebuilds the wallet list
@@ -299,9 +423,11 @@ export default function CreatePage() {
             }
         };
 
+        // Set up MetaMask account change listener if available
         if (typeof window !== 'undefined' && window.ethereum) {
             window.ethereum.on('accountsChanged', handleAccountsChanged);
 
+            // Clean up listener on component unmount
             return () => {
                 if (window.ethereum) {
                     window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
@@ -310,7 +436,12 @@ export default function CreatePage() {
         }
     }, []);
 
-    // Contract write hooks
+    // --- SMART CONTRACT INTEGRATION ---
+
+    /**
+     * Contract interaction hook for standard proof submission
+     * Uses wagmi's useContractWrite to prepare the transaction
+     */
     const {
         write: writeStandardProof,
         isLoading: isPendingStandard,
@@ -323,6 +454,10 @@ export default function CreatePage() {
         functionName: 'submitProof',
     });
 
+    /**
+     * Contract interaction hook for threshold proof submission
+     * Creates a proof that the user has AT LEAST the specified amount
+     */
     const {
         write: writeThresholdProof,
         isLoading: isPendingThreshold,
@@ -335,6 +470,10 @@ export default function CreatePage() {
         functionName: 'submitThresholdProof',
     });
 
+    /**
+     * Contract interaction hook for maximum proof submission
+     * Creates a proof that the user has NO MORE THAN the specified amount
+     */
     const {
         write: writeMaximumProof,
         isLoading: isPendingMaximum,
@@ -347,6 +486,10 @@ export default function CreatePage() {
         functionName: 'submitMaximumProof',
     });
 
+    /**
+     * Contract interaction hook for zero-knowledge proof submission
+     * Used for private proofs that don't reveal actual amounts on-chain
+     */
     const {
         write: writeZKProof,
         isLoading: isPendingZK,
@@ -374,7 +517,12 @@ export default function CreatePage() {
         functionName: 'verifyAndStoreProof',
     });
 
-    // Handle token selection for multi-token input
+    // --- TOKEN SELECTION FUNCTIONS ---
+
+    /**
+     * Handles selection/deselection of tokens for token-based proof amount
+     * @param {Object} token - Token object with symbol and chain information
+     */
     const handleTokenSelection = (token) => {
         setSelectedTokens(prev => {
             // Check if token is already selected
@@ -388,7 +536,12 @@ export default function CreatePage() {
         });
     };
 
-    // Handle token amount change
+    /**
+     * Updates the amount for a selected token
+     * @param {string} symbol - Token symbol
+     * @param {string} chain - Blockchain chain identifier
+     * @param {string} value - New amount value
+     */
     const handleTokenAmountChange = (symbol, chain, value) => {
         setSelectedTokens(prev =>
             prev.map(token =>
@@ -399,7 +552,11 @@ export default function CreatePage() {
         );
     };
 
-    // Calculate total USD value from selected tokens
+    /**
+     * Calculates the total USD value of all selected tokens
+     * Uses asset price data to convert token amounts to USD
+     * @returns {number} Total USD value
+     */
     const calculateTotalUsdValue = () => {
         if (!assetSummary || !assetSummary.convertedAssets) return 0;
 
@@ -417,7 +574,12 @@ export default function CreatePage() {
         }, 0);
     };
 
-    // Handle signing for a specific wallet
+    /**
+     * Handles the wallet signature process for proof creation
+     * Each wallet must sign to validate proof ownership
+     * Supports both EVM wallets (MetaMask) and Solana wallets (Phantom)
+     * @param {string} walletId - ID of the wallet to sign with
+     */
     const handleSignWallet = async (walletId) => {
         try {
             setIsSigningWallet(true);
@@ -562,7 +724,7 @@ export default function CreatePage() {
                 }
             }
 
-            // Update signatures state
+            // Update signatures state with the collected signature
             if (signature) {
                 setWalletSignatures(prev => ({
                     ...prev,
@@ -582,7 +744,10 @@ export default function CreatePage() {
         }
     };
 
-    // Prepare proof data and signatures
+    /**
+     * Prepares the proof data with all necessary information for submission
+     * Organizes wallet information, assets, and signatures into a structured format
+     */
     const prepareProofSubmission = () => {
         // Prepare amount value based on input type
         let finalAmount = amount;
@@ -636,7 +801,11 @@ export default function CreatePage() {
         setReadyToSubmit(true);
     };
 
-    // Submit final proof after all signatures are collected
+    /**
+     * Submits the finalized proof to the blockchain
+     * Uses the appropriate contract function based on proof type
+     * Creates and submits the transaction when all signatures are collected
+     */
     const submitFinalProof = async () => {
         if (!proofData || !readyToSubmit) return;
 
@@ -713,7 +882,11 @@ export default function CreatePage() {
         }
     };
 
-    // Check if all wallets have been signed
+    /**
+     * Checks if all selected wallets have been signed
+     * Used to determine when the proof is ready to submit
+     * @returns {boolean} True if all wallets are signed
+     */
     const areAllWalletsSigned = () => {
         if (selectedWallets.length === 0) return false;
         const allSigned = selectedWallets.every(walletId => !!walletSignatures[walletId]);
@@ -727,18 +900,26 @@ export default function CreatePage() {
         return allSigned;
     };
 
-    // Reset wallet signatures when selected wallets change
+    /**
+     * Resets wallet signatures when selected wallets change
+     * This prevents invalid signatures if wallet selection changes
+     */
     useEffect(() => {
         setWalletSignatures({});
         setReadyToSubmit(false);
         setProofData(null);
     }, [selectedWallets]);
 
-    // Define the handleSubmit function for the button click
+    /**
+     * Handles the form submission process
+     * Validates inputs and moves to the signing stage
+     * @param {Event} e - Form submission event
+     */
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log("Submit button clicked, current proofStage:", proofStage);
 
+        // Validate required inputs
         if (selectedWallets.length === 0) {
             alert('Please select at least one wallet');
             return;
@@ -761,6 +942,7 @@ export default function CreatePage() {
 
         console.log("Creating proof with amount:", finalAmount, "proof type:", proofCategory === 'standard' ? proofType : zkProofType);
 
+        // Format token details if using token-based amount
         const tokenDetails = amountInputType === 'tokens'
             ? selectedTokens.map(token => ({
                 symbol: token.symbol,
@@ -810,7 +992,10 @@ export default function CreatePage() {
         setProofStage('signing');
     };
 
-    // Check for transaction completion
+    /**
+     * Monitors transaction state to detect successful proof creation
+     * Updates UI when a transaction is completed
+     */
     useEffect(() => {
         if (dataStandard || dataThreshold || dataMaximum || dataZK) {
             const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
@@ -821,7 +1006,10 @@ export default function CreatePage() {
         }
     }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
 
-    // Update signature message when template changes
+    /**
+     * Updates signature message when template changes
+     * Replaces placeholders in templates with actual values
+     */
     useEffect(() => {
         const template = SIGNATURE_MESSAGE_TEMPLATES.find(t => t.id === selectedTemplate);
         if (template) {
@@ -843,7 +1031,11 @@ export default function CreatePage() {
         }
     }, [selectedTemplate, amount, customFields]);
 
-    // Get expiry timestamp based on selection
+    /**
+     * Calculates the expiry timestamp based on the selected expiry option
+     * @param {string} expiryOption - ID of the selected expiry option
+     * @returns {number} Unix timestamp for expiry
+     */
     const getExpiryTimestamp = (expiryOption) => {
         const now = Math.floor(Date.now() / 1000); // Current time in seconds
 
@@ -856,7 +1048,11 @@ export default function CreatePage() {
         return now + (option ? option.seconds : 604800);
     };
 
-    // Handle custom field changes
+    /**
+     * Updates custom fields for the signature message
+     * @param {string} key - Field name
+     * @param {string} value - Field value
+     */
     const handleCustomFieldChange = (key, value) => {
         setCustomFields(prev => ({
             ...prev,
@@ -864,7 +1060,11 @@ export default function CreatePage() {
         }));
     };
 
-    // Extract custom field placeholders from the template
+    /**
+     * Extracts custom field placeholders from a signature message template
+     * @param {string} templateId - ID of the message template
+     * @returns {Array} List of custom field names
+     */
     const getCustomFieldsFromTemplate = (templateId) => {
         const template = SIGNATURE_MESSAGE_TEMPLATES.find(t => t.id === templateId);
         if (!template) return [];
@@ -878,17 +1078,24 @@ export default function CreatePage() {
             .filter(key => !['amount', 'date'].includes(key));
     };
 
+    // Combined loading state from all contract interactions
     const isPending = isPendingStandard || isPendingThreshold || isPendingMaximum || isPendingZK;
     const isError = isErrorStandard || isErrorThreshold || isErrorMaximum || isErrorZK;
     const error = errorStandard || errorThreshold || errorMaximum || errorZK;
 
-    // Reset success state
+    /**
+     * Reset success state to create another proof
+     */
     const handleCreateAnother = () => {
         setSuccess(false);
         setTxHash('');
     };
 
-    // Helper function to get currency symbol based on asset summary
+    /**
+     * Gets the appropriate currency symbol based on asset summary
+     * @param {Object} summary - Asset summary object
+     * @returns {string} Currency symbol
+     */
     const getCurrencySymbol = (summary) => {
         if (!summary || !summary.chains || Object.keys(summary.chains).length === 0) {
             return 'ETH'; // Default to ETH if no chain data
@@ -901,10 +1108,10 @@ export default function CreatePage() {
         return 'ETH'; // Default for ethereum or other chains
     };
 
-    // Fix 2: Revise the proof submission flow and add state to track stages
-    const [proofStage, setProofStage] = useState('input'); // 'input', 'signing', 'ready'
-
-    // Add useEffect to reset signatures when critical proof details change
+    /**
+     * Resets signatures when critical proof details change
+     * This prevents invalid signatures if proof parameters are changed
+     */
     useEffect(() => {
         // When the amount or proof details change, invalidate existing signatures
         if (Object.keys(walletSignatures).length > 0) {

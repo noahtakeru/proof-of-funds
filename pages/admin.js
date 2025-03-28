@@ -1,3 +1,22 @@
+/**
+ * Admin Page Component
+ * 
+ * This page provides administrative functionality for the Arbitr platform,
+ * only accessible to authorized admin users with connected wallets.
+ * 
+ * The admin interface includes multiple sections:
+ * - Dashboard: Overview of platform metrics and activity
+ * - Proof Management: Tools to monitor and manage user proofs
+ * - User Management: Interface for managing user accounts and permissions
+ * - Contract Management: Tools for deploying and updating smart contracts
+ * - Wallet Management: Administration of platform-related wallets
+ * - System Configuration: Platform settings and parameters
+ * - Audit & Compliance: Review of platform activity for regulatory compliance
+ * 
+ * Access control is implemented through wallet-based authentication,
+ * requiring admin wallet connection before accessing management functions.
+ */
+
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import AdminDashboard from '../components/admin/Dashboard';

@@ -1,3 +1,18 @@
+/**
+ * About Page Component
+ * 
+ * This page provides information about the Arbitr project, its mission, technology,
+ * and the team behind it. It serves as an educational resource for users who want
+ * to learn more about the platform beyond its technical functionality.
+ * 
+ * The page includes sections covering:
+ * - The mission and vision of Arbitr
+ * - Key features including privacy-first design and multi-chain support
+ * - Zero-knowledge technology explanation with a link to more detailed tech page
+ * - The founding story and team information
+ * - Call-to-action buttons to guide users to key platform functionality
+ */
+
 import Link from 'next/link';
 
 export default function AboutPage() {

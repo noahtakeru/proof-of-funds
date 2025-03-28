@@ -1,3 +1,23 @@
+/**
+ * Arbitr Platform Constants
+ * 
+ * This file centralizes all constant values and configuration parameters used
+ * throughout the Arbitr proof of funds application. It includes:
+ * 
+ * - Contract addresses and chain identifiers
+ * - Enumeration values for proof types
+ * - Time-related constants like expiry options
+ * - Message templates for blockchain signatures
+ * - Smart contract ABIs for blockchain interaction
+ * 
+ * Centralizing these values makes it easier to maintain configuration across
+ * the application and simplifies the process of deploying to different environments
+ * (testnet, mainnet, etc.).
+ * 
+ * When using values from this file, import only the specific constants needed
+ * rather than the entire module to improve code maintainability.
+ */
+
 export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890'; // Testing wallet address
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
 export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID

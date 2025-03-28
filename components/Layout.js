@@ -1,3 +1,22 @@
+/**
+ * Layout Component
+ * 
+ * Provides a consistent page structure across the entire Arbitr application.
+ * This component wraps all pages with common elements including:
+ * 
+ * - Document head with title and meta tags
+ * - Navigation bar for site-wide navigation
+ * - Main content area with appropriate spacing and container sizing
+ * - Footer with copyright information and external links
+ * 
+ * The layout uses a flex column design to ensure the footer stays at the bottom
+ * of the page even when content doesn't fill the entire viewport height.
+ * 
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Page content to be rendered within the layout
+ * @param {string} props.title - Document title (defaults to "Proof of Funds - Polygon")
+ */
+
 import Head from 'next/head';
 import Navbar from './Navbar';
 

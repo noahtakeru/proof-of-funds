@@ -1,3 +1,32 @@
+/**
+ * User Management Component
+ * 
+ * Administrative interface for managing users of the Arbitr platform.
+ * Allows administrators to view user information, monitor activity, 
+ * and take actions on user accounts when necessary.
+ * 
+ * Key features:
+ * - Searchable and filterable table of platform users
+ * - User status management (activate, deactivate, suspend accounts)
+ * - Detailed user information view showing:
+ *   - Wallet address
+ *   - Registration date
+ *   - Activity metrics
+ *   - Proof creation history
+ *   - Account status
+ * - Support note system for internal documentation
+ * - Moderation tools for compliance and security
+ * 
+ * User statuses:
+ * - Active: Normal user with full platform access
+ * - Inactive: User account that hasn't been active recently
+ * - Suspended: Account with restricted access due to policy violations
+ * 
+ * Note: Currently using mock data for demonstration.
+ * Production implementation would integrate with user database
+ * and blockchain analytics for actual user management.
+ */
+
 import { useState, useEffect } from 'react';
 
 export default function UserManagement() {
@@ -112,8 +141,8 @@ export default function UserManagement() {
                                 <td className="p-2">{user.address}</td>
                                 <td className="p-2">
                                     <span className={`px-2 py-1 rounded-full text-xs ${user.status === 'active' ? 'bg-green-100 text-green-800' :
-                                            user.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-                                                'bg-red-100 text-red-800'
+                                        user.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                                            'bg-red-100 text-red-800'
                                         }`}>
                                         {user.status}
                                     </span>

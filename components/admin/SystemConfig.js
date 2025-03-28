@@ -1,3 +1,31 @@
+/**
+ * System Configuration Component
+ * 
+ * Administrative interface for managing global system settings and platform features
+ * within the Arbitr platform. Allows administrators to configure options that affect
+ * the entire application's behavior.
+ * 
+ * Key features:
+ * - Feature Toggles: Enable/disable specific platform functionalities
+ *   - Different proof types (standard, threshold, maximum, zero-knowledge)
+ *   - Maintenance mode for system-wide updates
+ *   - Security settings like strict verification
+ * 
+ * - Network Configuration: Manage blockchain networks for the application
+ *   - Chain ID configuration
+ *   - RPC endpoints for blockchain interaction
+ *   - Block explorer URLs for transaction links
+ *   - Network activation/deactivation
+ * 
+ * - UI Customization: Configure user-facing text and notifications
+ *   - Help text for various platform features
+ *   - System notification messages
+ * 
+ * Note: Currently using local state for demonstration.
+ * Production implementation would integrate with backend configuration
+ * services and blockchain network management systems.
+ */
+
 import { useState } from 'react';
 
 export default function SystemConfig() {

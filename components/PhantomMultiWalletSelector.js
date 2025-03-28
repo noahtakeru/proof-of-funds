@@ -1,3 +1,27 @@
+/**
+ * Phantom Multi-Wallet Selector Component
+ * 
+ * Specialized interface for connecting multiple Phantom wallet accounts simultaneously.
+ * This component provides a wizard-like experience to guide users through the process
+ * of connecting multiple Solana wallets from the Phantom browser extension.
+ * 
+ * Key features:
+ * - Interactive multi-step wallet connection process
+ * - Support for connecting multiple distinct Phantom wallets in sequence
+ * - Automatic detection of already connected wallets to prevent duplicates
+ * - Message signing to verify wallet ownership
+ * - Integration with the wallet connection persistence system
+ * - Clear status and error handling for user feedback
+ * 
+ * The component works in conjunction with the PhantomMultiWalletContext to manage
+ * multiple wallet connections across the application. It handles the technical
+ * complexity of disconnecting and reconnecting to the Phantom extension to work
+ * around the extension's limitation of single wallet connections.
+ * 
+ * @param {Object} props - Component props
+ * @param {Function} props.onClose - Callback function to close the selector modal
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { saveWalletConnection } from '../lib/walletHelpers';
 import { usePhantomMultiWallet } from '../lib/PhantomMultiWalletContext';

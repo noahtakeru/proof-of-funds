@@ -1,3 +1,39 @@
+/**
+ * Wallet Management Component
+ * 
+ * Administrative interface for managing wallet connections and localStorage data
+ * within the Arbitr platform. Provides tools to inspect, maintain, and troubleshoot
+ * wallet-related data stored in the browser's localStorage.
+ * 
+ * Key features:
+ * - Wallet Data Discovery: Automatically scans multiple localStorage keys
+ *   to find and consolidate wallet data from different sources:
+ *   - Native wallet storage (MetaMask, Phantom)
+ *   - Application-specific wallet data
+ *   - Multi-wallet connections
+ * 
+ * - Wallet Administration Tools:
+ *   - View all connected wallets across the application
+ *   - Remove individual wallet connections
+ *   - Clear all wallet data (system reset capability)
+ *   - Refresh wallet data to see real-time state
+ * 
+ * - Detailed Wallet Information Display:
+ *   - Wallet type (Ethereum/Polygon/Solana)
+ *   - Blockchain network/chain ID
+ *   - Wallet addresses with proper formatting
+ *   - Storage location for debugging
+ * 
+ * - Duplicate Detection: Intelligently merges wallet data from multiple
+ *   storage locations to prevent duplicate entries
+ * 
+ * This component serves as both an administrative tool and a debugging
+ * utility for wallet connection issues that users might experience.
+ * 
+ * Note: Directly manipulates localStorage, which should be handled with
+ * caution in production environments to maintain data integrity.
+ */
+
 import { useState, useEffect } from 'react';
 
 export default function WalletManagement() {
@@ -161,8 +197,8 @@ export default function WalletManagement() {
 
                 {message.text && (
                     <div className={`p-3 rounded mb-4 ${message.type === 'error' ? 'bg-red-100 text-red-700' :
-                            message.type === 'success' ? 'bg-green-100 text-green-700' :
-                                'bg-blue-100 text-blue-700'
+                        message.type === 'success' ? 'bg-green-100 text-green-700' :
+                            'bg-blue-100 text-blue-700'
                         }`}>
                         {message.text}
                     </div>

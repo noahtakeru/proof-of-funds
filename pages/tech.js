@@ -1,3 +1,26 @@
+/**
+ * Technology Explanation Page
+ * 
+ * This page provides in-depth information about the technologies powering the Arbitr platform.
+ * It serves as an educational resource for users who want to understand the technical aspects
+ * of the proof of funds system.
+ * 
+ * Key features:
+ * - Interactive section navigation
+ * - Canvas background animation with particle effects
+ * - Detailed explanations of:
+ *   - Blockchain technology and its application in Arbitr
+ *   - Zero-knowledge proofs and how they enable private verification
+ *   - Modern cryptography techniques used for security
+ *   - Proof of funds verification methodology
+ * 
+ * The page uses a tabbed interface to organize complex information in a user-friendly manner,
+ * with visual elements to enhance understanding of advanced cryptographic concepts.
+ * 
+ * The animated canvas background creates a dynamic visual representation of interconnected
+ * nodes, symbolizing the decentralized nature of blockchain technology.
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
