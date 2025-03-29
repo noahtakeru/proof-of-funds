@@ -1,10 +1,8 @@
-/**
- * Home Page / Landing Page Component
- * 
- * This is the main landing page for the Arbitr (Proof of Funds) application.
- * It provides an overview of the platform's features and capabilities,
- * with interactive elements to engage users and explain the concept.
- */
+// Home Page / Landing Page Component
+// 
+// This is the main landing page for the Arbitr (Proof of Funds) application.
+// It provides an overview of the platform's features and capabilities,
+// with interactive elements to engage users and explain the concept.
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';

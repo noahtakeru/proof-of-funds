@@ -18,9 +18,16 @@
  * rather than the entire module to improve code maintainability.
  */
 
-export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890'; // Testing wallet address
+// Use the address from the deployment script (see deployments directory)
+// This was previously incorrectly set to a wallet address
+// The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
+// IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
+export const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
 export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+
+// Add Hardhat local network configuration
+export const HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
 
 // Proof types enum values
 export const PROOF_TYPES = {
@@ -300,6 +307,17 @@ export const SUPPORTED_CHAINS = {
         testnetBlockExplorer: 'https://explorer.solana.com/?cluster=devnet',
         rpcUrl: 'https://api.mainnet-beta.solana.com',
         testnetRpcUrl: 'https://api.devnet.solana.com'
+    },
+    HARDHAT: {
+        name: 'Hardhat Local',
+        chainId: 31337,
+        testnetChainId: 31337,
+        nativeSymbol: 'ETH',
+        decimals: 18,
+        blockExplorer: '',
+        testnetBlockExplorer: '',
+        rpcUrl: 'http://127.0.0.1:8545/',
+        testnetRpcUrl: 'http://127.0.0.1:8545/'
     }
 };
 

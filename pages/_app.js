@@ -1,13 +1,11 @@
-/**
- * Main Application Component
- * 
- * This is the top-level component that wraps all pages in the Proof of Funds application.
- * It handles global configuration including:
- *  - Blockchain network setup (Polygon Amoy testnet)
- *  - Wallet connection providers (MetaMask and other injected wallets)
- *  - Global layout and styling
- *  - Persistence management for wallet connections
- */
+// Main Application Component
+// 
+// This is the top-level component that wraps all pages in the Proof of Funds application.
+// It handles global configuration including:
+//  - Blockchain network setup (Polygon Amoy testnet)
+//  - Wallet connection providers (MetaMask and other injected wallets)
+//  - Global layout and styling
+//  - Persistence management for wallet connections
 
 import '../styles/globals.css';
 // import '@rainbow-me/rainbowkit/styles.css';

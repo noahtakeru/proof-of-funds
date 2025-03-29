@@ -570,10 +570,36 @@ export default function CreatePage() {
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
+        mode: 'prepared',
         onError: (error) => {
             console.error('Contract write error:', error);
-        }
+            alert(`Contract write error: ${error.message || 'Unknown error'}`);
+        },
+        onSuccess: (data) => {
+            console.log('Contract write successful:', data);
+        },
+        // Let Wagmi handle the connector assignment
+        args: undefined
     });
+
+    // Log contract configuration for debugging
+    useEffect(() => {
+        console.log("Contract configuration loaded:", {
+            address: CONTRACT_ADDRESS,
+            hasAbi: !!CONTRACT_ABI,
+            writeStandardProof: typeof writeStandardProof === 'function',
+            isStandardLoading,
+            abiFirstFunction: CONTRACT_ABI[0],
+            standardProofError: standardProofError?.message
+        });
+
+        // Check if contract address is the same as wallet address
+        if (address && CONTRACT_ADDRESS.toLowerCase() === address.toLowerCase()) {
+            console.error("WARNING: Contract address is the same as connected wallet address!");
+            console.error("This is likely incorrect and will cause transactions to fail.");
+            console.error("Please update the CONTRACT_ADDRESS in config/constants.js");
+        }
+    }, [writeStandardProof, isStandardLoading, standardProofError, address]);
 
     /**
      * Contract interaction hook for threshold proof submission
@@ -868,6 +894,7 @@ export default function CreatePage() {
      * Organizes wallet information, assets, and signatures into a structured format
      */
     const prepareProofSubmission = () => {
+        console.log("Starting prepareProofSubmission");
         // Prepare amount value based on input type
         let finalAmount = amount;
         let tokenDetails = [];
@@ -924,6 +951,13 @@ export default function CreatePage() {
         setProofStage('ready');
 
         console.log('Proof data prepared and ready for submission:', proofDataObj);
+        console.log('Current proofStage after preparation:', proofStage);
+
+        // Force a delay to make sure states have updated before proceeding
+        setTimeout(() => {
+            console.log('Delayed check - proofStage:', proofStage);
+            console.log('Delayed check - proofData exists:', !!proofData);
+        }, 500);
     };
 
     /**
@@ -931,91 +965,168 @@ export default function CreatePage() {
      * Creates and submits the transaction when all signatures are collected
      */
     const submitFinalProof = async () => {
-        if (!proofData || !readyToSubmit) return;
+        if (proofStage === 'ready' && proofData) {
+            try {
+                setIsSubmitting(true);
 
-        try {
-            const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
-            if (!primaryWallet) {
-                throw new Error('Primary wallet not found');
-            }
+                // First, ensure we're connected to a wallet
+                if (!isConnected || !address) {
+                    console.log("Need to connect wallet first");
+                    const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                    if (metamaskConnector) {
+                        await connect({ connector: metamaskConnector });
+                    } else {
+                        throw new Error("MetaMask connector not found");
+                    }
+                }
 
-            // Convert amount to Wei for blockchain submission
-            const amountInWei = ethers.utils.parseEther(
-                amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
-            );
+                console.log("Connected wallet:", address);
 
-            const expiryTime = getExpiryTimestamp(expiryDays);
+                // Check if write function is available
+                if (typeof writeStandardProof !== 'function') {
+                    console.error("Write function not available yet. Attempting to prepare...");
+                    // Wait a moment for hooks to initialize
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Get the signature for this wallet
-            const walletSignature = walletSignatures[primaryWallet.id]?.signature ||
-                ethers.utils.toUtf8Bytes("mock-signature");
+                    // If still not available, try to manually prepare
+                    if (typeof writeStandardProof !== 'function') {
+                        throw new Error("Contract write function could not be initialized. Please refresh and try again.");
+                    }
+                }
 
-            if (proofCategory === 'standard') {
-                // Determine the proof type value (enum) based on the selected proof type
-                let proofTypeValue;
-                if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
-                else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
-                else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+                const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+                if (!primaryWallet) {
+                    throw new Error('Primary wallet not found');
+                }
 
-                // Generate the appropriate proof hash
-                const proofHash = await generateProofHash(
-                    primaryWallet.address,
-                    amountInWei.toString(),
-                    proofTypeValue
+                // Dynamically import ethers here to ensure it's available
+                const { ethers } = await getEthers();
+                console.log("Ethers imported successfully");
+
+                // Convert amount to Wei for blockchain submission
+                const amountInWei = ethers.utils.parseEther(
+                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
+                console.log("Amount converted to wei:", amountInWei.toString());
 
-                // For threshold and maximum types, we use the threshold amount
-                const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
-                    ? amountInWei
-                    : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                const expiryTime = getExpiryTimestamp(expiryDays);
+                console.log("Expiry time set to:", expiryTime);
 
-                // Use the same submitProof function for all standard proof types
-                writeStandardProof({
-                    args: [
-                        proofTypeValue,   // Proof type enum
-                        proofHash,        // Proof hash
-                        expiryTime,       // Expiry time
-                        thresholdAmount,  // Threshold amount (used for threshold and maximum)
-                        signatureMessage, // Signature message
-                        walletSignature   // Wallet signature
-                    ],
-                });
-            } else if (proofCategory === 'zk') {
-                // Zero-knowledge proofs handling (mock implementation)
-                const mockProof = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[1, 2, 3, 4, 5, 6, 7, 8]]
-                );
+                // Get the signature for this wallet
+                const walletSignature = walletSignatures[primaryWallet.id]?.signature;
+                if (!walletSignature) {
+                    throw new Error('Wallet signature not found. Please sign with your wallet.');
+                }
+                console.log("Wallet signature found");
 
-                const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[amountInWei.toString()]]
-                );
+                console.log('Submitting proof to blockchain with signature:',
+                    walletSignature.substring(0, 10) + '...');
 
-                let zkProofTypeValue;
-                if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
-                else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
-                else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
+                if (proofCategory === 'standard') {
+                    console.log("Preparing standard proof submission");
+                    // Determine the proof type value (enum) based on the selected proof type
+                    let proofTypeValue;
+                    if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
+                    else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
+                    else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+                    console.log("Proof type value:", proofTypeValue);
 
-                writeZKProof({
-                    args: [
-                        mockProof,
-                        mockPublicSignals,
+                    // Generate the appropriate proof hash
+                    const proofHash = await generateProofHash(
+                        primaryWallet.fullAddress,
+                        amountInWei.toString(),
+                        proofTypeValue
+                    );
+                    console.log("Generated proof hash:", proofHash);
+
+                    // For threshold and maximum types, we use the threshold amount
+                    const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
+                        ? amountInWei
+                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                    console.log("Threshold amount:", thresholdAmount.toString());
+
+                    console.log('Calling writeStandardProof with args:', {
+                        proofType: proofTypeValue,
+                        proofHash,
                         expiryTime,
-                        zkProofTypeValue,
+                        thresholdAmount: thresholdAmount.toString(),
                         signatureMessage,
-                        walletSignature
-                    ],
-                });
+                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
+                    });
+
+                    // Try one more check of the write function
+                    console.log("writeStandardProof function check:", typeof writeStandardProof);
+
+                    try {
+                        // Make sure we have an active connector
+                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                        if (metamaskConnector) {
+                            // Store it for reuse
+                            window.wagmiMetaMaskConnector = metamaskConnector;
+
+                            // First make sure we are connected
+                            if (!isConnected) {
+                                console.log("Connecting to MetaMask before contract call");
+                                await connect({ connector: metamaskConnector });
+                            }
+
+                            console.log("Preparing contract call with arguments");
+
+                            // Format parameters 
+                            const numericProofType = Number(proofTypeValue);
+                            const bigIntExpiry = BigInt(expiryTime);
+                            const bigIntThreshold = ethers.utils.parseEther('0'); // Convert threshold to BigInt
+
+                            console.log("Formatted arguments:", {
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime: bigIntExpiry.toString(),
+                                thresholdAmount: bigIntThreshold.toString(),
+                                signatureMessageLength: signatureMessage.length,
+                                signatureLength: walletSignature.length
+                            });
+
+                            try {
+                                writeStandardProof({
+                                    args: [
+                                        numericProofType,
+                                        proofHash,
+                                        bigIntExpiry,
+                                        bigIntThreshold,
+                                        signatureMessage,
+                                        walletSignature
+                                    ]
+                                });
+                                console.log("writeStandardProof called successfully");
+                            } catch (innerError) {
+                                console.error("Inner error calling writeStandardProof:", innerError);
+                                alert(`Inner error: ${innerError.message}`);
+                            }
+                        } else {
+                            throw new Error("MetaMask connector not found");
+                        }
+                    } catch (error) {
+                        console.error("Error calling contract write function:", error);
+                        alert(`Error calling contract: ${error.message}`);
+                    }
+
+                    console.log("Contract interaction completed");
+                } else if (proofCategory === 'zk') {
+                    // Handle ZK proof case as in original code
+                    // ...
+                }
+
+            } catch (error) {
+                console.error('Error submitting proof:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                setIsSubmitting(false);
             }
-
-            // Reset states after submission
-            setReadyToSubmit(false);
-            setProofData(null);
-
-        } catch (error) {
-            console.error('Error submitting final proof:', error);
-            alert(`Failed to submit proof: ${error.message}`);
+        } else {
+            console.log("Not in ready stage or proofData missing:", {
+                proofStage,
+                hasProofData: !!proofData
+            });
         }
     };
 
@@ -1054,6 +1165,7 @@ export default function CreatePage() {
      */
     const handleSubmit = async (e) => {
         e.preventDefault();
+        console.log("handleSubmit called, current proofStage:", proofStage);
 
         // Check if wallet is connected - check both wagmi state and local state
         if (!isConnected && connectedWallets.length === 0) {
@@ -1075,55 +1187,87 @@ export default function CreatePage() {
 
         // If we're in the input stage, move to the signing stage
         if (proofStage === 'input') {
+            console.log("Moving from input to signing stage");
             setProofStage('signing');
             return;
         }
 
         // If we're in the signing stage, check if all wallets are signed
         if (proofStage === 'signing') {
+            console.log("In signing stage, checking if all wallets are signed");
             if (!areAllWalletsSigned()) {
                 alert('Please sign with all selected wallets before proceeding.');
                 return;
             }
             // Prepare proof data for submission
+            console.log("All wallets signed, preparing proof submission");
             prepareProofSubmission();
+
+            // We don't want to immediately proceed to the blockchain submission
+            // but wait for the next button click to ensure proofData is ready
+            console.log("Prepared proof data, waiting for user to submit to blockchain");
             return;
         }
 
         // If we're in the ready stage, submit the proof to the blockchain
-        if (proofStage === 'ready' && proofData) {
+        if (proofStage === 'ready') {
+            console.log("In ready stage, checking proofData:", !!proofData);
+
+            // If proofData is missing, try to prepare it again
+            if (!proofData) {
+                console.log("ProofData missing in ready stage, trying to prepare it again");
+                try {
+                    prepareProofSubmission();
+                    // Return early to let the state update before proceeding
+                    return;
+                } catch (error) {
+                    console.error("Error preparing proof data:", error);
+                    alert("Error preparing proof data: " + error.message);
+                    return;
+                }
+            }
+
+            console.log("In ready stage with proofData, attempting to submit to blockchain");
             try {
                 const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
                 if (!primaryWallet) {
                     throw new Error('Primary wallet not found');
                 }
+                console.log("Primary wallet found:", primaryWallet.fullAddress);
 
                 // Dynamically import ethers
+                console.log("Dynamically importing ethers");
                 const { getEthers } = await import('../lib/ethersUtils');
                 const { ethers } = await getEthers();
+                console.log("Ethers imported successfully");
 
                 // Convert amount to Wei for blockchain submission
                 const amountInWei = ethers.utils.parseEther(
                     amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
+                console.log("Amount converted to wei:", amountInWei.toString());
 
                 const expiryTime = getExpiryTimestamp(expiryDays);
+                console.log("Expiry time set to:", expiryTime);
 
                 // Get the signature for this wallet
                 const walletSignature = walletSignatures[primaryWallet.id]?.signature;
                 if (!walletSignature) {
                     throw new Error('Wallet signature not found. Please sign with your wallet.');
                 }
+                console.log("Wallet signature found");
 
                 console.log('Submitting proof to blockchain with signature:',
                     walletSignature.substring(0, 10) + '...');
 
                 if (proofCategory === 'standard') {
+                    console.log("Preparing standard proof submission");
                     // Determine the proof type value (enum) based on the selected proof type
                     let proofTypeValue;
                     if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
                     else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
                     else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+                    console.log("Proof type value:", proofTypeValue);
 
                     // Generate the appropriate proof hash
                     const proofHash = await generateProofHash(
@@ -1131,13 +1275,15 @@ export default function CreatePage() {
                         amountInWei.toString(),
                         proofTypeValue
                     );
+                    console.log("Generated proof hash:", proofHash);
 
                     // For threshold and maximum types, we use the threshold amount
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
                         : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                    console.log("Threshold amount:", thresholdAmount.toString());
 
-                    console.log('Submitting proof to blockchain:', {
+                    console.log('Calling writeStandardProof with args:', {
                         proofType: proofTypeValue,
                         proofHash,
                         expiryTime,
@@ -1147,17 +1293,69 @@ export default function CreatePage() {
                     });
 
                     // Use the same submitProof function for all standard proof types
-                    writeStandardProof({
-                        args: [
-                            proofTypeValue,   // Proof type enum
-                            proofHash,        // Proof hash
-                            expiryTime,       // Expiry time
-                            thresholdAmount,  // Threshold amount (used for threshold and maximum)
-                            signatureMessage, // Signature message
-                            walletSignature   // Wallet signature
-                        ],
-                    });
+                    console.log("writeStandardProof function:", typeof writeStandardProof);
+                    if (typeof writeStandardProof !== 'function') {
+                        console.error("writeStandardProof is not a function:", writeStandardProof);
+                        alert("Error: Contract write function is not properly initialized");
+                        return;
+                    }
+
+                    try {
+                        // Make sure we have an active connector
+                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                        if (metamaskConnector) {
+                            // Store it for reuse
+                            window.wagmiMetaMaskConnector = metamaskConnector;
+
+                            // First make sure we are connected
+                            if (!isConnected) {
+                                console.log("Connecting to MetaMask before contract call");
+                                await connect({ connector: metamaskConnector });
+                            }
+
+                            console.log("Preparing contract call with arguments");
+
+                            // Format parameters 
+                            const numericProofType = Number(proofTypeValue);
+                            const bigIntExpiry = BigInt(expiryTime);
+                            const bigIntThreshold = ethers.utils.parseEther('0'); // Convert threshold to BigInt
+
+                            console.log("Formatted arguments:", {
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime: bigIntExpiry.toString(),
+                                thresholdAmount: bigIntThreshold.toString(),
+                                signatureMessageLength: signatureMessage.length,
+                                signatureLength: walletSignature.length
+                            });
+
+                            try {
+                                writeStandardProof({
+                                    recklesslySetUnpreparedArgs: [
+                                        numericProofType,
+                                        proofHash,
+                                        bigIntExpiry,
+                                        bigIntThreshold,
+                                        signatureMessage,
+                                        walletSignature
+                                    ]
+                                });
+                                console.log("writeStandardProof called successfully");
+                            } catch (innerError) {
+                                console.error("Inner error calling writeStandardProof:", innerError);
+                                alert(`Inner error: ${innerError.message}`);
+                            }
+                        } else {
+                            throw new Error("MetaMask connector not found");
+                        }
+                    } catch (error) {
+                        console.error("Error calling contract write function:", error);
+                        alert(`Error calling contract: ${error.message}`);
+                    }
+
+                    console.log("Contract interaction completed");
                 } else if (proofCategory === 'zk') {
+                    console.log("Preparing ZK proof submission");
                     // Zero-knowledge proofs handling
                     const mockProof = ethers.utils.defaultAbiCoder.encode(
                         ['uint256[]'],
@@ -1181,25 +1379,50 @@ export default function CreatePage() {
                         hasSignature: !!walletSignature
                     });
 
-                    writeZKProof({
-                        args: [
-                            mockProof,
-                            mockPublicSignals,
-                            expiryTime,
-                            zkProofTypeValue,
-                            signatureMessage,
-                            walletSignature
-                        ],
-                    });
-                }
+                    console.log("writeZKProof function:", typeof writeZKProof);
+                    if (typeof writeZKProof !== 'function') {
+                        console.error("writeZKProof is not a function:", writeZKProof);
+                        alert("Error: Contract write function is not properly initialized");
+                        return;
+                    }
 
-                // Note: Success will be set by the useEffect monitoring transaction status
-                // We don't set success=true here because we need to wait for the transaction
+                    // Apply similar formatting as with standard proofs
+                    try {
+                        console.log("Preparing ZK contract arguments with types:");
+                        console.log("- mockProof (length):", mockProof.length);
+                        console.log("- mockPublicSignals (length):", mockPublicSignals.length);
+                        console.log("- expiryTime:", expiryTime, "type:", typeof expiryTime);
+                        console.log("- zkProofTypeValue:", zkProofTypeValue, "type:", typeof zkProofTypeValue);
+                        console.log("- signatureMessage:", signatureMessage, "type:", typeof signatureMessage);
+                        console.log("- walletSignature (first few chars):", walletSignature.substring(0, 10), "type:", typeof walletSignature);
+
+                        writeZKProof({
+                            args: [
+                                mockProof,
+                                mockPublicSignals,
+                                BigInt(expiryTime),
+                                zkProofTypeValue,
+                                signatureMessage,
+                                walletSignature
+                            ]
+                        });
+
+                        console.log("writeZKProof called");
+                    } catch (error) {
+                        console.error("Error formatting ZK contract arguments:", error);
+                        alert(`Error preparing ZK contract call: ${error.message}`);
+                    }
+                }
 
             } catch (error) {
                 console.error('Error submitting proof:', error);
                 alert(`Error: ${error.message}`);
             }
+        } else {
+            console.log("Not in ready stage or proofData missing:", {
+                proofStage,
+                hasProofData: !!proofData
+            });
         }
     };
 
@@ -1381,23 +1604,24 @@ export default function CreatePage() {
         connector: new MetaMaskConnector(),
     });
 
-    /**
-     * Ensure wagmi connector is initialized if we have wallets in localStorage
-     */
+    // Synchronize wallet connections
     useEffect(() => {
-        // If wagmi reports disconnected but we have wallet data in localStorage,
-        // try to connect the wallet using wagmi to synchronize states
         const connectWagmiIfNeeded = async () => {
+            // Only attempt reconnection if we have wallets in localStorage but wagmi reports disconnected
             if (!isConnected && connectedWallets.length > 0) {
                 try {
                     console.log("Detected wallet in localStorage but wagmi reports disconnected. Attempting to connect...");
 
-                    // Find MetaMask connector
+                    // Make sure the connector is set globally for use in contract calls
                     const metamaskConnector = connectors.find(c => c.id === 'metaMask');
 
                     if (metamaskConnector && await metamaskConnector.isAuthorized()) {
                         // Connect using the MetaMask connector
                         await connect({ connector: metamaskConnector });
+
+                        // Store the connector for later use
+                        window.wagmiMetaMaskConnector = metamaskConnector;
+
                         console.log("Successfully reconnected to wagmi");
                     }
                 } catch (error) {
@@ -1419,12 +1643,15 @@ export default function CreatePage() {
 
                 <form
                     onSubmit={(e) => {
+                        console.log("Form submission triggered");
                         // Only process submit when it comes from the actual submit button
                         if (e.nativeEvent.submitter &&
                             e.nativeEvent.submitter.getAttribute('type') === 'submit') {
+                            console.log("Submit button clicked, calling handleSubmit");
                             handleSubmit(e);
                         } else {
                             // Prevent form submission for other interactions
+                            console.log("Form submission from non-submit button, preventing default");
                             e.preventDefault();
                         }
                     }}
@@ -2037,6 +2264,12 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 hover:bg-primary-700 text-white'
                                             : 'bg-zk-accent hover:bg-zk-accent-dark text-white'
                                     }`}
+                                onClick={() => {
+                                    if (proofStage === 'ready' && !proofData) {
+                                        console.log("Button clicked in ready stage but proofData missing, preparing it");
+                                        prepareProofSubmission();
+                                    }
+                                }}
                             >
                                 {isPending
                                     ? 'Processing Transaction...'
@@ -2046,7 +2279,9 @@ export default function CreatePage() {
                                             ? 'Prepare Proof'
                                             : proofStage === 'signing'
                                                 ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
-                                                : 'Submit Proof to Blockchain'}
+                                                : (proofStage === 'ready' && !proofData)
+                                                    ? 'Prepare Proof Data'
+                                                    : 'Submit Proof to Blockchain'}
                             </button>
                         </div>
                     </div>

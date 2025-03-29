@@ -1,0 +1,39 @@
+{
+  "name": "proof-of-funds-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for the Proof of Funds protocol",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "compile": "hardhat compile --config hardhat.config.cjs",
+    "test": "hardhat test --config hardhat.config.cjs",
+    "deploy:local": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network hardhat",
+    "deploy:amoy": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network polygon_amoy",
+    "verify:amoy": "hardhat run scripts/verify.js --config hardhat.config.cjs --network polygon_amoy",
+    "node": "hardhat node --config hardhat.config.cjs"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "polygon",
+    "solidity",
+    "hardhat"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "chai": "^4.3.10",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.22.19"
+  }
+}

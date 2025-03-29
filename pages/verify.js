@@ -22,10 +22,10 @@
 import { useState, useEffect } from 'react';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
-import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI } from '../config/constants';
+import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
 
 // Smart contract address on Polygon Amoy testnet
-const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
+// const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 
 export default function VerifyPage() {
     // Add a flag to track user-initiated connection, initialized from localStorage
@@ -208,8 +208,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'standard'
-                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
@@ -227,8 +227,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'threshold'
-                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
@@ -246,8 +246,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'maximum'
-                                                ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
@@ -291,8 +291,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
-                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
@@ -309,8 +309,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
-                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
@@ -327,8 +327,8 @@ export default function VerifyPage() {
                                             setVerificationStatus(null);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
-                                                ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
-                                                : 'border-gray-300 hover:bg-gray-50'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                            : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
