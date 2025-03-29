@@ -572,42 +572,16 @@ export default function CreatePage() {
 
     /**
      * Contract interaction hook for standard proof submission
-     * Uses wagmi's useContractWrite to prepare the transaction
+     * Used for normal "exactly X amount" verification
      */
     const { config: standardProofConfig, error: standardProofError, write: writeStandardProof, data: dataStandard, isLoading: isStandardLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
-        mode: 'prepared',
         onError: (error) => {
             console.error('Contract write error:', error);
-            alert(`Contract write error: ${error.message || 'Unknown error'}`);
-        },
-        onSuccess: (data) => {
-            console.log('Contract write successful:', data);
-        },
-        // Let Wagmi handle the connector assignment
-        args: undefined
-    });
-
-    // Log contract configuration for debugging
-    useEffect(() => {
-        console.log("Contract configuration loaded:", {
-            address: CONTRACT_ADDRESS,
-            hasAbi: !!CONTRACT_ABI,
-            writeStandardProof: typeof writeStandardProof === 'function',
-            isStandardLoading,
-            abiFirstFunction: CONTRACT_ABI[0],
-            standardProofError: standardProofError?.message
-        });
-
-        // Check if contract address is the same as wallet address
-        if (address && CONTRACT_ADDRESS.toLowerCase() === address.toLowerCase()) {
-            console.error("WARNING: Contract address is the same as connected wallet address!");
-            console.error("This is likely incorrect and will cause transactions to fail.");
-            console.error("Please update the CONTRACT_ADDRESS in config/constants.js");
         }
-    }, [writeStandardProof, isStandardLoading, standardProofError, address]);
+    });
 
     /**
      * Contract interaction hook for threshold proof submission
@@ -748,17 +722,16 @@ export default function CreatePage() {
             let messageAmountText = '';
 
             if (amountInputType === 'tokens') {
-                finalAmount = calculateTotalUsdValue().toString(); // Put this back for other calculations
-
-                // Get asset details for the message
-                if (assetSummary && assetSummary.convertedAssets && assetSummary.convertedAssets.length > 0) {
-                    // List specific assets instead of "worth of tokens"
-                    const assetList = assetSummary.convertedAssets.map(asset =>
-                        `${Number(asset.balance).toString()} ${asset.symbol}`
+                // Get selected token amounts for the message - use the amounts the user entered
+                if (selectedTokens && selectedTokens.length > 0) {
+                    // List specific token amounts the user selected
+                    const tokenList = selectedTokens.map(token =>
+                        `${token.amount} ${token.symbol}`
                     ).join(', ');
-                    messageAmountText = assetList;
+                    messageAmountText = tokenList;
+                    console.log("Using user-entered token amounts for signature:", messageAmountText);
                 } else {
-                    messageAmountText = `${finalAmount} worth of tokens`;
+                    messageAmountText = `${finalAmount} USD worth of tokens`;
                 }
             } else {
                 // USD amount
@@ -1100,10 +1073,30 @@ export default function CreatePage() {
 
                             console.log("Preparing contract call with arguments");
 
+                            // Verify if the contract method exists
+                            const isMethodAvailable = await verifyContractMethod(CONTRACT_ADDRESS, 'submitProof');
+                            if (!isMethodAvailable) {
+                                alert("Contract method 'submitProof' is not available at the specified address. Check your contract deployment.");
+                                return;
+                            }
+
+                            // Get provider for gas price calculation
+                            const provider = new ethers.providers.Web3Provider(window.ethereum);
+
                             // Format parameters 
                             const numericProofType = Number(proofTypeValue);
                             const bigIntExpiry = BigInt(expiryTime);
-                            const bigIntThreshold = ethers.utils.parseEther('0'); // Convert threshold to BigInt
+
+                            // Set appropriate threshold amount based on proof type
+                            let bigIntThreshold;
+                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
+                                // For threshold/maximum types, use the actual amount from user input
+                                bigIntThreshold = amountInWei;
+                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+                            } else {
+                                // For standard proof type, threshold can be 0
+                                bigIntThreshold = ethers.utils.parseEther('0');
+                            }
 
                             console.log("Formatted arguments:", {
                                 proofType: numericProofType,
@@ -1116,19 +1109,26 @@ export default function CreatePage() {
 
                             try {
                                 writeStandardProof({
-                                    args: [
+                                    recklesslySetUnpreparedArgs: [
                                         numericProofType,
                                         proofHash,
                                         bigIntExpiry,
                                         bigIntThreshold,
                                         signatureMessage,
                                         walletSignature
-                                    ]
+                                    ],
+                                    // Use a simpler approach with just gas limit
+                                    gasLimit: BigInt(500000)
                                 });
                                 console.log("writeStandardProof called successfully");
                             } catch (innerError) {
                                 console.error("Inner error calling writeStandardProof:", innerError);
-                                alert(`Inner error: ${innerError.message}`);
+
+                                if (innerError.message.includes("function selector was not recognized")) {
+                                    alert("Error: Contract interface mismatch. The method signature doesn't match what's deployed at the contract address. Check your contract deployment and ABI.");
+                                } else {
+                                    alert(`Error calling contract: ${innerError.message}`);
+                                }
                             }
                         } else {
                             throw new Error("MetaMask connector not found");
@@ -1359,7 +1359,17 @@ export default function CreatePage() {
                             // Format parameters 
                             const numericProofType = Number(proofTypeValue);
                             const bigIntExpiry = BigInt(expiryTime);
-                            const bigIntThreshold = ethers.utils.parseEther('0'); // Convert threshold to BigInt
+
+                            // Set appropriate threshold amount based on proof type
+                            let bigIntThreshold;
+                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
+                                // For threshold/maximum types, use the actual amount from user input
+                                bigIntThreshold = amountInWei;
+                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+                            } else {
+                                // For standard proof type, threshold can be 0
+                                bigIntThreshold = ethers.utils.parseEther('0');
+                            }
 
                             console.log("Formatted arguments:", {
                                 proofType: numericProofType,
@@ -1490,7 +1500,18 @@ export default function CreatePage() {
                         const { ethers } = await getEthers();
 
                         // Create provider to check transaction status
-                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+                        let provider;
+
+                        // Check if we're using Hardhat local network
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        if (chainId === '0x7a69' || chainId === '0x539') { // Hardhat (31337) or localhost (1337)
+                            // Use direct connection to local node for Hardhat
+                            console.log('Using direct Hardhat provider for transaction receipt check');
+                            provider = new ethers.providers.JsonRpcProvider('http://localhost:8545');
+                        } else {
+                            // Use Web3Provider for production networks
+                            provider = new ethers.providers.Web3Provider(window.ethereum);
+                        }
 
                         // Wait for transaction receipt
                         const receipt = await provider.getTransactionReceipt(txData.hash);
@@ -1530,22 +1551,87 @@ export default function CreatePage() {
         const template = SIGNATURE_MESSAGE_TEMPLATES.find(t => t.id === selectedTemplate);
         if (template) {
             let message = template.template;
+
             // Replace placeholders with values
             if (message.includes('{amount}')) {
-                message = message.replace('{amount}', amount || '0');
+                // Get the exact amount from token selection or USD amount
+                let exactAmount = '';
+                if (amountInputType === 'tokens' && selectedTokens && selectedTokens.length > 0) {
+                    // Use the actual entered amount instead of rounding
+                    exactAmount = selectedTokens[0].amount;
+                } else {
+                    exactAmount = amount || '0';
+                }
+                message = message.replace('{amount}', exactAmount);
             }
+
+            // Add token symbol based on selected tokens or detected chain
+            if (message.includes('{token_symbol}')) {
+                let tokenSymbol = '';
+
+                if (amountInputType === 'tokens' && selectedTokens && selectedTokens.length > 0) {
+                    // Use the first selected token's symbol - this is what the user explicitly selected
+                    tokenSymbol = selectedTokens[0].symbol;
+                    console.log("Using user-selected token symbol:", tokenSymbol);
+                } else if (amountInputType === 'usd') {
+                    // For USD amounts, use 'USD' as the token symbol
+                    tokenSymbol = 'USD';
+                } else if (assetSummary && assetSummary.chains) {
+                    // Fallback: Use the native token of the first detected chain
+                    tokenSymbol = getCurrencySymbol(assetSummary);
+                } else {
+                    // Final fallback
+                    tokenSymbol = 'ETH';
+                }
+
+                message = message.replace('{token_symbol}', tokenSymbol);
+            }
+
+            // Format date with proper timestamp and timezone information
             if (message.includes('{date}')) {
-                message = message.replace('{date}', new Date().toLocaleDateString());
+                // Format with full date, time and seconds
+                const formatDateTime = (date, timeZone) => {
+                    return date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        second: 'numeric',
+                        hour12: true,
+                        timeZone: timeZone
+                    });
+                };
+
+                // Current date time
+                const now = new Date();
+                const currentUtcDateTime = formatDateTime(now, 'UTC');
+                const currentPacificDateTime = formatDateTime(now, 'America/Los_Angeles');
+                const currentEasternDateTime = formatDateTime(now, 'America/New_York');
+
+                // Calculate expiry time
+                const expirySeconds = getExpiryTimestamp(expiryDays) - Math.floor(Date.now() / 1000);
+                const expiryDate = new Date(now.getTime() + (expirySeconds * 1000));
+
+                // Format expiry date
+                const expiryUtcDateTime = formatDateTime(expiryDate, 'UTC');
+                const expiryPacificDateTime = formatDateTime(expiryDate, 'America/Los_Angeles');
+                const expiryEasternDateTime = formatDateTime(expiryDate, 'America/New_York');
+
+                const dateWithTimezones = `${currentUtcDateTime} UTC / ${currentPacificDateTime} PST / ${currentEasternDateTime} EST (expires: ${expiryUtcDateTime} UTC)`;
+                message = message.replace('{date}', dateWithTimezones);
             }
+
             // Replace any custom fields
             Object.keys(customFields).forEach(key => {
                 if (message.includes(`{${key}}`)) {
                     message = message.replace(`{${key}}`, customFields[key] || '');
                 }
             });
+
             setSignatureMessage(message);
         }
-    }, [selectedTemplate, amount, customFields]);
+    }, [selectedTemplate, amount, customFields, assetSummary, selectedTokens, amountInputType, expiryDays]);
 
     /**
      * Calculates the expiry timestamp based on the selected expiry option
@@ -1679,6 +1765,34 @@ export default function CreatePage() {
     const areAllTokenAmountsValid = () => {
         if (selectedTokens.length === 0) return false;
         return !selectedTokens.some(token => !isValidAmount(token.amount));
+    };
+
+    // Add a function to check contract ABI and verify the method exists
+    const verifyContractMethod = async (contractAddress, methodName) => {
+        try {
+            // Dynamically import ethers
+            const { getEthers } = await import('../lib/ethersUtils');
+            const { ethers } = await getEthers();
+
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, provider);
+
+            // Check if the method exists in the contract interface
+            const fragments = contract.interface.fragments;
+            const methodExists = fragments.some(fragment =>
+                fragment.type === 'function' && fragment.name === methodName
+            );
+
+            if (!methodExists) {
+                console.error(`Method ${methodName} not found in contract ABI`);
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error verifying contract method:', error);
+            return false;
+        }
     };
 
     return (

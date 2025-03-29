@@ -22,7 +22,7 @@
 // This was previously incorrectly set to a wallet address
 // The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
 // IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-export const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+export const CONTRACT_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
 export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 
@@ -67,7 +67,7 @@ export const SIGNATURE_MESSAGE_TEMPLATES = [
     {
         id: 'fund_verification',
         name: 'Fund Verification',
-        template: 'I confirm that I have at least {amount} MATIC in my wallet for verification purposes on {date}.',
+        template: 'I confirm that I have at least {amount} {token_symbol} in my wallet for verification purposes. This verification was created on {date}.',
     },
     {
         id: 'loan_application',

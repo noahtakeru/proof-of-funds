@@ -1,27 +1,27 @@
-// Deployment script for ProofOfFundsSimple contract
+// Deployment script for ProofOfFunds contract
 const { ethers, network } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
 async function main() {
-    console.log("Deploying ProofOfFundsSimple contract...");
+    console.log("Deploying ProofOfFunds contract...");
 
     // Get the contract factory
-    const ProofOfFundsSimple = await ethers.getContractFactory("ProofOfFundsSimple");
+    const ProofOfFunds = await ethers.getContractFactory("ProofOfFunds");
 
     // Deploy the contract
     console.log("Starting deployment transaction...");
-    const proofOfFundsSimple = await ProofOfFundsSimple.deploy();
+    const proofOfFunds = await ProofOfFunds.deploy();
 
     // Wait for the contract to be deployed
-    await proofOfFundsSimple.waitForDeployment();
+    await proofOfFunds.waitForDeployment();
 
     // Get contract address and transaction hash
-    const contractAddress = await proofOfFundsSimple.getAddress();
-    const deployTransaction = proofOfFundsSimple.deploymentTransaction();
+    const contractAddress = await proofOfFunds.getAddress();
+    const deployTransaction = proofOfFunds.deploymentTransaction();
     const txHash = deployTransaction.hash;
 
-    console.log(`ProofOfFundsSimple deployed to: ${contractAddress}`);
+    console.log(`ProofOfFunds deployed to: ${contractAddress}`);
     console.log(`Transaction hash: ${txHash}`);
     console.log(`Network: ${network.name} (chainId: ${network.config.chainId})`);
 

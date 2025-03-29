@@ -41,6 +41,7 @@ export default function VerifyPage() {
     const [zkProofType, setZkProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
     const [walletAddress, setWalletAddress] = useState('');
     const [amount, setAmount] = useState('');
+    const [coinType, setCoinType] = useState('ETH'); // New state for coin type
     const [verificationStatus, setVerificationStatus] = useState(null); // null, true, false
 
     // Update userInitiatedConnection if it changes in localStorage
@@ -103,7 +104,7 @@ export default function VerifyPage() {
 
     const handleVerify = async (e) => {
         e.preventDefault();
-        if (!walletAddress || !amount) return;
+        if (!walletAddress || !amount || !coinType) return;
 
         setVerificationStatus(null);
 
@@ -357,30 +358,36 @@ export default function VerifyPage() {
 
                         <div>
                             <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                                Amount (MATIC)
+                                Amount
                             </label>
-                            <div className="relative">
+                            <div className="flex rounded-md">
                                 <input
                                     type="number"
                                     id="amount"
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                    className="block w-full rounded-l-md border-r-0 border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
                                     placeholder="Enter amount"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
                                     min="0"
                                     step="0.001"
                                 />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                    <span className="text-gray-500 sm:text-sm">MATIC</span>
-                                </div>
+                                <input
+                                    type="text"
+                                    id="coin-type"
+                                    className="block w-24 rounded-r-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border text-center"
+                                    placeholder="ETH"
+                                    value={coinType}
+                                    onChange={(e) => setCoinType(e.target.value.toUpperCase())}
+                                />
                             </div>
+                            <p className="mt-1 text-sm text-gray-500">Enter coin ticker like ETH, MATIC, BTC, etc.</p>
                         </div>
 
                         <div className="flex justify-end">
                             <button
                                 type="submit"
-                                disabled={isVerifying || !walletAddress || !amount}
-                                className={`px-4 py-2 rounded-md ${isVerifying || !walletAddress || !amount
+                                disabled={isVerifying || !walletAddress || !amount || !coinType}
+                                className={`px-4 py-2 rounded-md ${isVerifying || !walletAddress || !amount || !coinType
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
                                     : proofCategory === 'standard'
                                         ? 'bg-primary-600 hover:bg-primary-700 text-white'
@@ -395,8 +402,8 @@ export default function VerifyPage() {
                             <div className={`p-4 rounded-md ${verificationStatus ? 'bg-green-50' : 'bg-red-50'}`}>
                                 <p className={`text-sm font-medium ${verificationStatus ? 'text-green-800' : 'text-red-800'}`}>
                                     {verificationStatus
-                                        ? `The wallet ${walletAddress} has a valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof for ${amount} MATIC.`
-                                        : `No valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof found for ${walletAddress} with amount ${amount} MATIC.`}
+                                        ? `The wallet ${walletAddress} has a valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof for ${amount} ${coinType}.`
+                                        : `No valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof found for ${walletAddress} with amount ${amount} ${coinType}.`}
                                 </p>
                             </div>
                         )}
