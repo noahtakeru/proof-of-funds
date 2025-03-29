@@ -31,6 +31,7 @@ import WalletSelector from '../components/WalletSelector';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 import { isValidAmount } from '../lib/ethersUtils';
+import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {
@@ -1491,57 +1492,76 @@ export default function CreatePage() {
                 // We have a transaction hash - the transaction has been submitted
                 console.log('Transaction hash:', txData.hash);
                 setTxHash(txData.hash);
-
-                // Wait for transaction to be confirmed
-                const checkTransactionReceipt = async () => {
-                    try {
-                        // Dynamically import ethers
-                        const { getEthers } = await import('../lib/ethersUtils');
-                        const { ethers } = await getEthers();
-
-                        // Create provider to check transaction status
-                        let provider;
-
-                        // Check if we're using Hardhat local network
-                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                        if (chainId === '0x7a69' || chainId === '0x539') { // Hardhat (31337) or localhost (1337)
-                            // Use direct connection to local node for Hardhat
-                            console.log('Using direct Hardhat provider for transaction receipt check');
-                            provider = new ethers.providers.JsonRpcProvider('http://localhost:8545');
-                        } else {
-                            // Use Web3Provider for production networks
-                            provider = new ethers.providers.Web3Provider(window.ethereum);
-                        }
-
-                        // Wait for transaction receipt
-                        const receipt = await provider.getTransactionReceipt(txData.hash);
-
-                        if (receipt) {
-                            console.log('Transaction confirmed with receipt:', receipt);
-
-                            if (receipt.status === 1) {
-                                // Transaction was successful
-                                console.log('Transaction successful!');
-                                setSuccess(true);
-                            } else {
-                                // Transaction failed on-chain
-                                console.error('Transaction failed on-chain');
-                                alert('Transaction failed during execution. Please check the transaction details.');
-                            }
-                        } else {
-                            // Transaction not yet confirmed, try again in 2 seconds
-                            setTimeout(checkTransactionReceipt, 2000);
-                        }
-                    } catch (error) {
-                        console.error('Error checking transaction receipt:', error);
-                    }
-                };
-
-                // Start checking for transaction confirmation
-                checkTransactionReceipt();
             }
         }
     }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
+
+    // Separate effect for polling the transaction status
+    useEffect(() => {
+        let isMounted = true;
+        let pollInterval = null;
+
+        // Skip if no hash or already marked as success
+        if (!txHash || success) return;
+
+        console.log("Starting to poll transaction:", txHash);
+
+        // Function to poll the transaction status
+        const pollTransaction = async () => {
+            try {
+                // Direct API call to avoid ethers import issues
+                const response = await fetch("http://localhost:8545", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: 1,
+                        method: 'eth_getTransactionReceipt',
+                        params: [txHash],
+                    }),
+                });
+
+                if (!isMounted) return;
+
+                const data = await response.json();
+                console.log("Transaction poll response:", data);
+
+                if (data.result) {
+                    // Transaction has been mined
+                    const receipt = data.result;
+
+                    if (receipt.status === "0x1") {
+                        console.log("Transaction confirmed successfully!");
+
+                        if (isMounted) {
+                            setSuccess(true);
+                            clearInterval(pollInterval);
+                        }
+                    } else {
+                        console.error("Transaction failed!");
+                        clearInterval(pollInterval);
+                        alert("Transaction failed. Please check the transaction details.");
+                    }
+                }
+            } catch (error) {
+                console.error("Error polling transaction:", error);
+            }
+        };
+
+        // Poll immediately
+        pollTransaction();
+
+        // Then set up interval
+        pollInterval = setInterval(pollTransaction, 3000);
+
+        // Cleanup
+        return () => {
+            isMounted = false;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }, [txHash, success]);
 
     /**
      * Updates signature message when template changes
@@ -2402,14 +2422,16 @@ export default function CreatePage() {
                                     (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned()) ||
                                     isPending ||
-                                    (txHash && !success)
+                                    (txHash && !success) ||
+                                    success
                                 }
                                 className={`w-full py-2 px-4 font-medium rounded-md ${(selectedWallets.length === 0) ||
                                     (amountInputType === 'usd' && !isValidAmount(amount)) ||
                                     (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned()) ||
                                     isPending ||
-                                    (txHash && !success)
+                                    (txHash && !success) ||
+                                    success
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
                                     : proofStage === 'ready'
                                         ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -2424,17 +2446,19 @@ export default function CreatePage() {
                                     }
                                 }}
                             >
-                                {isPending
-                                    ? 'Processing Transaction...'
-                                    : (txHash && !success)
-                                        ? 'Waiting for Confirmation...'
-                                        : proofStage === 'input'
-                                            ? 'Prepare Proof'
-                                            : proofStage === 'signing'
-                                                ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
-                                                : (proofStage === 'ready' && !proofData)
-                                                    ? 'Prepare Proof Data'
-                                                    : 'Submit Proof to Blockchain'}
+                                {success
+                                    ? 'Proof Submitted'
+                                    : isPending
+                                        ? 'Processing Transaction...'
+                                        : (txHash && !success)
+                                            ? 'Waiting for Confirmation...'
+                                            : proofStage === 'input'
+                                                ? 'Prepare Proof'
+                                                : proofStage === 'signing'
+                                                    ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
+                                                    : (proofStage === 'ready' && !proofData)
+                                                        ? 'Prepare Proof Data'
+                                                        : 'Submit Proof to Blockchain'}
                             </button>
                         </div>
                     </div>
@@ -2448,17 +2472,18 @@ export default function CreatePage() {
                     )}
 
                     {/* Success Message */}
-                    {success && (
-                        <div className="mt-6 p-6 bg-green-50 rounded-md border border-green-200">
-                            <div className="flex items-center text-green-800 font-medium mb-3">
-                                <svg className="mr-2 h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-lg">Proof of Funds created successfully!</span>
+                    {success ? (
+                        <div className="flex flex-col space-y-6 items-center text-center mt-12">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                <CheckIcon className="h-8 w-8 text-green-600" />
                             </div>
+                            <h3 className="text-lg font-medium text-gray-900">Proof Successfully Created!</h3>
+                            <p className="text-sm text-gray-500 max-w-md">
+                                Your proof of funds has been successfully created and verified on the blockchain.
+                                You can now share the transaction hash with others to allow them to verify your proof.
+                            </p>
 
-                            <div className="bg-white p-4 rounded-md border border-green-200 mb-4">
-                                <h4 className="font-medium text-gray-700 mb-2">Transaction Details</h4>
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 w-full">
                                 <div className="space-y-2">
                                     <div>
                                         <span className="text-sm text-gray-600">Status:</span>
@@ -2481,40 +2506,101 @@ export default function CreatePage() {
                                         <span className="text-sm text-gray-600">Network:</span>
                                         <span className="ml-2 text-sm font-medium">Polygon Amoy Testnet</span>
                                     </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleCreateAnother}
+                                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            >
+                                Create Another Proof
+                            </button>
+                        </div>
+                    ) : txHash ? (
+                        <div className="flex flex-col space-y-6 items-center text-center">
+                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                <ClockIcon className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900">Transaction Submitted</h3>
+                            <p className="text-sm text-gray-500 max-w-md">
+                                Your transaction has been submitted to the blockchain and is waiting for confirmation.
+                                This usually takes a few seconds, but can take longer during periods of high network congestion.
+                            </p>
+
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 w-full">
+                                <div className="space-y-2">
                                     <div>
-                                        <span className="text-sm text-gray-600">Verification:</span>
+                                        <span className="text-sm text-gray-600">Status:</span>
+                                        <span className="ml-2 text-sm font-medium text-blue-600">Waiting for confirmation...</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Transaction Hash:</span>
                                         <div className="mt-1">
                                             <a
                                                 href={`https://amoy.polygonscan.com/tx/${txHash}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full hover:bg-blue-200"
+                                                className="text-blue-600 text-sm break-all hover:underline"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                </svg>
-                                                Verify on Block Explorer
+                                                {txHash}
                                             </a>
                                         </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Network:</span>
+                                        <span className="ml-2 text-sm font-medium">Polygon Amoy Testnet</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <p className="text-sm text-gray-600 mb-4">
-                                Your proof has been permanently recorded on the blockchain and can now be verified by anyone with the transaction hash.
-                            </p>
-
                             <button
-                                onClick={handleCreateAnother}
-                                className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md inline-flex items-center"
+                                type="button"
+                                onClick={() => {
+                                    // Manually check transaction status
+                                    const checkManually = async () => {
+                                        try {
+                                            // Direct API call to avoid ethers import issues
+                                            const response = await fetch("http://localhost:8545", {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    jsonrpc: '2.0',
+                                                    id: 1,
+                                                    method: 'eth_getTransactionReceipt',
+                                                    params: [txHash],
+                                                }),
+                                            });
+
+                                            const data = await response.json();
+                                            console.log("Manual transaction check:", data);
+
+                                            if (data.result) {
+                                                const receipt = data.result;
+
+                                                if (receipt.status === "0x1") {
+                                                    setSuccess(true);
+                                                    alert("Transaction is confirmed! The UI will now update.");
+                                                } else {
+                                                    alert("Transaction was found but failed. Please check the transaction details.");
+                                                }
+                                            } else {
+                                                alert("Transaction is still pending. Please wait a bit longer.");
+                                            }
+                                        } catch (error) {
+                                            console.error('Error checking receipt manually:', error);
+                                            alert(`Error checking transaction: ${error.message}`);
+                                        }
+                                    };
+
+                                    checkManually();
+                                }}
+                                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                Create Another Proof
+                                Check Transaction Status
                             </button>
                         </div>
-                    )}
+                    ) : null}
                 </form>
             </div>
 

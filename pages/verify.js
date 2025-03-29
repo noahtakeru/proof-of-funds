@@ -39,10 +39,14 @@ export default function VerifyPage() {
     const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
     const [proofType, setProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
     const [zkProofType, setZkProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
+    const [verificationMode, setVerificationMode] = useState('wallet'); // 'wallet' or 'transaction'
     const [walletAddress, setWalletAddress] = useState('');
+    const [transactionHash, setTransactionHash] = useState('');
     const [amount, setAmount] = useState('');
     const [coinType, setCoinType] = useState('ETH'); // New state for coin type
     const [verificationStatus, setVerificationStatus] = useState(null); // null, true, false
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     // Update userInitiatedConnection if it changes in localStorage
     useEffect(() => {
@@ -102,50 +106,180 @@ export default function VerifyPage() {
         enabled: false,
     });
 
-    const handleVerify = async (e) => {
-        e.preventDefault();
-        if (!walletAddress || !amount || !coinType) return;
-
-        setVerificationStatus(null);
-
+    // Function to extract proof data from transaction hash
+    const getProofFromTransaction = async (txHash) => {
         try {
-            if (proofCategory === 'standard') {
-                // Verify standard proofs
-                if (proofType === 'standard') {
-                    await refetchStandard();
-                    // Wait for the result to be available
-                    setTimeout(() => {
-                        setVerificationStatus(standardProofResult);
-                    }, 500);
-                } else if (proofType === 'threshold') {
-                    await refetchThreshold();
-                    // Wait for the result to be available
-                    setTimeout(() => {
-                        setVerificationStatus(thresholdProofResult);
-                    }, 500);
-                } else if (proofType === 'maximum') {
-                    await refetchMaximum();
-                    // Wait for the result to be available
-                    setTimeout(() => {
-                        setVerificationStatus(maximumProofResult);
-                    }, 500);
+            setIsLoading(true);
+            setError(null);
+
+            // Create provider based on network
+            let provider;
+            if (typeof window !== 'undefined' && window.ethereum) {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                if (chainId === '0x7a69' || chainId === '0x539') { // Hardhat (31337) or localhost (1337)
+                    provider = new ethers.providers.JsonRpcProvider('http://localhost:8545');
+                } else {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
                 }
-            } else if (proofCategory === 'zk') {
-                // Verify ZK proofs
-                await refetchZK();
-                // Wait for the result to be available
-                setTimeout(() => {
-                    setVerificationStatus(zkProofResult);
-                }, 500);
+            } else {
+                // Fallback to Hardhat local network
+                provider = new ethers.providers.JsonRpcProvider('http://localhost:8545');
             }
-        } catch (error) {
-            console.error('Error verifying proof:', error);
-            setVerificationStatus(false);
+
+            // Get transaction receipt
+            const receipt = await provider.getTransactionReceipt(txHash);
+
+            if (!receipt) {
+                throw new Error('Transaction not found');
+            }
+
+            if (receipt.status !== 1) {
+                throw new Error('Transaction failed');
+            }
+
+            // Initialize contract interface to parse logs
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+
+            // Find the ProofSubmitted event in the logs
+            const proofSubmittedEvent = receipt.logs
+                .filter(log => log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase())
+                .map(log => {
+                    try {
+                        return contract.interface.parseLog(log);
+                    } catch (e) {
+                        return null;
+                    }
+                })
+                .filter(parsedLog => parsedLog && parsedLog.name === 'ProofSubmitted')
+                .shift();
+
+            if (!proofSubmittedEvent) {
+                throw new Error('No proof submission found in this transaction');
+            }
+
+            // Extract user address and proof type from the event
+            const userAddress = proofSubmittedEvent.args.user;
+            const proofTypeValue = proofSubmittedEvent.args.proofType;
+
+            // Get the actual proof data from the contract
+            const proofData = await contract.getProof(userAddress);
+
+            return {
+                user: userAddress,
+                proofType: proofTypeValue,
+                proofHash: proofSubmittedEvent.args.proofHash,
+                thresholdAmount: proofData.thresholdAmount
+            };
+
+        } catch (err) {
+            console.error('Error getting proof from transaction:', err);
+            setError(err.message || 'Failed to get proof from transaction');
+            return null;
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const isVerifying = isLoadingStandard || isLoadingThreshold || isLoadingMaximum || isLoadingZK;
-    const isLoading = isVerifying;
+    const handleVerify = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setVerificationStatus(null);
+
+        try {
+            if (verificationMode === 'wallet') {
+                // Traditional wallet-based verification
+                if (!walletAddress || !amount || !coinType) return;
+
+                if (proofCategory === 'standard') {
+                    // Verify standard proofs
+                    if (proofType === 'standard') {
+                        await refetchStandard();
+                        // Wait for the result to be available
+                        setTimeout(() => {
+                            setVerificationStatus(standardProofResult);
+                        }, 500);
+                    } else if (proofType === 'threshold') {
+                        await refetchThreshold();
+                        // Wait for the result to be available
+                        setTimeout(() => {
+                            setVerificationStatus(thresholdProofResult);
+                        }, 500);
+                    } else if (proofType === 'maximum') {
+                        await refetchMaximum();
+                        // Wait for the result to be available
+                        setTimeout(() => {
+                            setVerificationStatus(maximumProofResult);
+                        }, 500);
+                    }
+                } else if (proofCategory === 'zk') {
+                    // Verify ZK proofs
+                    await refetchZK();
+                    // Wait for the result to be available
+                    setTimeout(() => {
+                        setVerificationStatus(zkProofResult);
+                    }, 500);
+                }
+            } else {
+                // Transaction-based verification
+                if (!transactionHash || !amount || !coinType) return;
+
+                setIsLoading(true);
+
+                // Get proof data from transaction
+                const proofData = await getProofFromTransaction(transactionHash);
+
+                if (!proofData) {
+                    setVerificationStatus(false);
+                    return;
+                }
+
+                // Determine the proof type from the proof data
+                let proofTypeEnum;
+                let proofTypeStr;
+
+                if (proofData.proofType === 0) {
+                    proofTypeEnum = PROOF_TYPES.STANDARD;
+                    proofTypeStr = 'standard';
+                    setProofType('standard');
+                } else if (proofData.proofType === 1) {
+                    proofTypeEnum = PROOF_TYPES.THRESHOLD;
+                    proofTypeStr = 'threshold';
+                    setProofType('threshold');
+                } else if (proofData.proofType === 2) {
+                    proofTypeEnum = PROOF_TYPES.MAXIMUM;
+                    proofTypeStr = 'maximum';
+                    setProofType('maximum');
+                }
+
+                // Set the wallet address from the proof data
+                setWalletAddress(proofData.user);
+
+                // Now perform the appropriate verification based on proof type
+                let verified = false;
+
+                if (proofTypeStr === 'standard') {
+                    await refetchStandard();
+                    verified = standardProofResult;
+                } else if (proofTypeStr === 'threshold') {
+                    await refetchThreshold();
+                    verified = thresholdProofResult;
+                } else if (proofTypeStr === 'maximum') {
+                    await refetchMaximum();
+                    verified = maximumProofResult;
+                }
+
+                setVerificationStatus(verified);
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error('Error verifying proof:', error);
+            setError(error.message || 'Failed to verify proof');
+            setVerificationStatus(false);
+            setIsLoading(false);
+        }
+    };
+
+    const isVerifying = isLoadingStandard || isLoadingThreshold || isLoadingMaximum || isLoadingZK || isLoading;
 
     return (
         <div className="max-w-3xl mx-auto mt-8">
@@ -153,6 +287,48 @@ export default function VerifyPage() {
 
             <div className="bg-white p-8 rounded-lg shadow-md">
                 <h2 className="text-xl font-semibold mb-6">Proof Verification</h2>
+
+                {/* Verification Mode Selection */}
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Verification Method
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVerificationMode('wallet');
+                                setVerificationStatus(null);
+                                setError(null);
+                            }}
+                            className={`py-2 px-4 text-sm font-medium rounded-md border ${verificationMode === 'wallet'
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                }`}
+                        >
+                            Verify by Wallet Address
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVerificationMode('transaction');
+                                setVerificationStatus(null);
+                                setError(null);
+                            }}
+                            className={`py-2 px-4 text-sm font-medium rounded-md border ${verificationMode === 'transaction'
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                }`}
+                        >
+                            Verify by Transaction Hash
+                        </button>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                        {verificationMode === 'wallet'
+                            ? 'Verify a proof using the wallet address that created it.'
+                            : 'Verify a proof using the transaction hash from when it was created.'}
+                    </p>
+                </div>
 
                 <div>
                     <label htmlFor="proof-category" className="block text-sm font-medium text-gray-700 mb-1">
@@ -196,7 +372,7 @@ export default function VerifyPage() {
                                 : 'Zero-knowledge proofs verify funds without revealing sensitive information.'}
                         </p>
 
-                        {proofCategory === 'standard' ? (
+                        {verificationMode === 'wallet' && proofCategory === 'standard' && (
                             <div>
                                 <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-1">
                                     Proof Type
@@ -279,7 +455,9 @@ export default function VerifyPage() {
                                     )}
                                 </div>
                             </div>
-                        ) : (
+                        )}
+
+                        {verificationMode === 'wallet' && proofCategory === 'zk' && (
                             <div>
                                 <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-1">
                                     Zero-Knowledge Proof Type
@@ -342,19 +520,39 @@ export default function VerifyPage() {
                             </div>
                         )}
 
-                        <div>
-                            <label htmlFor="wallet-address" className="block text-sm font-medium text-gray-700 mb-1">
-                                Wallet Address
-                            </label>
-                            <input
-                                type="text"
-                                id="wallet-address"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
-                                placeholder="0x..."
-                                value={walletAddress}
-                                onChange={(e) => setWalletAddress(e.target.value)}
-                            />
-                        </div>
+                        {/* Input fields based on verification mode */}
+                        {verificationMode === 'wallet' ? (
+                            <div>
+                                <label htmlFor="wallet-address" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Wallet Address
+                                </label>
+                                <input
+                                    type="text"
+                                    id="wallet-address"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                    placeholder="0x..."
+                                    value={walletAddress}
+                                    onChange={(e) => setWalletAddress(e.target.value)}
+                                />
+                            </div>
+                        ) : (
+                            <div>
+                                <label htmlFor="transaction-hash" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Transaction Hash
+                                </label>
+                                <input
+                                    type="text"
+                                    id="transaction-hash"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
+                                    placeholder="0x..."
+                                    value={transactionHash}
+                                    onChange={(e) => setTransactionHash(e.target.value)}
+                                />
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Enter the transaction hash from when the proof was created
+                                </p>
+                            </div>
+                        )}
 
                         <div>
                             <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
@@ -383,11 +581,21 @@ export default function VerifyPage() {
                             <p className="mt-1 text-sm text-gray-500">Enter coin ticker like ETH, MATIC, BTC, etc.</p>
                         </div>
 
+                        {error && (
+                            <div className="p-2 bg-red-50 rounded-md text-sm text-red-800">
+                                Error: {error}
+                            </div>
+                        )}
+
                         <div className="flex justify-end">
                             <button
                                 type="submit"
-                                disabled={isVerifying || !walletAddress || !amount || !coinType}
-                                className={`px-4 py-2 rounded-md ${isVerifying || !walletAddress || !amount || !coinType
+                                disabled={isVerifying ||
+                                    (verificationMode === 'wallet' && (!walletAddress || !amount || !coinType)) ||
+                                    (verificationMode === 'transaction' && (!transactionHash || !amount || !coinType))}
+                                className={`px-4 py-2 rounded-md ${isVerifying ||
+                                    (verificationMode === 'wallet' && (!walletAddress || !amount || !coinType)) ||
+                                    (verificationMode === 'transaction' && (!transactionHash || !amount || !coinType))
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
                                     : proofCategory === 'standard'
                                         ? 'bg-primary-600 hover:bg-primary-700 text-white'
@@ -402,8 +610,12 @@ export default function VerifyPage() {
                             <div className={`p-4 rounded-md ${verificationStatus ? 'bg-green-50' : 'bg-red-50'}`}>
                                 <p className={`text-sm font-medium ${verificationStatus ? 'text-green-800' : 'text-red-800'}`}>
                                     {verificationStatus
-                                        ? `The wallet ${walletAddress} has a valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof for ${amount} ${coinType}.`
-                                        : `No valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof found for ${walletAddress} with amount ${amount} ${coinType}.`}
+                                        ? verificationMode === 'wallet'
+                                            ? `The wallet ${walletAddress} has a valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof for ${amount} ${coinType}.`
+                                            : `The transaction ${transactionHash.substring(0, 10)}...${transactionHash.substring(transactionHash.length - 8)} contains a valid proof for ${amount} ${coinType}.`
+                                        : verificationMode === 'wallet'
+                                            ? `No valid ${proofCategory === 'standard' ? proofType : 'ZK ' + zkProofType} proof found for ${walletAddress} with amount ${amount} ${coinType}.`
+                                            : `No valid proof found in transaction ${transactionHash.substring(0, 10)}...${transactionHash.substring(transactionHash.length - 8)} for ${amount} ${coinType}.`}
                                 </p>
                             </div>
                         )}
