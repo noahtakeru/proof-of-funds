@@ -428,6 +428,17 @@ export default function CreatePage() {
     useEffect(() => {
         let isMounted = true;
 
+        // Set up refs to prevent closure issues
+        selectedWalletsRef.current = selectedWallets;
+        connectedWalletsRef.current = connectedWallets;
+        showUSDValuesRef.current = showUSDValues;
+
+        // Only load assets when we have at least one wallet selected
+        if (selectedWallets.length === 0) {
+            if (isMounted) setAssetSummary(null);
+            return;
+        }
+
         const loadAssets = async () => {
             // Only proceed if we have selected wallets
             if (selectedWalletsRef.current.length === 0) {
@@ -454,16 +465,13 @@ export default function CreatePage() {
                 const summary = await scanMultiChainAssets(walletObjects);
                 console.log('Asset summary:', summary);
 
-                // Convert to USD if needed
-                if (showUSDValuesRef.current) {
-                    if (isMounted) setIsConvertingUSD(true);
-                    const summaryWithUSD = await convertAssetsToUSD(summary);
-                    if (isMounted) {
-                        setAssetSummary(summaryWithUSD);
-                        setIsConvertingUSD(false);
-                    }
-                } else {
-                    if (isMounted) setAssetSummary(summary);
+                // Always convert to USD (removed conditional)
+                if (isMounted) setIsConvertingUSD(true);
+                const summaryWithUSD = await convertAssetsToUSD(summary);
+                if (isMounted) {
+                    setShowUSDValues(true); // Always show USD values
+                    setAssetSummary(summaryWithUSD);
+                    setIsConvertingUSD(false);
                 }
             } catch (error) {
                 console.error('Error loading wallet assets:', error);
@@ -476,10 +484,10 @@ export default function CreatePage() {
             }
         };
 
-        // Start asset loading
+        // Load assets when selected wallets change
         loadAssets();
 
-        // Cleanup function to prevent state updates if component unmounts
+        // Cleanup function
         return () => {
             isMounted = false;
         };
@@ -684,13 +692,16 @@ export default function CreatePage() {
      * @param {string} value - New amount value
      */
     const handleTokenAmountChange = (symbol, chain, value) => {
-        setSelectedTokens(prev =>
-            prev.map(token =>
-                (token.symbol === symbol && token.chain === chain)
-                    ? { ...token, amount: value }
-                    : token
-            )
-        );
+        // Validate that the input is a number or empty string
+        if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
+            setSelectedTokens(prev =>
+                prev.map(token =>
+                    (token.symbol === symbol && token.chain === chain)
+                        ? { ...token, amount: value }
+                        : token
+                )
+            );
+        }
     };
 
     /**
@@ -709,9 +720,10 @@ export default function CreatePage() {
 
             if (!assetInfo || !token.amount) return total;
 
-            // Calculate USD value based on rate
-            const usdRate = assetInfo.usdRate || 0;
-            return total + (parseFloat(token.amount) * usdRate);
+            // Calculate USD value based on price (not usdRate which doesn't exist)
+            const price = assetInfo.price || 0;
+            console.log(`Token: ${token.symbol}, Amount: ${token.amount}, Price: $${price}, Total: $${parseFloat(token.amount) * price}`);
+            return total + (parseFloat(token.amount) * price);
         }, 0);
     };
 
@@ -733,12 +745,28 @@ export default function CreatePage() {
 
             // Prepare amount value based on input type
             let finalAmount = amount;
+            let messageAmountText = '';
+
             if (amountInputType === 'tokens') {
-                finalAmount = calculateTotalUsdValue().toString();
+                finalAmount = calculateTotalUsdValue().toString(); // Put this back for other calculations
+
+                // Get asset details for the message
+                if (assetSummary && assetSummary.convertedAssets && assetSummary.convertedAssets.length > 0) {
+                    // List specific assets instead of "worth of tokens"
+                    const assetList = assetSummary.convertedAssets.map(asset =>
+                        `${Number(asset.balance).toString()} ${asset.symbol}`
+                    ).join(', ');
+                    messageAmountText = assetList;
+                } else {
+                    messageAmountText = `${finalAmount} worth of tokens`;
+                }
+            } else {
+                // USD amount
+                messageAmountText = `$${finalAmount} USD`;
             }
 
             // Create signature message for this wallet
-            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${finalAmount} ${amountInputType === 'usd' ? 'USD' : 'worth of tokens'} for proof of funds.`;
+            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${messageAmountText} for proof of funds.`;
 
             let signature = null;
 
@@ -1180,9 +1208,22 @@ export default function CreatePage() {
         }
 
         // Validate amount using our centralized validation helper
-        if (!isValidAmount(amount)) {
+        if (amountInputType === 'usd' && !isValidAmount(amount)) {
             alert('Please enter a valid amount. Decimal values are supported.');
             return;
+        } else if (amountInputType === 'tokens') {
+            // If using token amounts, validate that all tokens have valid amounts
+            const invalidTokens = selectedTokens.filter(token => !isValidAmount(token.amount));
+            if (invalidTokens.length > 0) {
+                alert(`Please enter valid amounts for all selected tokens. Decimal values are supported.`);
+                return;
+            }
+
+            // Also check if we have any tokens selected
+            if (selectedTokens.length === 0) {
+                alert('Please select at least one token and specify its amount.');
+                return;
+            }
         }
 
         // If we're in the input stage, move to the signing stage
@@ -1634,6 +1675,12 @@ export default function CreatePage() {
         connectWagmiIfNeeded();
     }, [isConnected, connectedWallets, connect, connectors]);
 
+    // Helper function to check if all token amounts are valid
+    const areAllTokenAmountsValid = () => {
+        if (selectedTokens.length === 0) return false;
+        return !selectedTokens.some(token => !isValidAmount(token.amount));
+    };
+
     return (
         <div className="max-w-4xl mx-auto mt-8">
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
@@ -1707,13 +1754,9 @@ export default function CreatePage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center">
                                         <button
-                                            onClick={(e) => {
-                                                // Prevent form submission when toggling asset summary
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsAssetSummaryExpanded(!isAssetSummaryExpanded);
-                                            }}
-                                            className="mr-2 text-gray-500 hover:text-gray-700"
+                                            type="button"
+                                            className="mr-2 text-gray-400 hover:text-gray-600"
+                                            onClick={() => setIsAssetSummaryExpanded(!isAssetSummaryExpanded)}
                                             aria-expanded={isAssetSummaryExpanded}
                                         >
                                             <svg
@@ -1727,25 +1770,6 @@ export default function CreatePage() {
                                             </svg>
                                         </button>
                                         <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
-                                        <button
-                                            onClick={(e) => {
-                                                // Prevent form submission when toggling USD display
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleToggleUSDConversion();
-                                            }}
-                                            disabled={isLoadingAssets || isConvertingUSD}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full ${showUSDValues ? 'bg-primary-600' : 'bg-gray-300'}`}
-                                            aria-checked={showUSDValues}
-                                            role="switch"
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUSDValues ? 'translate-x-6' : 'translate-x-1'}`}
-                                            />
-                                        </button>
                                     </div>
                                 </div>
 
@@ -1761,23 +1785,35 @@ export default function CreatePage() {
                                             </div>
                                         ) : assetSummary ? (
                                             <>
-                                                <div className="mb-3">
-                                                    <div className="text-sm font-medium">Total Value: {showUSDValues
-                                                        ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
-                                                        : 'Multiple Assets'}
-                                                    </div>
-                                                </div>
                                                 <div className="bg-primary-50 border rounded-md overflow-hidden mb-3">
-                                                    <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
+                                                    <div className="grid grid-cols-4 bg-gray-100 px-3 py-2">
                                                         <div className="text-sm font-medium text-gray-700">Asset</div>
                                                         <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right relative group">
+                                                            <span>Price (USD)</span>
+                                                            <span className="hidden group-hover:block absolute z-10 top-6 -left-2 w-48 p-2 bg-gray-800 text-white text-xs rounded">
+                                                                USD values are based on current market prices and subject to change.
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right relative group">
+                                                            <span>Value (USD)</span>
+                                                            <span className="hidden group-hover:block absolute z-10 top-6 -left-2 w-48 p-2 bg-gray-800 text-white text-xs rounded">
+                                                                USD values are based on current market prices and subject to change.
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
-                                                        <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
+                                                    {assetSummary.convertedAssets.map((asset, idx) => (
+                                                        <div key={idx} className="grid grid-cols-4 px-3 py-2 border-t border-gray-200">
                                                             <div className="text-sm text-gray-700">{asset.symbol}</div>
-                                                            <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
+                                                            <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toString()}</div>
+                                                            <div className="text-sm text-gray-700 text-right">${Number(asset.price).toFixed(2)}</div>
+                                                            <div className="text-sm text-gray-700 text-right">${Number(asset.usdValue).toFixed(2)}</div>
                                                         </div>
                                                     ))}
+                                                    <div className="grid grid-cols-4 px-3 py-2 border-t border-gray-200 bg-gray-50">
+                                                        <div className="text-sm font-medium text-gray-700 col-span-3 text-right">Total:</div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right">${Number(assetSummary.totalUSDValue).toFixed(2)}</div>
+                                                    </div>
                                                 </div>
 
                                                 <div>
@@ -1786,14 +1822,17 @@ export default function CreatePage() {
                                                         <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
                                                             <div className="font-medium text-sm capitalize">{chain}</div>
                                                             <div className="text-xs text-gray-700">
-                                                                Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                                Native: {Number(data.nativeBalance).toString()} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                                {data.nativeUSDValue && ` ($${Number(data.nativeUSDValue).toFixed(2)} USD)`}
                                                             </div>
                                                             {Object.entries(data.tokens).length > 0 && (
                                                                 <div className="text-xs text-gray-700">
                                                                     Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
                                                                         <span key={symbol}>
                                                                             {i > 0 && ', '}
-                                                                            {Number(balance).toFixed(6)} {symbol}
+                                                                            {Number(balance).toString()} {symbol}
+                                                                            {data.tokensUSDValue && data.tokensUSDValue[symbol] &&
+                                                                                ` ($${Number(data.tokensUSDValue[symbol]).toFixed(2)} USD)`}
                                                                         </span>
                                                                     ))}
                                                                 </div>
@@ -2246,14 +2285,14 @@ export default function CreatePage() {
                                 disabled={
                                     (selectedWallets.length === 0) ||
                                     (amountInputType === 'usd' && !isValidAmount(amount)) ||
-                                    (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                    (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned()) ||
                                     isPending ||
                                     (txHash && !success)
                                 }
                                 className={`w-full py-2 px-4 font-medium rounded-md ${(selectedWallets.length === 0) ||
                                     (amountInputType === 'usd' && !isValidAmount(amount)) ||
-                                    (amountInputType === 'tokens' && selectedTokens.length === 0) ||
+                                    (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
                                     (proofStage === 'signing' && !areAllWalletsSigned()) ||
                                     isPending ||
                                     (txHash && !success)
