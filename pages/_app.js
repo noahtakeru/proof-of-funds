@@ -1,13 +1,11 @@
-/**
- * Main Application Component
- * 
- * This is the top-level component that wraps all pages in the Proof of Funds application.
- * It handles global configuration including:
- *  - Blockchain network setup (Polygon Amoy testnet)
- *  - Wallet connection providers (MetaMask and other injected wallets)
- *  - Global layout and styling
- *  - Persistence management for wallet connections
- */
+// Main Application Component
+// 
+// This is the top-level component that wraps all pages in the Proof of Funds application.
+// It handles global configuration including:
+//  - Blockchain network setup (Polygon Amoy testnet)
+//  - Wallet connection providers (MetaMask and other injected wallets)
+//  - Global layout and styling
+//  - Persistence management for wallet connections
 
 import '../styles/globals.css';
 // import '@rainbow-me/rainbowkit/styles.css';
@@ -89,10 +87,10 @@ const injectedConnector = new InjectedConnector({
 /**
  * Wagmi Client Configuration
  * Creates the client that handles wallet connections and blockchain interactions
- * autoConnect: false prevents automatic wallet connection on page load
+ * autoConnect: true allows wallet state to persist across page reloads
  */
 const client = createClient({
-    autoConnect: false, // This ensures no automatic connection happens
+    autoConnect: true, // Enable autoConnect to allow persistence
     connectors: [metaMaskConnector, injectedConnector],
     provider,
 });
@@ -111,16 +109,19 @@ const Layout = dynamic(() => import('../components/Layout'), {
  * Handles wallet connection persistence logic
  */
 function MyApp({ Component, pageProps }) {
-    // Check and clear any stored connection state on initial load
+    // Check and synchronize stored connection state on initial load
     useEffect(() => {
         // Only run in browser
         if (typeof window !== 'undefined') {
-            // If the user hasn't explicitly initiated a connection, clear any stored state
+            // Check if user has initiated connection
             const userInitiatedConnection = localStorage.getItem('userInitiatedConnection') === 'true';
+
+            // If user hasn't explicitly initiated connection, ensure storage is consistent
             if (!userInitiatedConnection) {
-                // Optionally clear connection data if auto-connection wasn't explicitly requested
-                localStorage.removeItem('wagmi.connected');
-                localStorage.removeItem('wagmi.connectors');
+                // If wagmi is connected but no user-initiated flag, set the flag
+                if (localStorage.getItem('wagmi.connected') === 'true') {
+                    localStorage.setItem('userInitiatedConnection', 'true');
+                }
             }
         }
     }, []);

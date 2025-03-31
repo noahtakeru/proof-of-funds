@@ -1,0 +1,9 @@
+{
+    "presets": [
+        "next/babel"
+    ],
+    "sourceType": "module",
+    "assumptions": {
+        "setPublicClassFields": true
+    }
+}

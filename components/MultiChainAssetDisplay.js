@@ -42,7 +42,9 @@ const MultiChainAssetDisplay = ({ assetSummary, showUSDValues, isLoading, error 
             ethereum: 'ETH',
             polygon: 'MATIC',
             binance: 'BNB',
-            solana: 'SOL'
+            solana: 'SOL',
+            'hardhat local': 'ETH',
+            hardhat: 'ETH'
         };
         return chainMap[chain.toLowerCase()] || chain.toUpperCase();
     };

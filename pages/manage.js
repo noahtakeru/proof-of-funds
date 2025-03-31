@@ -1,55 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useContractRead, useContractWrite } from 'wagmi';
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 
-// Smart contract address on Polygon Amoy testnet
-const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ABI = [
-    {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" }
-        ],
-        "name": "getUserProofs",
-        "outputs": [
-            { "internalType": "uint256[]", "name": "", "type": "uint256[]" }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_proofId", "type": "uint256" }
-        ],
-        "name": "getProofDetails",
-        "outputs": [
-            {
-                "components": [
-                    { "internalType": "address", "name": "user", "type": "address" },
-                    { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
-                    { "internalType": "uint256", "name": "expiryTime", "type": "uint256" },
-                    { "internalType": "bytes32", "name": "proofHash", "type": "bytes32" },
-                    { "internalType": "enum ProofOfFunds.ProofType", "name": "proofType", "type": "uint8" },
-                    { "internalType": "uint256", "name": "thresholdAmount", "type": "uint256" },
-                    { "internalType": "bool", "name": "isRevoked", "type": "bool" },
-                    { "internalType": "string", "name": "signatureMessage", "type": "string" }
-                ],
-                "internalType": "struct ProofOfFunds.Proof",
-                "name": "",
-                "type": "tuple"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_proofId", "type": "uint256" }
-        ],
-        "name": "revokeProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-];
+// Using the imported constants - Smart contract address on Polygon Amoy testnet
+// const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 
 export default function ManagePage() {
     // Add a flag to track user-initiated connection, initialized from localStorage
@@ -79,7 +33,7 @@ export default function ManagePage() {
     // Read user's proofs - only if user has explicitly initiated a connection
     const { data: proofIds, refetch: refetchProofIds } = useContractRead({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'getUserProofs',
         args: [address || '0x0000000000000000000000000000000000000000'],
         enabled: isConnected && userInitiatedConnection,
@@ -88,7 +42,7 @@ export default function ManagePage() {
     // Contract write hook for revocation
     const { write: revokeProof, isLoading: isRevoking } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'revokeProof',
     });
 

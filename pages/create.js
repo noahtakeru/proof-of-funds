@@ -23,50 +23,128 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useAccount, useContractWrite } from 'wagmi';
-import { ethers } from 'ethers';
+import { useAccount, useContractWrite, useConnect } from 'wagmi';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet } from '../lib/walletHelpers';
+import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash } from '../lib/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { isValidAmount } from '../lib/ethersUtils';
+import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
 
-// Smart contract address on Polygon Amoy testnet
-const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ABI = [
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitThresholdProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            { "internalType": "uint256", "name": "_maxAmount", "type": "uint256" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" }
-        ],
-        "name": "submitMaximumProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+// Helper function to fetch wallet balance
+const fetchBalance = async (walletAddress, chain) => {
+    try {
+        // Dynamically import ethers
+        const { getEthers } = await import('../lib/ethersUtils');
+        const { ethers } = await getEthers();
+
+        // Use ethers.js to fetch balance
+        const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+        const balance = await provider.getBalance(walletAddress);
+        return ethers.utils.formatEther(balance); // Convert from wei to ETH
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+        throw error;
     }
-];
+};
+
+// Helper function to fetch USD value
+const fetchUSDValue = async (balance, chain) => {
+    try {
+        // Use CoinGecko API to fetch token price
+        const tokenId = chain === "Ethereum" ? "ethereum" : "matic-network";
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`);
+        const data = await response.json();
+        const price = data[tokenId].usd;
+        return (balance * price).toFixed(2); // Convert balance to USD
+    } catch (error) {
+        console.error('Error fetching USD value:', error);
+        throw error;
+    }
+};
+
+// Helper function to sign a message
+const signMessage = async (walletAddress, message) => {
+    try {
+        // Dynamically import ethers
+        const { getEthers } = await import('../lib/ethersUtils');
+        const { ethers } = await getEthers();
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const signature = await signer.signMessage(message);
+        return signature;
+    } catch (error) {
+        console.error('Error signing message:', error);
+        throw error;
+    }
+};
+
+/**
+ * Main proof generation function
+ * Generates proof data based on wallet, chain, and proof type
+ * @param {string} walletAddress - Address of the wallet
+ * @param {string} chain - The blockchain (e.g., "Ethereum")
+ * @param {string} proofType - Type of proof ("standard", "threshold", "maximum")
+ * @param {string} amount - Amount for verification
+ */
+const generateProof = async (walletAddress, chain, proofType, amount) => {
+    try {
+        // Validate inputs before proceeding
+        if (!walletAddress) {
+            throw new Error('Wallet address is required');
+        }
+
+        if (!amount || amount.trim() === '' || isNaN(Number(amount))) {
+            console.error("Invalid amount:", amount);
+            throw new Error('Valid amount is required. Please enter a number.');
+        }
+
+        console.log(`Generating proof with: address=${walletAddress}, chain=${chain}, proofType=${proofType}, amount=${amount}`);
+
+        // Dynamically import ethers and our utils
+        const { getEthers, parseAmount } = await import('../lib/ethersUtils');
+
+        // Convert from string proof type to enum value
+        let proofTypeEnum = PROOF_TYPES.STANDARD;
+        if (proofType === 'threshold') proofTypeEnum = PROOF_TYPES.THRESHOLD;
+        else if (proofType === 'maximum') proofTypeEnum = PROOF_TYPES.MAXIMUM;
+
+        // Convert amount to Wei with proper decimal handling
+        const amountInWei = await parseAmount(amount);
+        console.log(`Converted amount ${amount} to wei: ${amountInWei}`);
+
+        // Generate hash based on proof type
+        const proofHash = await generateProofHash(
+            walletAddress,
+            amountInWei,
+            proofTypeEnum
+        );
+
+        // Define proof expiry time (e.g., 24 hours from now)
+        const expiry = Math.floor(Date.now() / 1000) + 86400; // 24 hours in seconds
+
+        // Create the proof object
+        const proof = {
+            walletAddress,
+            chain,
+            proofType,
+            amount: amountInWei,
+            proofHash,
+            timestamp: Date.now(),
+            expiration: expiry,
+            // The message will be signed by the wallet
+            signatureMessage: `I verify that I control wallet ${walletAddress} with ${amount} tokens on ${chain} as of ${new Date().toISOString()}`
+        };
+
+        return proof;
+    } catch (error) {
+        console.error("Error generating proof:", error);
+        throw error;
+    }
+};
 
 export default function CreatePage() {
     // --- PROOF CONFIGURATION STATE ---
@@ -162,6 +240,45 @@ export default function CreatePage() {
 
     // Get connected account from wagmi
     const { address, isConnected } = useAccount();
+
+    // Debugging: Log the connection status and synchronize with localStorage
+    useEffect(() => {
+        console.log("Wallet connection status:", isConnected);
+        console.log("Connected wallet address:", address);
+
+        // When wagmi reports a connected wallet, ensure localStorage is synchronized
+        if (isConnected && address) {
+            // Check if this address is already in localStorage walletData
+            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
+
+            // If we don't have this address in walletData.wallets.metamask, add it
+            const existingWallets = walletData?.wallets?.metamask || [];
+            const hasAddress = existingWallets.some(addr =>
+                addr.toLowerCase() === address.toLowerCase()
+            );
+
+            if (!hasAddress) {
+                console.log("Synchronizing wagmi connected address with localStorage:", address);
+
+                // Add the address to localStorage
+                if (!walletData.wallets.metamask) {
+                    walletData.wallets.metamask = [];
+                }
+                walletData.wallets.metamask.push(address);
+                walletData.timestamp = Date.now();
+
+                // Save updated wallet data
+                localStorage.setItem('walletData', JSON.stringify(walletData));
+                localStorage.setItem('userInitiatedConnection', 'true');
+
+                // Trigger a wallet connection changed event
+                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                    detail: { timestamp: Date.now() }
+                });
+                window.dispatchEvent(walletChangeEvent);
+            }
+        }
+    }, [isConnected, address]);
 
     // --- REFS FOR STATE TRACKING ---
     // Used to track previous values to avoid infinite loops in effects
@@ -312,6 +429,17 @@ export default function CreatePage() {
     useEffect(() => {
         let isMounted = true;
 
+        // Set up refs to prevent closure issues
+        selectedWalletsRef.current = selectedWallets;
+        connectedWalletsRef.current = connectedWallets;
+        showUSDValuesRef.current = showUSDValues;
+
+        // Only load assets when we have at least one wallet selected
+        if (selectedWallets.length === 0) {
+            if (isMounted) setAssetSummary(null);
+            return;
+        }
+
         const loadAssets = async () => {
             // Only proceed if we have selected wallets
             if (selectedWalletsRef.current.length === 0) {
@@ -338,16 +466,13 @@ export default function CreatePage() {
                 const summary = await scanMultiChainAssets(walletObjects);
                 console.log('Asset summary:', summary);
 
-                // Convert to USD if needed
-                if (showUSDValuesRef.current) {
-                    if (isMounted) setIsConvertingUSD(true);
-                    const summaryWithUSD = await convertAssetsToUSD(summary);
-                    if (isMounted) {
-                        setAssetSummary(summaryWithUSD);
-                        setIsConvertingUSD(false);
-                    }
-                } else {
-                    if (isMounted) setAssetSummary(summary);
+                // Always convert to USD (removed conditional)
+                if (isMounted) setIsConvertingUSD(true);
+                const summaryWithUSD = await convertAssetsToUSD(summary);
+                if (isMounted) {
+                    setShowUSDValues(true); // Always show USD values
+                    setAssetSummary(summaryWithUSD);
+                    setIsConvertingUSD(false);
                 }
             } catch (error) {
                 console.error('Error loading wallet assets:', error);
@@ -360,10 +485,10 @@ export default function CreatePage() {
             }
         };
 
-        // Start asset loading
+        // Load assets when selected wallets change
         loadAssets();
 
-        // Cleanup function to prevent state updates if component unmounts
+        // Cleanup function
         return () => {
             isMounted = false;
         };
@@ -448,50 +573,41 @@ export default function CreatePage() {
 
     /**
      * Contract interaction hook for standard proof submission
-     * Uses wagmi's useContractWrite to prepare the transaction
+     * Used for normal "exactly X amount" verification
      */
-    const {
-        write: writeStandardProof,
-        isLoading: isPendingStandard,
-        isError: isErrorStandard,
-        error: errorStandard,
-        data: dataStandard
-    } = useContractWrite({
+    const { config: standardProofConfig, error: standardProofError, write: writeStandardProof, data: dataStandard, isLoading: isStandardLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
+        abi: CONTRACT_ABI,
         functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
      * Contract interaction hook for threshold proof submission
-     * Creates a proof that the user has AT LEAST the specified amount
+     * Used for "at least X amount" verification
      */
-    const {
-        write: writeThresholdProof,
-        isLoading: isPendingThreshold,
-        isError: isErrorThreshold,
-        error: errorThreshold,
-        data: dataThreshold
-    } = useContractWrite({
+    const { config: thresholdProofConfig, error: thresholdProofError, write: writeThresholdProof, data: dataThreshold, isLoading: isThresholdLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitThresholdProof',
+        abi: CONTRACT_ABI,
+        functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
      * Contract interaction hook for maximum proof submission
-     * Creates a proof that the user has NO MORE THAN the specified amount
+     * Used for "at most X amount" verification
      */
-    const {
-        write: writeMaximumProof,
-        isLoading: isPendingMaximum,
-        isError: isErrorMaximum,
-        error: errorMaximum,
-        data: dataMaximum
-    } = useContractWrite({
+    const { config: maximumProofConfig, error: maximumProofError, write: writeMaximumProof, data: dataMaximum, isLoading: isMaximumLoading } = useContractWrite({
         address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'submitMaximumProof',
+        abi: CONTRACT_ABI,
+        functionName: 'submitProof',
+        onError: (error) => {
+            console.error('Contract write error:', error);
+        }
     });
 
     /**
@@ -551,13 +667,16 @@ export default function CreatePage() {
      * @param {string} value - New amount value
      */
     const handleTokenAmountChange = (symbol, chain, value) => {
-        setSelectedTokens(prev =>
-            prev.map(token =>
-                (token.symbol === symbol && token.chain === chain)
-                    ? { ...token, amount: value }
-                    : token
-            )
-        );
+        // Validate that the input is a number or empty string
+        if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
+            setSelectedTokens(prev =>
+                prev.map(token =>
+                    (token.symbol === symbol && token.chain === chain)
+                        ? { ...token, amount: value }
+                        : token
+                )
+            );
+        }
     };
 
     /**
@@ -576,9 +695,10 @@ export default function CreatePage() {
 
             if (!assetInfo || !token.amount) return total;
 
-            // Calculate USD value based on rate
-            const usdRate = assetInfo.usdRate || 0;
-            return total + (parseFloat(token.amount) * usdRate);
+            // Calculate USD value based on price (not usdRate which doesn't exist)
+            const price = assetInfo.price || 0;
+            console.log(`Token: ${token.symbol}, Amount: ${token.amount}, Price: $${price}, Total: $${parseFloat(token.amount) * price}`);
+            return total + (parseFloat(token.amount) * price);
         }, 0);
     };
 
@@ -600,12 +720,27 @@ export default function CreatePage() {
 
             // Prepare amount value based on input type
             let finalAmount = amount;
+            let messageAmountText = '';
+
             if (amountInputType === 'tokens') {
-                finalAmount = calculateTotalUsdValue().toString();
+                // Get selected token amounts for the message - use the amounts the user entered
+                if (selectedTokens && selectedTokens.length > 0) {
+                    // List specific token amounts the user selected
+                    const tokenList = selectedTokens.map(token =>
+                        `${token.amount} ${token.symbol}`
+                    ).join(', ');
+                    messageAmountText = tokenList;
+                    console.log("Using user-entered token amounts for signature:", messageAmountText);
+                } else {
+                    messageAmountText = `${finalAmount} USD worth of tokens`;
+                }
+            } else {
+                // USD amount
+                messageAmountText = `$${finalAmount} USD`;
             }
 
             // Create signature message for this wallet
-            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${finalAmount} ${amountInputType === 'usd' ? 'USD' : 'worth of tokens'} for proof of funds.`;
+            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${messageAmountText} for proof of funds.`;
 
             let signature = null;
 
@@ -613,6 +748,10 @@ export default function CreatePage() {
             if (wallet.type === 'evm') {
                 // For EVM wallets (MetaMask, etc.)
                 try {
+                    // Dynamically import ethers
+                    const { getEthers } = await import('../lib/ethersUtils');
+                    const { ethers } = await getEthers();
+
                     // Get the correct provider
                     let provider = window.ethereum;
                     if (window.ethereum?.providers) {
@@ -757,6 +896,7 @@ export default function CreatePage() {
      * Organizes wallet information, assets, and signatures into a structured format
      */
     const prepareProofSubmission = () => {
+        console.log("Starting prepareProofSubmission");
         // Prepare amount value based on input type
         let finalAmount = amount;
         let tokenDetails = [];
@@ -805,88 +945,217 @@ export default function CreatePage() {
             isMaximumProof: proofType === 'maximum'
         };
 
+        // Update state with the proof data
         setProofData(proofDataObj);
         setReadyToSubmit(true);
+
+        // Move to the next stage
+        setProofStage('ready');
+
+        console.log('Proof data prepared and ready for submission:', proofDataObj);
+        console.log('Current proofStage after preparation:', proofStage);
+
+        // Force a delay to make sure states have updated before proceeding
+        setTimeout(() => {
+            console.log('Delayed check - proofStage:', proofStage);
+            console.log('Delayed check - proofData exists:', !!proofData);
+        }, 500);
     };
 
     /**
      * Submits the finalized proof to the blockchain
-     * Uses the appropriate contract function based on proof type
      * Creates and submits the transaction when all signatures are collected
      */
     const submitFinalProof = async () => {
-        if (!proofData || !readyToSubmit) return;
+        if (proofStage === 'ready' && proofData) {
+            try {
+                setIsSubmitting(true);
 
-        try {
-            const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
-            if (!primaryWallet) {
-                throw new Error('Primary wallet not found');
-            }
-
-            // For demo purposes, we'll just submit the proof with the primary wallet
-            // In a real app, you might merge all signatures or submit different proofs
-
-            // Convert amount to Wei for blockchain submission
-            const amountInWei = ethers.utils.parseEther(
-                amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
-            );
-
-            const expiryTime = getExpiryTimestamp(expiryDays);
-
-            if (proofCategory === 'standard') {
-                if (proofType === 'standard') {
-                    writeStandardProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'threshold') {
-                    writeThresholdProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
-                } else if (proofType === 'maximum') {
-                    writeMaximumProof({
-                        args: [amountInWei, expiryTime, signatureMessage],
-                    });
+                // First, ensure we're connected to a wallet
+                if (!isConnected || !address) {
+                    console.log("Need to connect wallet first");
+                    const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                    if (metamaskConnector) {
+                        await connect({ connector: metamaskConnector });
+                    } else {
+                        throw new Error("MetaMask connector not found");
+                    }
                 }
-            } else if (proofCategory === 'zk') {
-                // Zero-knowledge proofs handling (mock implementation)
-                const mockProof = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[1, 2, 3, 4, 5, 6, 7, 8]]
+
+                console.log("Connected wallet:", address);
+
+                // Check if write function is available
+                if (typeof writeStandardProof !== 'function') {
+                    console.error("Write function not available yet. Attempting to prepare...");
+                    // Wait a moment for hooks to initialize
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // If still not available, try to manually prepare
+                    if (typeof writeStandardProof !== 'function') {
+                        throw new Error("Contract write function could not be initialized. Please refresh and try again.");
+                    }
+                }
+
+                const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+                if (!primaryWallet) {
+                    throw new Error('Primary wallet not found');
+                }
+
+                // Dynamically import ethers here to ensure it's available
+                const { ethers } = await getEthers();
+                console.log("Ethers imported successfully");
+
+                // Convert amount to Wei for blockchain submission
+                const amountInWei = ethers.utils.parseEther(
+                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
+                console.log("Amount converted to wei:", amountInWei.toString());
 
-                const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                    ['uint256[]'],
-                    [[amountInWei.toString()]]
-                );
+                const expiryTime = getExpiryTimestamp(expiryDays);
+                console.log("Expiry time set to:", expiryTime);
 
-                let zkProofTypeValue;
-                if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
-                else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
-                else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
+                // Get the signature for this wallet
+                const walletSignature = walletSignatures[primaryWallet.id]?.signature;
+                if (!walletSignature) {
+                    throw new Error('Wallet signature not found. Please sign with your wallet.');
+                }
+                console.log("Wallet signature found");
 
-                // Use the signature from the primary wallet
-                const primarySignature = walletSignatures[primaryWallet.id]?.signature ||
-                    ethers.utils.toUtf8Bytes("mock-signature");
+                console.log('Submitting proof to blockchain with signature:',
+                    walletSignature.substring(0, 10) + '...');
 
-                writeZKProof({
-                    args: [
-                        mockProof,
-                        mockPublicSignals,
+                if (proofCategory === 'standard') {
+                    console.log("Preparing standard proof submission");
+                    // Determine the proof type value (enum) based on the selected proof type
+                    let proofTypeValue;
+                    if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
+                    else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
+                    else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+                    console.log("Proof type value:", proofTypeValue);
+
+                    // Generate the appropriate proof hash
+                    const proofHash = await generateProofHash(
+                        primaryWallet.fullAddress,
+                        amountInWei.toString(),
+                        proofTypeValue
+                    );
+                    console.log("Generated proof hash:", proofHash);
+
+                    // For threshold and maximum types, we use the threshold amount
+                    const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
+                        ? amountInWei
+                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                    console.log("Threshold amount:", thresholdAmount.toString());
+
+                    console.log('Calling writeStandardProof with args:', {
+                        proofType: proofTypeValue,
+                        proofHash,
                         expiryTime,
-                        zkProofTypeValue,
+                        thresholdAmount: thresholdAmount.toString(),
                         signatureMessage,
-                        primarySignature
-                    ],
-                });
+                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
+                    });
+
+                    // Try one more check of the write function
+                    console.log("writeStandardProof function check:", typeof writeStandardProof);
+
+                    try {
+                        // Make sure we have an active connector
+                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                        if (metamaskConnector) {
+                            // Store it for reuse
+                            window.wagmiMetaMaskConnector = metamaskConnector;
+
+                            // First make sure we are connected
+                            if (!isConnected) {
+                                console.log("Connecting to MetaMask before contract call");
+                                await connect({ connector: metamaskConnector });
+                            }
+
+                            console.log("Preparing contract call with arguments");
+
+                            // Verify if the contract method exists
+                            const isMethodAvailable = await verifyContractMethod(CONTRACT_ADDRESS, 'submitProof');
+                            if (!isMethodAvailable) {
+                                alert("Contract method 'submitProof' is not available at the specified address. Check your contract deployment.");
+                                return;
+                            }
+
+                            // Get provider for gas price calculation
+                            const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+                            // Format parameters 
+                            const numericProofType = Number(proofTypeValue);
+                            const bigIntExpiry = BigInt(expiryTime);
+
+                            // Set appropriate threshold amount based on proof type
+                            let bigIntThreshold;
+                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
+                                // For threshold/maximum types, use the actual amount from user input
+                                bigIntThreshold = amountInWei;
+                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+                            } else {
+                                // For standard proof type, threshold can be 0
+                                bigIntThreshold = ethers.utils.parseEther('0');
+                            }
+
+                            console.log("Formatted arguments:", {
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime: bigIntExpiry.toString(),
+                                thresholdAmount: bigIntThreshold.toString(),
+                                signatureMessageLength: signatureMessage.length,
+                                signatureLength: walletSignature.length
+                            });
+
+                            try {
+                                writeStandardProof({
+                                    recklesslySetUnpreparedArgs: [
+                                        numericProofType,
+                                        proofHash,
+                                        bigIntExpiry,
+                                        bigIntThreshold,
+                                        signatureMessage,
+                                        walletSignature
+                                    ],
+                                    // Use a simpler approach with just gas limit
+                                    gasLimit: BigInt(500000)
+                                });
+                                console.log("writeStandardProof called successfully");
+                            } catch (innerError) {
+                                console.error("Inner error calling writeStandardProof:", innerError);
+
+                                if (innerError.message.includes("function selector was not recognized")) {
+                                    alert("Error: Contract interface mismatch. The method signature doesn't match what's deployed at the contract address. Check your contract deployment and ABI.");
+                                } else {
+                                    alert(`Error calling contract: ${innerError.message}`);
+                                }
+                            }
+                        } else {
+                            throw new Error("MetaMask connector not found");
+                        }
+                    } catch (error) {
+                        console.error("Error calling contract write function:", error);
+                        alert(`Error calling contract: ${error.message}`);
+                    }
+
+                    console.log("Contract interaction completed");
+                } else if (proofCategory === 'zk') {
+                    // Handle ZK proof case as in original code
+                    // ...
+                }
+
+            } catch (error) {
+                console.error('Error submitting proof:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                setIsSubmitting(false);
             }
-
-            // Reset states after submission
-            setReadyToSubmit(false);
-            setProofData(null);
-
-        } catch (error) {
-            console.error('Error submitting final proof:', error);
-            alert(`Failed to submit proof: ${error.message}`);
+        } else {
+            console.log("Not in ready stage or proofData missing:", {
+                proofStage,
+                hasProofData: !!proofData
+            });
         }
     };
 
@@ -923,88 +1192,290 @@ export default function CreatePage() {
      * Validates inputs and moves to the signing stage
      * @param {Event} e - Form submission event
      */
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Submit button clicked, current proofStage:", proofStage);
+        console.log("handleSubmit called, current proofStage:", proofStage);
 
-        // If we're in 'ready' stage, submit the proof rather than starting over
+        // Check if wallet is connected - check both wagmi state and local state
+        if (!isConnected && connectedWallets.length === 0) {
+            alert('Please connect your wallet first.');
+            return;
+        }
+
+        // Validate selected wallets
+        if (!selectedWallets || selectedWallets.length === 0) {
+            alert('Please select at least one wallet to generate a proof.');
+            return;
+        }
+
+        // Validate amount using our centralized validation helper
+        if (amountInputType === 'usd' && !isValidAmount(amount)) {
+            alert('Please enter a valid amount. Decimal values are supported.');
+            return;
+        } else if (amountInputType === 'tokens') {
+            // If using token amounts, validate that all tokens have valid amounts
+            const invalidTokens = selectedTokens.filter(token => !isValidAmount(token.amount));
+            if (invalidTokens.length > 0) {
+                alert(`Please enter valid amounts for all selected tokens. Decimal values are supported.`);
+                return;
+            }
+
+            // Also check if we have any tokens selected
+            if (selectedTokens.length === 0) {
+                alert('Please select at least one token and specify its amount.');
+                return;
+            }
+        }
+
+        // If we're in the input stage, move to the signing stage
+        if (proofStage === 'input') {
+            console.log("Moving from input to signing stage");
+            setProofStage('signing');
+            return;
+        }
+
+        // If we're in the signing stage, check if all wallets are signed
+        if (proofStage === 'signing') {
+            console.log("In signing stage, checking if all wallets are signed");
+            if (!areAllWalletsSigned()) {
+                alert('Please sign with all selected wallets before proceeding.');
+                return;
+            }
+            // Prepare proof data for submission
+            console.log("All wallets signed, preparing proof submission");
+            prepareProofSubmission();
+
+            // We don't want to immediately proceed to the blockchain submission
+            // but wait for the next button click to ensure proofData is ready
+            console.log("Prepared proof data, waiting for user to submit to blockchain");
+            return;
+        }
+
+        // If we're in the ready stage, submit the proof to the blockchain
         if (proofStage === 'ready') {
-            console.log("In ready stage, submitting final proof");
-            submitFinalProof();
-            return;
+            console.log("In ready stage, checking proofData:", !!proofData);
+
+            // If proofData is missing, try to prepare it again
+            if (!proofData) {
+                console.log("ProofData missing in ready stage, trying to prepare it again");
+                try {
+                    prepareProofSubmission();
+                    // Return early to let the state update before proceeding
+                    return;
+                } catch (error) {
+                    console.error("Error preparing proof data:", error);
+                    alert("Error preparing proof data: " + error.message);
+                    return;
+                }
+            }
+
+            console.log("In ready stage with proofData, attempting to submit to blockchain");
+            try {
+                const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+                if (!primaryWallet) {
+                    throw new Error('Primary wallet not found');
+                }
+                console.log("Primary wallet found:", primaryWallet.fullAddress);
+
+                // Dynamically import ethers
+                console.log("Dynamically importing ethers");
+                const { getEthers } = await import('../lib/ethersUtils');
+                const { ethers } = await getEthers();
+                console.log("Ethers imported successfully");
+
+                // Convert amount to Wei for blockchain submission
+                const amountInWei = ethers.utils.parseEther(
+                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
+                );
+                console.log("Amount converted to wei:", amountInWei.toString());
+
+                const expiryTime = getExpiryTimestamp(expiryDays);
+                console.log("Expiry time set to:", expiryTime);
+
+                // Get the signature for this wallet
+                const walletSignature = walletSignatures[primaryWallet.id]?.signature;
+                if (!walletSignature) {
+                    throw new Error('Wallet signature not found. Please sign with your wallet.');
+                }
+                console.log("Wallet signature found");
+
+                console.log('Submitting proof to blockchain with signature:',
+                    walletSignature.substring(0, 10) + '...');
+
+                if (proofCategory === 'standard') {
+                    console.log("Preparing standard proof submission");
+                    // Determine the proof type value (enum) based on the selected proof type
+                    let proofTypeValue;
+                    if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
+                    else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
+                    else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
+                    console.log("Proof type value:", proofTypeValue);
+
+                    // Generate the appropriate proof hash
+                    const proofHash = await generateProofHash(
+                        primaryWallet.fullAddress,
+                        amountInWei.toString(),
+                        proofTypeValue
+                    );
+                    console.log("Generated proof hash:", proofHash);
+
+                    // For threshold and maximum types, we use the threshold amount
+                    const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
+                        ? amountInWei
+                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                    console.log("Threshold amount:", thresholdAmount.toString());
+
+                    console.log('Calling writeStandardProof with args:', {
+                        proofType: proofTypeValue,
+                        proofHash,
+                        expiryTime,
+                        thresholdAmount: thresholdAmount.toString(),
+                        signatureMessage,
+                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
+                    });
+
+                    // Use the same submitProof function for all standard proof types
+                    console.log("writeStandardProof function:", typeof writeStandardProof);
+                    if (typeof writeStandardProof !== 'function') {
+                        console.error("writeStandardProof is not a function:", writeStandardProof);
+                        alert("Error: Contract write function is not properly initialized");
+                        return;
+                    }
+
+                    try {
+                        // Make sure we have an active connector
+                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+                        if (metamaskConnector) {
+                            // Store it for reuse
+                            window.wagmiMetaMaskConnector = metamaskConnector;
+
+                            // First make sure we are connected
+                            if (!isConnected) {
+                                console.log("Connecting to MetaMask before contract call");
+                                await connect({ connector: metamaskConnector });
+                            }
+
+                            console.log("Preparing contract call with arguments");
+
+                            // Format parameters 
+                            const numericProofType = Number(proofTypeValue);
+                            const bigIntExpiry = BigInt(expiryTime);
+
+                            // Set appropriate threshold amount based on proof type
+                            let bigIntThreshold;
+                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
+                                // For threshold/maximum types, use the actual amount from user input
+                                bigIntThreshold = amountInWei;
+                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+                            } else {
+                                // For standard proof type, threshold can be 0
+                                bigIntThreshold = ethers.utils.parseEther('0');
+                            }
+
+                            console.log("Formatted arguments:", {
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime: bigIntExpiry.toString(),
+                                thresholdAmount: bigIntThreshold.toString(),
+                                signatureMessageLength: signatureMessage.length,
+                                signatureLength: walletSignature.length
+                            });
+
+                            try {
+                                writeStandardProof({
+                                    recklesslySetUnpreparedArgs: [
+                                        numericProofType,
+                                        proofHash,
+                                        bigIntExpiry,
+                                        bigIntThreshold,
+                                        signatureMessage,
+                                        walletSignature
+                                    ]
+                                });
+                                console.log("writeStandardProof called successfully");
+                            } catch (innerError) {
+                                console.error("Inner error calling writeStandardProof:", innerError);
+                                alert(`Inner error: ${innerError.message}`);
+                            }
+                        } else {
+                            throw new Error("MetaMask connector not found");
+                        }
+                    } catch (error) {
+                        console.error("Error calling contract write function:", error);
+                        alert(`Error calling contract: ${error.message}`);
+                    }
+
+                    console.log("Contract interaction completed");
+                } else if (proofCategory === 'zk') {
+                    console.log("Preparing ZK proof submission");
+                    // Zero-knowledge proofs handling
+                    const mockProof = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[1, 2, 3, 4, 5, 6, 7, 8]]
+                    );
+
+                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                        ['uint256[]'],
+                        [[amountInWei.toString()]]
+                    );
+
+                    let zkProofTypeValue;
+                    if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
+                    else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
+                    else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
+
+                    console.log('Submitting ZK proof to blockchain:', {
+                        proofType: zkProofTypeValue,
+                        expiryTime,
+                        signatureMessage,
+                        hasSignature: !!walletSignature
+                    });
+
+                    console.log("writeZKProof function:", typeof writeZKProof);
+                    if (typeof writeZKProof !== 'function') {
+                        console.error("writeZKProof is not a function:", writeZKProof);
+                        alert("Error: Contract write function is not properly initialized");
+                        return;
+                    }
+
+                    // Apply similar formatting as with standard proofs
+                    try {
+                        console.log("Preparing ZK contract arguments with types:");
+                        console.log("- mockProof (length):", mockProof.length);
+                        console.log("- mockPublicSignals (length):", mockPublicSignals.length);
+                        console.log("- expiryTime:", expiryTime, "type:", typeof expiryTime);
+                        console.log("- zkProofTypeValue:", zkProofTypeValue, "type:", typeof zkProofTypeValue);
+                        console.log("- signatureMessage:", signatureMessage, "type:", typeof signatureMessage);
+                        console.log("- walletSignature (first few chars):", walletSignature.substring(0, 10), "type:", typeof walletSignature);
+
+                        writeZKProof({
+                            args: [
+                                mockProof,
+                                mockPublicSignals,
+                                BigInt(expiryTime),
+                                zkProofTypeValue,
+                                signatureMessage,
+                                walletSignature
+                            ]
+                        });
+
+                        console.log("writeZKProof called");
+                    } catch (error) {
+                        console.error("Error formatting ZK contract arguments:", error);
+                        alert(`Error preparing ZK contract call: ${error.message}`);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error submitting proof:', error);
+                alert(`Error: ${error.message}`);
+            }
+        } else {
+            console.log("Not in ready stage or proofData missing:", {
+                proofStage,
+                hasProofData: !!proofData
+            });
         }
-
-        // Validate required inputs
-        if (selectedWallets.length === 0) {
-            alert('Please select at least one wallet');
-            return;
-        }
-
-        if (amountInputType === 'usd' && !amount) {
-            alert('Please enter an amount');
-            return;
-        }
-
-        if (amountInputType === 'tokens' && selectedTokens.length === 0) {
-            alert('Please select at least one token');
-            return;
-        }
-
-        // Prepare proof details first
-        const finalAmount = amountInputType === 'usd'
-            ? amount
-            : calculateTotalUsdValue().toString();
-
-        console.log("Creating proof with amount:", finalAmount, "proof type:", proofCategory === 'standard' ? proofType : zkProofType);
-
-        // Format token details if using token-based amount
-        const tokenDetails = amountInputType === 'tokens'
-            ? selectedTokens.map(token => ({
-                symbol: token.symbol,
-                chain: token.chain,
-                amount: token.amount,
-                usdValue: token.amount * (
-                    assetSummary?.convertedAssets?.find(
-                        a => a.symbol === token.symbol && a.chain === token.chain
-                    )?.usdRate || 0
-                )
-            }))
-            : [];
-
-        const expiryTime = getExpiryTimestamp(expiryDays);
-
-        // Generate proof data
-        const proofDataObj = {
-            timestamp: Date.now(),
-            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
-            proofType: proofCategory === 'standard' ? proofType : zkProofType,
-            wallets: selectedWallets.map(id => {
-                const wallet = connectedWallets.find(w => w.id === id);
-                return {
-                    id: wallet.id,
-                    address: wallet.fullAddress,
-                    chain: wallet.chain,
-                    type: wallet.type
-                };
-            }),
-            assets: assetSummary ? assetSummary.totalAssets : [],
-            totalValue: showUSDValues && assetSummary
-                ? assetSummary.totalUSDValue
-                : (assetSummary && assetSummary.totalAssets.length > 0
-                    ? assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0)
-                    : 0),
-            currency: amountInputType === 'usd' ? "USD" : "tokens",
-            tokenDetails: tokenDetails,
-            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
-            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
-            isThresholdProof: proofType === 'threshold',
-            isMaximumProof: proofType === 'maximum'
-        };
-
-        setProofData(proofDataObj);
-
-        // Move to signing stage
-        setProofStage('signing');
     };
 
     /**
@@ -1012,14 +1483,85 @@ export default function CreatePage() {
      * Updates UI when a transaction is completed
      */
     useEffect(() => {
-        if (dataStandard || dataThreshold || dataMaximum || dataZK) {
-            const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
+        const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
+
+        if (txData) {
+            console.log('Transaction data received:', txData);
+
             if (txData.hash) {
+                // We have a transaction hash - the transaction has been submitted
+                console.log('Transaction hash:', txData.hash);
                 setTxHash(txData.hash);
-                setSuccess(true);
             }
         }
     }, [dataStandard, dataThreshold, dataMaximum, dataZK]);
+
+    // Separate effect for polling the transaction status
+    useEffect(() => {
+        let isMounted = true;
+        let pollInterval = null;
+
+        // Skip if no hash or already marked as success
+        if (!txHash || success) return;
+
+        console.log("Starting to poll transaction:", txHash);
+
+        // Function to poll the transaction status
+        const pollTransaction = async () => {
+            try {
+                // Direct API call to avoid ethers import issues
+                const response = await fetch("http://localhost:8545", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: 1,
+                        method: 'eth_getTransactionReceipt',
+                        params: [txHash],
+                    }),
+                });
+
+                if (!isMounted) return;
+
+                const data = await response.json();
+                console.log("Transaction poll response:", data);
+
+                if (data.result) {
+                    // Transaction has been mined
+                    const receipt = data.result;
+
+                    if (receipt.status === "0x1") {
+                        console.log("Transaction confirmed successfully!");
+
+                        if (isMounted) {
+                            setSuccess(true);
+                            clearInterval(pollInterval);
+                        }
+                    } else {
+                        console.error("Transaction failed!");
+                        clearInterval(pollInterval);
+                        alert("Transaction failed. Please check the transaction details.");
+                    }
+                }
+            } catch (error) {
+                console.error("Error polling transaction:", error);
+            }
+        };
+
+        // Poll immediately
+        pollTransaction();
+
+        // Then set up interval
+        pollInterval = setInterval(pollTransaction, 3000);
+
+        // Cleanup
+        return () => {
+            isMounted = false;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }, [txHash, success]);
 
     /**
      * Updates signature message when template changes
@@ -1029,22 +1571,87 @@ export default function CreatePage() {
         const template = SIGNATURE_MESSAGE_TEMPLATES.find(t => t.id === selectedTemplate);
         if (template) {
             let message = template.template;
+
             // Replace placeholders with values
             if (message.includes('{amount}')) {
-                message = message.replace('{amount}', amount || '0');
+                // Get the exact amount from token selection or USD amount
+                let exactAmount = '';
+                if (amountInputType === 'tokens' && selectedTokens && selectedTokens.length > 0) {
+                    // Use the actual entered amount instead of rounding
+                    exactAmount = selectedTokens[0].amount;
+                } else {
+                    exactAmount = amount || '0';
+                }
+                message = message.replace('{amount}', exactAmount);
             }
+
+            // Add token symbol based on selected tokens or detected chain
+            if (message.includes('{token_symbol}')) {
+                let tokenSymbol = '';
+
+                if (amountInputType === 'tokens' && selectedTokens && selectedTokens.length > 0) {
+                    // Use the first selected token's symbol - this is what the user explicitly selected
+                    tokenSymbol = selectedTokens[0].symbol;
+                    console.log("Using user-selected token symbol:", tokenSymbol);
+                } else if (amountInputType === 'usd') {
+                    // For USD amounts, use 'USD' as the token symbol
+                    tokenSymbol = 'USD';
+                } else if (assetSummary && assetSummary.chains) {
+                    // Fallback: Use the native token of the first detected chain
+                    tokenSymbol = getCurrencySymbol(assetSummary);
+                } else {
+                    // Final fallback
+                    tokenSymbol = 'ETH';
+                }
+
+                message = message.replace('{token_symbol}', tokenSymbol);
+            }
+
+            // Format date with proper timestamp and timezone information
             if (message.includes('{date}')) {
-                message = message.replace('{date}', new Date().toLocaleDateString());
+                // Format with full date, time and seconds
+                const formatDateTime = (date, timeZone) => {
+                    return date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        second: 'numeric',
+                        hour12: true,
+                        timeZone: timeZone
+                    });
+                };
+
+                // Current date time
+                const now = new Date();
+                const currentUtcDateTime = formatDateTime(now, 'UTC');
+                const currentPacificDateTime = formatDateTime(now, 'America/Los_Angeles');
+                const currentEasternDateTime = formatDateTime(now, 'America/New_York');
+
+                // Calculate expiry time
+                const expirySeconds = getExpiryTimestamp(expiryDays) - Math.floor(Date.now() / 1000);
+                const expiryDate = new Date(now.getTime() + (expirySeconds * 1000));
+
+                // Format expiry date
+                const expiryUtcDateTime = formatDateTime(expiryDate, 'UTC');
+                const expiryPacificDateTime = formatDateTime(expiryDate, 'America/Los_Angeles');
+                const expiryEasternDateTime = formatDateTime(expiryDate, 'America/New_York');
+
+                const dateWithTimezones = `${currentUtcDateTime} UTC / ${currentPacificDateTime} PST / ${currentEasternDateTime} EST (expires: ${expiryUtcDateTime} UTC)`;
+                message = message.replace('{date}', dateWithTimezones);
             }
+
             // Replace any custom fields
             Object.keys(customFields).forEach(key => {
                 if (message.includes(`{${key}}`)) {
                     message = message.replace(`{${key}}`, customFields[key] || '');
                 }
             });
+
             setSignatureMessage(message);
         }
-    }, [selectedTemplate, amount, customFields]);
+    }, [selectedTemplate, amount, customFields, assetSummary, selectedTokens, amountInputType, expiryDays]);
 
     /**
      * Calculates the expiry timestamp based on the selected expiry option
@@ -1094,9 +1701,9 @@ export default function CreatePage() {
     };
 
     // Combined loading state from all contract interactions
-    const isPending = isPendingStandard || isPendingThreshold || isPendingMaximum || isPendingZK;
-    const isError = isErrorStandard || isErrorThreshold || isErrorMaximum || isErrorZK;
-    const error = errorStandard || errorThreshold || errorMaximum || errorZK;
+    const isPending = isStandardLoading || isThresholdLoading || isMaximumLoading || isPendingZK;
+    const isError = standardProofError || thresholdProofError || maximumProofError || isErrorZK;
+    const error = standardProofError || thresholdProofError || maximumProofError || errorZK;
 
     /**
      * Reset success state to create another proof
@@ -1139,6 +1746,75 @@ export default function CreatePage() {
         }
     }, [amount, proofCategory, proofType, zkProofType, amountInputType, selectedTokens, expiryDays]);
 
+    // Add a connector configuration
+    const { connect, connectors } = useConnect({
+        connector: new MetaMaskConnector(),
+    });
+
+    // Synchronize wallet connections
+    useEffect(() => {
+        const connectWagmiIfNeeded = async () => {
+            // Only attempt reconnection if we have wallets in localStorage but wagmi reports disconnected
+            if (!isConnected && connectedWallets.length > 0) {
+                try {
+                    console.log("Detected wallet in localStorage but wagmi reports disconnected. Attempting to connect...");
+
+                    // Make sure the connector is set globally for use in contract calls
+                    const metamaskConnector = connectors.find(c => c.id === 'metaMask');
+
+                    if (metamaskConnector && await metamaskConnector.isAuthorized()) {
+                        // Connect using the MetaMask connector
+                        await connect({ connector: metamaskConnector });
+
+                        // Store the connector for later use
+                        window.wagmiMetaMaskConnector = metamaskConnector;
+
+                        console.log("Successfully reconnected to wagmi");
+                    }
+                } catch (error) {
+                    console.error("Failed to synchronize wagmi connection:", error);
+                }
+            }
+        };
+
+        // Try to connect when component mounts or connectedWallets change
+        connectWagmiIfNeeded();
+    }, [isConnected, connectedWallets, connect, connectors]);
+
+    // Helper function to check if all token amounts are valid
+    const areAllTokenAmountsValid = () => {
+        if (selectedTokens.length === 0) return false;
+        return !selectedTokens.some(token => !isValidAmount(token.amount));
+    };
+
+    // Add a function to check contract ABI and verify the method exists
+    const verifyContractMethod = async (contractAddress, methodName) => {
+        try {
+            // Dynamically import ethers
+            const { getEthers } = await import('../lib/ethersUtils');
+            const { ethers } = await getEthers();
+
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, provider);
+
+            // Check if the method exists in the contract interface
+            const fragments = contract.interface.fragments;
+            const methodExists = fragments.some(fragment =>
+                fragment.type === 'function' && fragment.name === methodName
+            );
+
+            if (!methodExists) {
+                console.error(`Method ${methodName} not found in contract ABI`);
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error verifying contract method:', error);
+            return false;
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto mt-8">
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
@@ -1148,12 +1824,15 @@ export default function CreatePage() {
 
                 <form
                     onSubmit={(e) => {
+                        console.log("Form submission triggered");
                         // Only process submit when it comes from the actual submit button
                         if (e.nativeEvent.submitter &&
                             e.nativeEvent.submitter.getAttribute('type') === 'submit') {
+                            console.log("Submit button clicked, calling handleSubmit");
                             handleSubmit(e);
                         } else {
                             // Prevent form submission for other interactions
+                            console.log("Form submission from non-submit button, preventing default");
                             e.preventDefault();
                         }
                     }}
@@ -1209,13 +1888,9 @@ export default function CreatePage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center">
                                         <button
-                                            onClick={(e) => {
-                                                // Prevent form submission when toggling asset summary
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsAssetSummaryExpanded(!isAssetSummaryExpanded);
-                                            }}
-                                            className="mr-2 text-gray-500 hover:text-gray-700"
+                                            type="button"
+                                            className="mr-2 text-gray-400 hover:text-gray-600"
+                                            onClick={() => setIsAssetSummaryExpanded(!isAssetSummaryExpanded)}
                                             aria-expanded={isAssetSummaryExpanded}
                                         >
                                             <svg
@@ -1229,25 +1904,6 @@ export default function CreatePage() {
                                             </svg>
                                         </button>
                                         <label className="block text-sm font-medium text-gray-700">Asset Summary</label>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <span className="text-xs mr-2 text-gray-500">Show USD Values</span>
-                                        <button
-                                            onClick={(e) => {
-                                                // Prevent form submission when toggling USD display
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleToggleUSDConversion();
-                                            }}
-                                            disabled={isLoadingAssets || isConvertingUSD}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full ${showUSDValues ? 'bg-primary-600' : 'bg-gray-300'}`}
-                                            aria-checked={showUSDValues}
-                                            role="switch"
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUSDValues ? 'translate-x-6' : 'translate-x-1'}`}
-                                            />
-                                        </button>
                                     </div>
                                 </div>
 
@@ -1263,23 +1919,35 @@ export default function CreatePage() {
                                             </div>
                                         ) : assetSummary ? (
                                             <>
-                                                <div className="mb-3">
-                                                    <div className="text-sm font-medium">Total Value: {showUSDValues
-                                                        ? `$${Number(assetSummary.totalUSDValue).toFixed(2)} USD`
-                                                        : 'Multiple Assets'}
-                                                    </div>
-                                                </div>
                                                 <div className="bg-primary-50 border rounded-md overflow-hidden mb-3">
-                                                    <div className="grid grid-cols-2 bg-gray-100 px-3 py-2">
+                                                    <div className="grid grid-cols-4 bg-gray-100 px-3 py-2">
                                                         <div className="text-sm font-medium text-gray-700">Asset</div>
                                                         <div className="text-sm font-medium text-gray-700 text-right">Balance</div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right relative group">
+                                                            <span>Price (USD)</span>
+                                                            <span className="hidden group-hover:block absolute z-10 top-6 -left-2 w-48 p-2 bg-gray-800 text-white text-xs rounded">
+                                                                USD values are based on current market prices and subject to change.
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right relative group">
+                                                            <span>Value (USD)</span>
+                                                            <span className="hidden group-hover:block absolute z-10 top-6 -left-2 w-48 p-2 bg-gray-800 text-white text-xs rounded">
+                                                                USD values are based on current market prices and subject to change.
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    {(showUSDValues ? assetSummary.convertedAssets : assetSummary.totalAssets).map((asset, idx) => (
-                                                        <div key={idx} className="grid grid-cols-2 px-3 py-2 border-t border-gray-200">
+                                                    {assetSummary.convertedAssets.map((asset, idx) => (
+                                                        <div key={idx} className="grid grid-cols-4 px-3 py-2 border-t border-gray-200">
                                                             <div className="text-sm text-gray-700">{asset.symbol}</div>
-                                                            <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toFixed(6)}</div>
+                                                            <div className="text-sm text-gray-700 text-right">{Number(asset.balance).toString()}</div>
+                                                            <div className="text-sm text-gray-700 text-right">${Number(asset.price).toFixed(2)}</div>
+                                                            <div className="text-sm text-gray-700 text-right">${Number(asset.usdValue).toFixed(2)}</div>
                                                         </div>
                                                     ))}
+                                                    <div className="grid grid-cols-4 px-3 py-2 border-t border-gray-200 bg-gray-50">
+                                                        <div className="text-sm font-medium text-gray-700 col-span-3 text-right">Total:</div>
+                                                        <div className="text-sm font-medium text-gray-700 text-right">${Number(assetSummary.totalUSDValue).toFixed(2)}</div>
+                                                    </div>
                                                 </div>
 
                                                 <div>
@@ -1288,14 +1956,17 @@ export default function CreatePage() {
                                                         <div key={chain} className="bg-gray-50 border rounded-md px-3 py-2 mb-2">
                                                             <div className="font-medium text-sm capitalize">{chain}</div>
                                                             <div className="text-xs text-gray-700">
-                                                                Native: {Number(data.nativeBalance).toFixed(6)} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                                Native: {Number(data.nativeBalance).toString()} {chain === 'polygon' ? 'MATIC' : chain === 'solana' ? 'SOL' : 'ETH'}
+                                                                {data.nativeUSDValue && ` ($${Number(data.nativeUSDValue).toFixed(2)} USD)`}
                                                             </div>
                                                             {Object.entries(data.tokens).length > 0 && (
                                                                 <div className="text-xs text-gray-700">
                                                                     Tokens: {Object.entries(data.tokens).map(([symbol, balance], i) => (
                                                                         <span key={symbol}>
                                                                             {i > 0 && ', '}
-                                                                            {Number(balance).toFixed(6)} {symbol}
+                                                                            {Number(balance).toString()} {symbol}
+                                                                            {data.tokensUSDValue && data.tokensUSDValue[symbol] &&
+                                                                                ` ($${Number(data.tokensUSDValue[symbol]).toFixed(2)} USD)`}
                                                                         </span>
                                                                     ))}
                                                                 </div>
@@ -1354,116 +2025,107 @@ export default function CreatePage() {
                             </p>
                         </div>
 
-                        {/* Proof Type */}
-                        {proofCategory === 'standard' ? (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {/* Proof Type Selection - Only shown for Standard Proof Category */}
+                        {proofCategory === 'standard' && (
+                            <div className="mb-6">
+                                <label htmlFor="proof-type" className="block text-sm font-medium text-gray-700 mb-2">
                                     Proof Type
                                 </label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'standard'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('standard');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'standard'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Standard
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Standard Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has exactly this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
+
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'threshold'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('threshold');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'threshold'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Threshold
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Threshold Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has at least this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
+
                                     <button
                                         type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${proofType === 'maximum'
-                                            ? 'bg-primary-600 text-white border-primary-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        onClick={() => {
                                             setProofType('maximum');
+                                            setSuccess(false);
                                         }}
+                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'maximum'
+                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
                                     >
-                                        Maximum
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-medium mb-1">Maximum Proof</h3>
+                                            <p className="text-sm text-gray-500">
+                                                Verify that the wallet has at most this amount of funds.
+                                            </p>
+                                        </div>
                                     </button>
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {proofType === 'standard' && 'Verify that the wallet has exactly this amount'}
-                                    {proofType === 'threshold' && 'Verify that the wallet has at least this amount'}
-                                    {proofType === 'maximum' && 'Verify that the wallet has less than this amount'}
-                                </p>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Zero-Knowledge Proof Type
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'standard'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('standard');
-                                        }}
-                                    >
-                                        ZK Standard
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'threshold'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('threshold');
-                                        }}
-                                    >
-                                        ZK Threshold
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`py-2 px-4 text-sm font-medium rounded-md border ${zkProofType === 'maximum'
-                                            ? 'bg-zk-accent text-white border-zk-accent'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setZkProofType('maximum');
-                                        }}
-                                    >
-                                        ZK Maximum
-                                    </button>
+
+                                {/* Proof Type Explanation */}
+                                <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
+                                    {proofType === 'standard' && (
+                                        <p>
+                                            <strong>Standard Proof:</strong> This proof verifies that your wallet contains exactly the specified amount.
+                                            Use this for precise verification requirements.
+                                        </p>
+                                    )}
+                                    {proofType === 'threshold' && (
+                                        <p>
+                                            <strong>Threshold Proof:</strong> This proof verifies that your wallet contains at least the specified minimum amount.
+                                            Ideal for qualification requirements where you need to meet a minimum threshold.
+                                        </p>
+                                    )}
+                                    {proofType === 'maximum' && (
+                                        <p>
+                                            <strong>Maximum Proof:</strong> This proof verifies that your wallet contains no more than the specified maximum amount.
+                                            Useful for verification where an upper limit is required.
+                                        </p>
+                                    )}
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {zkProofType === 'standard' && 'Create a private proof of exactly this amount'}
-                                    {zkProofType === 'threshold' && 'Create a private proof of at least this amount'}
-                                    {zkProofType === 'maximum' && 'Create a private proof of less than this amount'}
-                                </p>
                             </div>
                         )}
 
@@ -1723,18 +2385,53 @@ export default function CreatePage() {
 
                         {/* Submit Button */}
                         <div>
+                            {(isPending || (txHash && !success)) && (
+                                <div className="mb-4 p-3 bg-blue-50 rounded-md">
+                                    <div className="flex items-center">
+                                        <svg className="animate-spin h-5 w-5 mr-2 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span className="text-sm font-medium text-blue-700">
+                                            {txHash
+                                                ? 'Transaction submitted. Waiting for blockchain confirmation...'
+                                                : 'Preparing transaction...'}
+                                        </span>
+                                    </div>
+                                    {txHash && (
+                                        <div className="mt-2 text-xs">
+                                            <span className="text-gray-600">Transaction hash: </span>
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 break-all hover:underline"
+                                            >
+                                                {txHash}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={
                                     (selectedWallets.length === 0) ||
-                                    (amountInputType === 'usd' && !amount) ||
-                                    (amountInputType === 'tokens' && selectedTokens.length === 0) ||
-                                    (proofStage === 'signing' && !areAllWalletsSigned())
+                                    (amountInputType === 'usd' && !isValidAmount(amount)) ||
+                                    (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
+                                    (proofStage === 'signing' && !areAllWalletsSigned()) ||
+                                    isPending ||
+                                    (txHash && !success) ||
+                                    success
                                 }
                                 className={`w-full py-2 px-4 font-medium rounded-md ${(selectedWallets.length === 0) ||
-                                    (amountInputType === 'usd' && !amount) ||
-                                    (amountInputType === 'tokens' && selectedTokens.length === 0) ||
-                                    (proofStage === 'signing' && !areAllWalletsSigned())
+                                    (amountInputType === 'usd' && !isValidAmount(amount)) ||
+                                    (amountInputType === 'tokens' && !areAllTokenAmountsValid()) ||
+                                    (proofStage === 'signing' && !areAllWalletsSigned()) ||
+                                    isPending ||
+                                    (txHash && !success) ||
+                                    success
                                     ? 'bg-gray-400 cursor-not-allowed text-white'
                                     : proofStage === 'ready'
                                         ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -1742,14 +2439,26 @@ export default function CreatePage() {
                                             ? 'bg-primary-600 hover:bg-primary-700 text-white'
                                             : 'bg-zk-accent hover:bg-zk-accent-dark text-white'
                                     }`}
+                                onClick={() => {
+                                    if (proofStage === 'ready' && !proofData) {
+                                        console.log("Button clicked in ready stage but proofData missing, preparing it");
+                                        prepareProofSubmission();
+                                    }
+                                }}
                             >
-                                {isPending
-                                    ? 'Processing...'
-                                    : proofStage === 'input'
-                                        ? 'Prepare Proof'
-                                        : proofStage === 'signing'
-                                            ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
-                                            : 'Submit Proof to Blockchain'}
+                                {success
+                                    ? 'Proof Submitted'
+                                    : isPending
+                                        ? 'Processing Transaction...'
+                                        : (txHash && !success)
+                                            ? 'Waiting for Confirmation...'
+                                            : proofStage === 'input'
+                                                ? 'Prepare Proof'
+                                                : proofStage === 'signing'
+                                                    ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
+                                                    : (proofStage === 'ready' && !proofData)
+                                                        ? 'Prepare Proof Data'
+                                                        : 'Submit Proof to Blockchain'}
                             </button>
                         </div>
                     </div>
@@ -1763,36 +2472,135 @@ export default function CreatePage() {
                     )}
 
                     {/* Success Message */}
-                    {success && (
-                        <div className="p-4 bg-green-50 rounded-md">
-                            <div className="flex items-center text-green-800 font-medium mb-2">
-                                <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                Proof of Funds created successfully!
+                    {success ? (
+                        <div className="flex flex-col space-y-6 items-center text-center mt-12">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                <CheckIcon className="h-8 w-8 text-green-600" />
                             </div>
-                            <p className="text-sm text-gray-600 mb-2">
-                                Your proof has been submitted to the blockchain and can now be verified.
+                            <h3 className="text-lg font-medium text-gray-900">Proof Successfully Created!</h3>
+                            <p className="text-sm text-gray-500 max-w-md">
+                                Your proof of funds has been successfully created and verified on the blockchain.
+                                You can now share the transaction hash with others to allow them to verify your proof.
                             </p>
-                            <div className="flex flex-wrap items-center text-sm">
-                                <span className="text-gray-600 mr-1">Transaction:</span>
-                                <a
-                                    href={`https://amoy.polygonscan.com/tx/${txHash}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 break-all hover:underline"
-                                >
-                                    {txHash}
-                                </a>
+
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 w-full">
+                                <div className="space-y-2">
+                                    <div>
+                                        <span className="text-sm text-gray-600">Status:</span>
+                                        <span className="ml-2 text-sm font-medium text-green-600">Confirmed</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Transaction Hash:</span>
+                                        <div className="mt-1">
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 text-sm break-all hover:underline"
+                                            >
+                                                {txHash}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Network:</span>
+                                        <span className="ml-2 text-sm font-medium">Polygon Amoy Testnet</span>
+                                    </div>
+                                </div>
                             </div>
+
                             <button
+                                type="button"
                                 onClick={handleCreateAnother}
-                                className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                             >
                                 Create Another Proof
                             </button>
                         </div>
-                    )}
+                    ) : txHash ? (
+                        <div className="flex flex-col space-y-6 items-center text-center">
+                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                <ClockIcon className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900">Transaction Submitted</h3>
+                            <p className="text-sm text-gray-500 max-w-md">
+                                Your transaction has been submitted to the blockchain and is waiting for confirmation.
+                                This usually takes a few seconds, but can take longer during periods of high network congestion.
+                            </p>
+
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 w-full">
+                                <div className="space-y-2">
+                                    <div>
+                                        <span className="text-sm text-gray-600">Status:</span>
+                                        <span className="ml-2 text-sm font-medium text-blue-600">Waiting for confirmation...</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Transaction Hash:</span>
+                                        <div className="mt-1">
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 text-sm break-all hover:underline"
+                                            >
+                                                {txHash}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-600">Network:</span>
+                                        <span className="ml-2 text-sm font-medium">Polygon Amoy Testnet</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Manually check transaction status
+                                    const checkManually = async () => {
+                                        try {
+                                            // Direct API call to avoid ethers import issues
+                                            const response = await fetch("http://localhost:8545", {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    jsonrpc: '2.0',
+                                                    id: 1,
+                                                    method: 'eth_getTransactionReceipt',
+                                                    params: [txHash],
+                                                }),
+                                            });
+
+                                            const data = await response.json();
+                                            console.log("Manual transaction check:", data);
+
+                                            if (data.result) {
+                                                const receipt = data.result;
+
+                                                if (receipt.status === "0x1") {
+                                                    setSuccess(true);
+                                                    alert("Transaction is confirmed! The UI will now update.");
+                                                } else {
+                                                    alert("Transaction was found but failed. Please check the transaction details.");
+                                                }
+                                            } else {
+                                                alert("Transaction is still pending. Please wait a bit longer.");
+                                            }
+                                        } catch (error) {
+                                            console.error('Error checking receipt manually:', error);
+                                            alert(`Error checking transaction: ${error.message}`);
+                                        }
+                                    };
+
+                                    checkManually();
+                                }}
+                                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                Check Transaction Status
+                            </button>
+                        </div>
+                    ) : null}
                 </form>
             </div>
 

@@ -18,9 +18,19 @@
  * rather than the entire module to improve code maintainability.
  */
 
-export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890'; // Testing wallet address
+// Use the address from the deployment script (see deployments directory)
+// This was previously incorrectly set to a wallet address
+// The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
+// IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
+export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
 export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+
+// Polygon Amoy Testnet RPC URL
+export const POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
+
+// Add Hardhat local network configuration
+export const HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
 
 // Proof types enum values
 export const PROOF_TYPES = {
@@ -60,7 +70,7 @@ export const SIGNATURE_MESSAGE_TEMPLATES = [
     {
         id: 'fund_verification',
         name: 'Fund Verification',
-        template: 'I confirm that I have at least {amount} MATIC in my wallet for verification purposes on {date}.',
+        template: 'I confirm that I have at least {amount} {token_symbol} in my wallet for verification purposes. This verification was created on {date}.',
     },
     {
         id: 'loan_application',
@@ -82,9 +92,9 @@ export const SIGNATURE_MESSAGE_TEMPLATES = [
 export const CONTRACT_ABI = [
     {
         "inputs": [
+            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
             { "internalType": "bytes32", "name": "_proofHash", "type": "bytes32" },
             { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
             { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
             { "internalType": "string", "name": "_signatureMessage", "type": "string" },
             { "internalType": "bytes", "name": "_signature", "type": "bytes" }
@@ -116,7 +126,7 @@ export const CONTRACT_ABI = [
             { "internalType": "address", "name": "_user", "type": "address" },
             { "internalType": "uint256", "name": "_claimedAmount", "type": "uint256" }
         ],
-        "name": "verifyProof",
+        "name": "verifyStandardProof",
         "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
         "stateMutability": "view",
         "type": "function"
@@ -142,6 +152,17 @@ export const CONTRACT_ABI = [
         "type": "function"
     },
     {
+        "inputs": [
+            { "internalType": "address", "name": "_user", "type": "address" },
+            { "internalType": "uint256", "name": "_amount", "type": "uint256" },
+            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" }
+        ],
+        "name": "generateProofHash",
+        "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+        "stateMutability": "pure",
+        "type": "function"
+    },
+    {
         "inputs": [{ "internalType": "string", "name": "_reason", "type": "string" }],
         "name": "revokeProof",
         "outputs": [],
@@ -149,13 +170,10 @@ export const CONTRACT_ABI = [
         "type": "function"
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "string", "name": "_message", "type": "string" }
-        ],
-        "name": "addSignatureMessage",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+        "name": "isProofValid",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -164,13 +182,6 @@ export const CONTRACT_ABI = [
             { "internalType": "string", "name": "_message", "type": "string" }
         ],
         "name": "verifySignature",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "isProofValid",
         "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
         "stateMutability": "view",
         "type": "function"
@@ -299,6 +310,17 @@ export const SUPPORTED_CHAINS = {
         testnetBlockExplorer: 'https://explorer.solana.com/?cluster=devnet',
         rpcUrl: 'https://api.mainnet-beta.solana.com',
         testnetRpcUrl: 'https://api.devnet.solana.com'
+    },
+    HARDHAT: {
+        name: 'Hardhat Local',
+        chainId: 31337,
+        testnetChainId: 31337,
+        nativeSymbol: 'ETH',
+        decimals: 18,
+        blockExplorer: '',
+        testnetBlockExplorer: '',
+        rpcUrl: 'http://127.0.0.1:8545/',
+        testnetRpcUrl: 'http://127.0.0.1:8545/'
     }
 };
 
