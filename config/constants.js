@@ -22,9 +22,12 @@
 // This was previously incorrectly set to a wallet address
 // The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
 // IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-export const CONTRACT_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
 export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+
+// Polygon Amoy Testnet RPC URL
+export const POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
 
 // Add Hardhat local network configuration
 export const HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
