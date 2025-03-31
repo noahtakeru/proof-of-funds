@@ -4,329 +4,244 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
- * @title Proof of Funds
+ * @title Proof of Funds Contract
  * @author Arbitr Team
- * @notice A smart contract that enables users to submit cryptographic proofs of their funds
- * without revealing the actual amounts. This implementation supports three types of proofs:
- * - Standard proof (exact amount verification)
- * - Threshold proof (minimum amount verification)
- * - Maximum proof (maximum amount verification)
+ * @notice Main smart contract for managing cryptographic proofs of funds
  * 
- * @dev Each proof type uses a different verification mechanism and includes:
- * - Proof hash generation using address + amount + type
- * - Expiration mechanism to ensure proofs are time-bound
- * - Signature message storage for context of the verification
- * - Proof type storage to prevent cross-type verification
- * - Circuit breaker pattern to pause the contract in case of emergencies
+ * @dev This contract allows users to submit and verify cryptographic proofs of their funds
+ * without revealing the actual amounts. It supports three proof types:
+ * - Standard: Basic proof of having at least X funds
+ * - Threshold: Proof of having funds within a specific range
+ * - Maximum: Proof of having at most X funds
+ * 
+ * Security features:
+ * - Proof expiration mechanism to prevent stale proofs
+ * - Revocation capability for users to invalidate their proofs
+ * - Storage of signature messages to verify authenticity
  * - Access control for administrative functions
- * - Reentrancy protection for all state-changing functions
+ * - Reentrancy protection for state-changing operations
+ * 
+ * Events are emitted for proof submission, revocation, and contract state changes
+ * to provide transparency and enable off-chain tracking.
  * 
  * @custom:security-contact security@arbitr.finance
- * @custom:version 1.0.0
  */
 contract ProofOfFunds is Pausable, Ownable, ReentrancyGuard {
-    /**
-     * @dev Enum to represent the different types of proofs
-     */
-    enum ProofType {
-        STANDARD,  // Exact amount
-        THRESHOLD, // Minimum amount (at least)
-        MAXIMUM    // Maximum amount (at most)
-    }
+    using Counters for Counters.Counter;
 
     /**
-     * @dev Structure to store proof data
-     * @param user The address of the user who submitted the proof
-     * @param timestamp The time when the proof was submitted
-     * @param expiryTime The time when the proof expires
-     * @param proofHash The hash of the proof data
-     * @param proofType The type of proof (STANDARD, THRESHOLD, MAXIMUM)
-     * @param thresholdAmount The threshold amount for threshold proofs
-     * @param isRevoked Whether the proof has been revoked
-     * @param signatureMessage The message that was signed by the user
-     * @param signature The signature of the user
+     * @dev Types of proofs supported by the contract
+     * @param STANDARD Proof that user has at least X funds
+     * @param THRESHOLD Proof that user has funds within specific range
+     * @param MAXIMUM Proof that user has at most X funds
+     */
+    enum ProofType { STANDARD, THRESHOLD, MAXIMUM }
+    
+    /**
+     * @dev Structure to store proof details
+     * @param proofType Type of proof (STANDARD, THRESHOLD, MAXIMUM)
+     * @param user Address of the user who submitted the proof
+     * @param proofHash Cryptographic hash of the proof data
+     * @param expiryTime Unix timestamp when the proof expires
+     * @param isRevoked Boolean flag indicating if the proof has been revoked
+     * @param signatureMessage Message that was signed to create this proof
      */
     struct Proof {
-        address user;
-        uint256 timestamp;
-        uint256 expiryTime;
-        bytes32 proofHash;
         ProofType proofType;
-        uint256 thresholdAmount; // Used for THRESHOLD and MAXIMUM types
+        address user;
+        bytes32 proofHash;
+        uint256 expiryTime;
         bool isRevoked;
         string signatureMessage;
-        bytes signature;
     }
 
-    // Mapping from user address to their proof
-    mapping(address => Proof) public proofs;
-    
-    // Contract version for tracking upgrades
-    string public constant VERSION = "1.0.0";
-    
-    // Minimum expiry time to prevent extremely short-lived proofs (1 hour)
-    uint256 public constant MIN_EXPIRY_TIME = 3600;
-    
-    // Maximum expiry time to prevent extremely long-lived proofs (1 year)
-    uint256 public constant MAX_EXPIRY_TIME = 31536000;
-
-    // Events
+    // Events for tracking proof lifecycle
     /**
      * @dev Emitted when a new proof is submitted
-     * @param user The address of the user who submitted the proof
-     * @param proofHash The hash of the proof data
-     * @param timestamp The time when the proof was submitted
-     * @param expiryTime The time when the proof expires
-     * @param proofType The type of proof
+     * @param proofId Unique identifier for the proof
+     * @param user Address of the user who submitted the proof
+     * @param proofType Type of the proof (STANDARD, THRESHOLD, MAXIMUM)
+     * @param proofHash Cryptographic hash of the proof data
+     * @param expiryTime Unix timestamp when the proof expires
      */
     event ProofSubmitted(
-        address indexed user, 
-        bytes32 proofHash, 
-        uint256 timestamp, 
-        uint256 expiryTime,
-        ProofType proofType
+        uint256 indexed proofId,
+        address indexed user,
+        ProofType proofType,
+        bytes32 proofHash,
+        uint256 expiryTime
     );
     
     /**
-     * @dev Emitted when a proof is revoked
-     * @param user The address of the user who revoked the proof
-     * @param proofHash The hash of the revoked proof
-     * @param reason The reason for revoking the proof
+     * @dev Emitted when a proof is revoked by its owner
+     * @param proofId Unique identifier for the revoked proof
+     * @param user Address of the user who revoked the proof
      */
     event ProofRevoked(
-        address indexed user, 
-        bytes32 proofHash,
-        string reason
+        uint256 indexed proofId,
+        address indexed user
     );
     
     /**
-     * @dev Emitted when the contract is paused
-     * @param account The address that paused the contract
+     * @dev Emitted when the owner updates the contract version
+     * @param newVersion The new version string
      */
-    event ContractPaused(address account);
+    event VersionUpdated(string newVersion);
+
+    // Contract version for tracking upgrades
+    string public version = "1.0.0";
     
-    /**
-     * @dev Emitted when the contract is unpaused
-     * @param account The address that unpaused the contract
-     */
-    event ContractUnpaused(address account);
+    // Proof ID counter for assigning unique IDs
+    Counters.Counter private _proofIdCounter;
+    
+    // Mapping to store all proofs by their ID
+    mapping(uint256 => Proof) public proofs;
+    
+    // Mapping to store active proof IDs for each user
+    mapping(address => uint256[]) public userProofs;
 
     /**
-     * @dev Constructor to initialize the contract
+     * @dev Contract constructor
+     * Initializes the contract with the owner set to the deployer
      */
     constructor() {
-        // Contract starts in unpaused state
+        // OpenZeppelin's Ownable sets msg.sender as the owner by default
     }
     
     /**
-     * @dev Modifier to validate expiry time is within acceptable bounds
-     * @param _expiryTime The expiry time to validate
-     */
-    modifier validExpiryTime(uint256 _expiryTime) {
-        require(_expiryTime > block.timestamp, "Expiry time must be in the future");
-        require(_expiryTime <= block.timestamp + MAX_EXPIRY_TIME, "Expiry time too far in the future");
-        require(_expiryTime >= block.timestamp + MIN_EXPIRY_TIME, "Expiry time too short");
-        _;
-    }
-
-    /**
-     * @dev Generates a proof hash based on the user address, amount, and proof type
-     * @param _user The user's address
-     * @param _amount The amount to be verified
-     * @param _proofType The type of proof
-     * @return bytes32 The generated proof hash
-     */
-    function generateProofHash(address _user, uint256 _amount, ProofType _proofType) public pure returns (bytes32) {
-        // Use ABI encoding to prevent hash collisions between different proof types
-        if (_proofType == ProofType.STANDARD) {
-            return keccak256(abi.encode(_user, _amount, _proofType));
-        } else if (_proofType == ProofType.THRESHOLD) {
-            return keccak256(abi.encode(_user, _amount, _proofType, "threshold"));
-        } else if (_proofType == ProofType.MAXIMUM) {
-            return keccak256(abi.encode(_user, _amount, _proofType, "maximum"));
-        }
-        revert("Invalid proof type");
-    }
-
-    /**
-     * @dev Submit a new proof of funds
-     * @param _proofType The type of proof (STANDARD, THRESHOLD, MAXIMUM)
-     * @param _proofHash The hash of the proof data
-     * @param _expiryTime The time when the proof expires
-     * @param _thresholdAmount The threshold amount for threshold/maximum proofs
-     * @param _signatureMessage The message that was signed by the user
-     * @param _signature The signature of the user
+     * @notice Submit a new proof of funds
+     * @dev Creates a new proof entry with the provided parameters and assigns a unique ID
+     * 
+     * @param _proofType Type of proof (0=STANDARD, 1=THRESHOLD, 2=MAXIMUM)
+     * @param _proofHash Cryptographic hash of the proof data
+     * @param _expiryTime Unix timestamp when the proof should expire
+     * @param _signatureMessage Message that was signed to create this proof
+     * @return uint256 The ID of the newly created proof
      */
     function submitProof(
         ProofType _proofType,
         bytes32 _proofHash,
         uint256 _expiryTime,
-        uint256 _thresholdAmount,
-        string calldata _signatureMessage,
-        bytes calldata _signature
-    ) external nonReentrant whenNotPaused validExpiryTime(_expiryTime) {
-        // Validation checks
-        require(bytes(_signatureMessage).length > 0, "Signature message is required");
+        string memory _signatureMessage
+    ) external nonReentrant returns (uint256) {
+        require(_expiryTime > block.timestamp, "Expiry time must be in the future");
         
-        // For THRESHOLD and MAXIMUM types, require a threshold amount
-        if (_proofType == ProofType.THRESHOLD || _proofType == ProofType.MAXIMUM) {
-            require(_thresholdAmount > 0, "Threshold amount must be greater than zero");
-        }
-
+        // Increment counter to get a new unique ID
+        _proofIdCounter.increment();
+        uint256 proofId = _proofIdCounter.current();
+        
         // Create and store the proof
-        proofs[msg.sender] = Proof({
-            user: msg.sender,
-            timestamp: block.timestamp,
-            expiryTime: _expiryTime,
-            proofHash: _proofHash,
+        Proof memory newProof = Proof({
             proofType: _proofType,
-            thresholdAmount: _thresholdAmount,
+            user: msg.sender,
+            proofHash: _proofHash,
+            expiryTime: _expiryTime,
             isRevoked: false,
-            signatureMessage: _signatureMessage,
-            signature: _signature
+            signatureMessage: _signatureMessage
         });
-
-        emit ProofSubmitted(msg.sender, _proofHash, block.timestamp, _expiryTime, _proofType);
-    }
-
-    /**
-     * @dev Verify a standard proof (exact amount)
-     * @param _user The user's address
-     * @param _claimedAmount The amount to verify
-     * @return bool Whether the proof is valid
-     */
-    function verifyStandardProof(address _user, uint256 _claimedAmount) external view returns (bool) {
-        Proof memory userProof = proofs[_user];
         
-        // Check if proof exists, is not expired, not revoked, and is of correct type
-        if (userProof.user == address(0) || 
-            userProof.expiryTime <= block.timestamp || 
-            userProof.isRevoked || 
-            userProof.proofType != ProofType.STANDARD) {
-            return false;
-        }
-
-        // Generate hash with claimed amount and check if it matches
-        bytes32 claimedHash = generateProofHash(_user, _claimedAmount, ProofType.STANDARD);
-        return userProof.proofHash == claimedHash;
-    }
-
-    /**
-     * @dev Verify a threshold proof (minimum amount)
-     * @param _user The user's address
-     * @param _minimumAmount The minimum amount to verify
-     * @return bool Whether the proof is valid
-     */
-    function verifyThresholdProof(address _user, uint256 _minimumAmount) external view returns (bool) {
-        Proof memory userProof = proofs[_user];
+        proofs[proofId] = newProof;
+        userProofs[msg.sender].push(proofId);
         
-        // Check if proof exists, is not expired, not revoked, and is of correct type
-        if (userProof.user == address(0) || 
-            userProof.expiryTime <= block.timestamp || 
-            userProof.isRevoked || 
-            userProof.proofType != ProofType.THRESHOLD) {
-            return false;
-        }
-
-        // For threshold proofs, check if the stored threshold amount is at least the minimum
-        return userProof.thresholdAmount >= _minimumAmount;
-    }
-
-    /**
-     * @dev Verify a maximum proof (maximum amount)
-     * @param _user The user's address
-     * @param _maximumAmount The maximum amount to verify
-     * @return bool Whether the proof is valid
-     */
-    function verifyMaximumProof(address _user, uint256 _maximumAmount) external view returns (bool) {
-        Proof memory userProof = proofs[_user];
+        emit ProofSubmitted(
+            proofId,
+            msg.sender,
+            _proofType,
+            _proofHash,
+            _expiryTime
+        );
         
-        // Check if proof exists, is not expired, not revoked, and is of correct type
-        if (userProof.user == address(0) || 
-            userProof.expiryTime <= block.timestamp || 
-            userProof.isRevoked || 
-            userProof.proofType != ProofType.MAXIMUM) {
-            return false;
-        }
-
-        // For maximum proofs, check if the stored threshold amount is at most the maximum
-        return userProof.thresholdAmount <= _maximumAmount;
-    }
-
-    /**
-     * @dev Revoke a proof
-     * @param _reason The reason for revoking the proof
-     */
-    function revokeProof(string calldata _reason) external nonReentrant whenNotPaused {
-        Proof storage userProof = proofs[msg.sender];
-        
-        // Check if proof exists and is not already revoked
-        require(userProof.user != address(0), "No proof exists for user");
-        require(!userProof.isRevoked, "Proof is already revoked");
-        
-        // Revoke the proof
-        userProof.isRevoked = true;
-        
-        emit ProofRevoked(msg.sender, userProof.proofHash, _reason);
-    }
-
-    /**
-     * @dev Check if a proof is valid (not expired and not revoked)
-     * @param _user The user's address
-     * @return bool Whether the proof is valid
-     */
-    function isProofValid(address _user) external view returns (bool) {
-        Proof memory userProof = proofs[_user];
-        
-        return (userProof.user != address(0) && 
-                userProof.expiryTime > block.timestamp && 
-                !userProof.isRevoked);
-    }
-
-    /**
-     * @dev Retrieve a proof for a specific user
-     * @param _user The address of the user
-     * @return The proof data for the specified user
-     */
-    function getProof(address _user) external view returns (Proof memory) {
-        return proofs[_user];
-    }
-
-    /**
-     * @dev Verify if a signature is valid for a message
-     * @param _user The user's address
-     * @param _message The message that was signed
-     * @return bool Whether the signature is valid
-     */
-    function verifySignature(address _user, string calldata _message) external view returns (bool) {
-        Proof memory userProof = proofs[_user];
-        
-        // Check if proof exists
-        if (userProof.user == address(0)) {
-            return false;
-        }
-
-        // Compare the stored message with the provided message
-        return keccak256(bytes(userProof.signatureMessage)) == keccak256(bytes(_message));
+        return proofId;
     }
     
     /**
-     * @dev Pauses the contract, preventing new proof submissions and revocations
-     * @notice Can only be called by the contract owner
+     * @notice Revoke a previously submitted proof
+     * @dev Allows a user to invalidate their own proof by marking it as revoked
+     * 
+     * @param _proofId ID of the proof to revoke
+     * @return bool True if the proof was successfully revoked
      */
-    function pause() external onlyOwner {
-        _pause();
-        emit ContractPaused(msg.sender);
+    function revokeProof(uint256 _proofId) external nonReentrant returns (bool) {
+        Proof storage proof = proofs[_proofId];
+        
+        require(proof.user == msg.sender, "Only proof owner can revoke");
+        require(!proof.isRevoked, "Proof already revoked");
+        
+        proof.isRevoked = true;
+        
+        emit ProofRevoked(_proofId, msg.sender);
+        
+        return true;
     }
     
     /**
-     * @dev Unpauses the contract, allowing proof submissions and revocations
-     * @notice Can only be called by the contract owner
+     * @notice Get a proof by its ID
+     * @dev Returns all details of a specific proof
+     * 
+     * @param _proofId ID of the proof to retrieve
+     * @return ProofType Type of the proof
+     * @return address Address of the user who submitted the proof
+     * @return bytes32 Cryptographic hash of the proof data
+     * @return uint256 Unix timestamp when the proof expires
+     * @return bool Flag indicating if the proof has been revoked
+     * @return string The signature message used to create the proof
      */
-    function unpause() external onlyOwner {
-        _unpause();
-        emit ContractUnpaused(msg.sender);
+    function getProof(uint256 _proofId) external view returns (
+        ProofType,
+        address,
+        bytes32,
+        uint256,
+        bool,
+        string memory
+    ) {
+        Proof memory proof = proofs[_proofId];
+        return (
+            proof.proofType,
+            proof.user,
+            proof.proofHash,
+            proof.expiryTime,
+            proof.isRevoked,
+            proof.signatureMessage
+        );
+    }
+    
+    /**
+     * @notice Check if a proof is valid
+     * @dev Validates a proof by checking expiration and revocation status
+     * 
+     * @param _proofId ID of the proof to verify
+     * @return bool True if the proof is valid (not expired and not revoked)
+     */
+    function isProofValid(uint256 _proofId) external view returns (bool) {
+        Proof memory proof = proofs[_proofId];
+        return (
+            proof.expiryTime > block.timestamp &&
+            !proof.isRevoked
+        );
+    }
+    
+    /**
+     * @notice Get all proof IDs for a specific user
+     * @dev Returns an array of proof IDs associated with the given address
+     * 
+     * @param _user Address of the user to query
+     * @return uint256[] Array of proof IDs belonging to the user
+     */
+    function getUserProofs(address _user) external view returns (uint256[] memory) {
+        return userProofs[_user];
+    }
+    
+    /**
+     * @notice Update the contract version
+     * @dev Only callable by the contract owner
+     * 
+     * @param _newVersion New version string to set
+     */
+    function updateVersion(string memory _newVersion) external onlyOwner {
+        version = _newVersion;
+        emit VersionUpdated(_newVersion);
     }
 } 

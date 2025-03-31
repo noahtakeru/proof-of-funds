@@ -1,22 +1,309 @@
 /**
- * Arbitr Platform Constants
+ * Application Constants
  * 
- * This file centralizes all constant values and configuration parameters used
- * throughout the Arbitr proof of funds application. It includes:
+ * This module centralizes all configuration values and constants used throughout the
+ * Proof of Funds application. Centralizing these values makes it easier to maintain
+ * the application and deploy to different environments (development, testing, production).
  * 
- * - Contract addresses and chain identifiers
- * - Enumeration values for proof types
- * - Time-related constants like expiry options
- * - Message templates for blockchain signatures
- * - Smart contract ABIs for blockchain interaction
+ * Key Categories:
+ * - Contract Addresses: Blockchain contract addresses for different networks
+ * - Chain IDs: Blockchain network identifiers
+ * - Enumeration Values: Named constants for proof types and other categorizations
+ * - Expiry Options: Duration settings for proof validity periods
+ * - Signature Messages: Template strings for blockchain signatures
+ * - ABIs: Smart contract interface definitions (Application Binary Interfaces)
  * 
- * Centralizing these values makes it easier to maintain configuration across
- * the application and simplifies the process of deploying to different environments
- * (testnet, mainnet, etc.).
+ * Usage:
+ * Import specific constants or groups of constants where needed:
+ * import { PROOF_OF_FUNDS_ADDRESS, PROOF_TYPES } from '../config/constants';
  * 
- * When using values from this file, import only the specific constants needed
- * rather than the entire module to improve code maintainability.
+ * Note: For deployment to production environments, you should replace the 
+ * placeholder addresses with actual deployed contract addresses.
  */
+
+// Polygon Amoy Testnet Contract Address
+export const PROOF_OF_FUNDS_ADDRESS = "0xD6bd1eFCE3A2c4737856724f96F39037a3564890";
+
+// Test-only address for local development
+export const TEST_CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
+// Polygon Amoy Testnet Chain ID
+export const POLYGON_AMOY_CHAIN_ID = 80002;
+
+/**
+ * Proof types supported by the contracts
+ * These values correspond to enum values in the smart contracts
+ * 
+ * STANDARD: Basic proof of having at least X funds
+ * THRESHOLD: Proof of having funds within a specific range
+ * MAXIMUM: Proof of having at most X funds
+ * ZK: Zero-knowledge proof that maintains additional privacy
+ */
+export const PROOF_TYPES = {
+    STANDARD: 0,
+    THRESHOLD: 1,
+    MAXIMUM: 2,
+    ZK: 3
+};
+
+/**
+ * Expiry options for proofs
+ * Keys represent the option ID, values represent human-readable labels
+ */
+export const EXPIRY_OPTIONS = {
+    one_day: "1 Day",
+    one_week: "1 Week",
+    one_month: "1 Month",
+    three_months: "3 Months",
+    six_months: "6 Months",
+    one_year: "1 Year"
+};
+
+/**
+ * Signature message templates for different verification scenarios
+ * These messages are shown to users when signing with their wallets
+ */
+export const SIGNATURE_MESSAGES = {
+    STANDARD: "I confirm that I have at least {amount} in my wallet for verification purposes.",
+    THRESHOLD: "I confirm that I have at least {amount} in my wallet for verification purposes.",
+    MAXIMUM: "I confirm that I have at most {amount} in my wallet for verification purposes.",
+    ZK: "I am verifying my funds using a zero-knowledge proof. No specific amount will be shared.",
+};
+
+/**
+ * ABI (Application Binary Interface) for the ProofOfFunds smart contract
+ * Defines the functions, events, and their parameters for interacting with the contract
+ */
+export const PROOF_OF_FUNDS_ABI = [
+    {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "proofId",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "user",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "enum ProofOfFunds.ProofType",
+                "name": "proofType",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "proofHash",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "expiryTime",
+                "type": "uint256"
+            }
+        ],
+        "name": "ProofSubmitted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "proofId",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "user",
+                "type": "address"
+            }
+        ],
+        "name": "ProofRevoked",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_proofId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getProof",
+        "outputs": [
+            {
+                "internalType": "enum ProofOfFunds.ProofType",
+                "name": "",
+                "type": "uint8"
+            },
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            },
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_user",
+                "type": "address"
+            }
+        ],
+        "name": "getUserProofs",
+        "outputs": [
+            {
+                "internalType": "uint256[]",
+                "name": "",
+                "type": "uint256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_proofId",
+                "type": "uint256"
+            }
+        ],
+        "name": "isProofValid",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_proofId",
+                "type": "uint256"
+            }
+        ],
+        "name": "revokeProof",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "enum ProofOfFunds.ProofType",
+                "name": "_proofType",
+                "type": "uint8"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "_proofHash",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_expiryTime",
+                "type": "uint256"
+            },
+            {
+                "internalType": "string",
+                "name": "_signatureMessage",
+                "type": "string"
+            }
+        ],
+        "name": "submitProof",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+];
+
+/**
+ * Array of supported blockchain networks
+ * Each entry contains information about the network name and chain ID
+ */
+export const SUPPORTED_CHAINS = [
+    {
+        id: 'ethereum',
+        name: 'Ethereum',
+        chainId: 1
+    },
+    {
+        id: 'polygon',
+        name: 'Polygon',
+        chainId: 137
+    },
+    {
+        id: 'polygon_amoy',
+        name: 'Polygon Amoy',
+        chainId: POLYGON_AMOY_CHAIN_ID
+    },
+    {
+        id: 'bnb',
+        name: 'BNB Chain',
+        chainId: 56
+    },
+    {
+        id: 'solana',
+        name: 'Solana',
+        chainId: null
+    }
+];
 
 // Use the address from the deployment script (see deployments directory)
 // This was previously incorrectly set to a wallet address
@@ -24,7 +311,6 @@
 // IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
 export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
-export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 
 // Polygon Amoy Testnet RPC URL
 export const POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
@@ -32,28 +318,12 @@ export const POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
 // Add Hardhat local network configuration
 export const HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
 
-// Proof types enum values
-export const PROOF_TYPES = {
-    STANDARD: 0,
-    THRESHOLD: 1,
-    MAXIMUM: 2,
-    ZERO_KNOWLEDGE: 3
-};
-
 // ZK Proof types enum values
 export const ZK_PROOF_TYPES = {
     STANDARD: 0,
     THRESHOLD: 1,
     MAXIMUM: 2
 };
-
-// Expiry options in seconds
-export const EXPIRY_OPTIONS = [
-    { id: 'one_day', label: '1 Day', seconds: 86400 },
-    { id: 'seven_days', label: '7 Days', seconds: 604800 },
-    { id: 'thirty_days', label: '30 Days', seconds: 2592000 },
-    { id: 'ninety_days', label: '90 Days', seconds: 7776000 }
-];
 
 // Legacy expiry options - will be removed in future
 export const EXPIRY_TIME_OPTIONS = {
@@ -264,65 +534,6 @@ export const ZK_VERIFIER_ABI = [
 //    "Regulatory compliance verification - {regulation}",
 //    "Custom verification"
 // ]; 
-
-// Supported blockchain networks
-export const SUPPORTED_CHAINS = {
-    ETHEREUM: {
-        name: 'Ethereum',
-        chainId: 1,
-        testnetChainId: 5, // Goerli
-        nativeSymbol: 'ETH',
-        decimals: 18,
-        blockExplorer: 'https://etherscan.io',
-        testnetBlockExplorer: 'https://goerli.etherscan.io',
-        rpcUrl: 'https://mainnet.infura.io/v3/your-infura-key',
-        testnetRpcUrl: 'https://goerli.infura.io/v3/your-infura-key'
-    },
-    POLYGON: {
-        name: 'Polygon',
-        chainId: 137,
-        testnetChainId: 80001, // Mumbai
-        nativeSymbol: 'MATIC',
-        decimals: 18,
-        blockExplorer: 'https://polygonscan.com',
-        testnetBlockExplorer: 'https://mumbai.polygonscan.com',
-        rpcUrl: 'https://polygon-rpc.com',
-        testnetRpcUrl: 'https://rpc-mumbai.maticvigil.com'
-    },
-    BINANCE: {
-        name: 'BNB Chain',
-        chainId: 56,
-        testnetChainId: 97,
-        nativeSymbol: 'BNB',
-        decimals: 18,
-        blockExplorer: 'https://bscscan.com',
-        testnetBlockExplorer: 'https://testnet.bscscan.com',
-        rpcUrl: 'https://bsc-dataseed.binance.org',
-        testnetRpcUrl: 'https://data-seed-prebsc-1-s1.binance.org:8545'
-    },
-    SOLANA: {
-        name: 'Solana',
-        clusterId: 'mainnet-beta',
-        testnetClusterId: 'devnet',
-        nativeSymbol: 'SOL',
-        decimals: 9,
-        blockExplorer: 'https://explorer.solana.com',
-        testnetBlockExplorer: 'https://explorer.solana.com/?cluster=devnet',
-        rpcUrl: 'https://api.mainnet-beta.solana.com',
-        testnetRpcUrl: 'https://api.devnet.solana.com'
-    },
-    HARDHAT: {
-        name: 'Hardhat Local',
-        chainId: 31337,
-        testnetChainId: 31337,
-        nativeSymbol: 'ETH',
-        decimals: 18,
-        blockExplorer: '',
-        testnetBlockExplorer: '',
-        rpcUrl: 'http://127.0.0.1:8545/',
-        testnetRpcUrl: 'http://127.0.0.1:8545/'
-    }
-};
 
 // Price API endpoints
 export const PRICE_API = {
