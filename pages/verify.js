@@ -34,6 +34,11 @@ import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
 import Head from 'next/head';
+import Layout from '../components/Layout';
+import VerificationForm from '../components/VerificationForm';
+import VerificationResult from '../components/VerificationResult';
+import { decryptProof } from '../lib/zk/proofEncryption';
+import { verifyProofLocally } from '../lib/zk/zkProofVerifier';
 
 // Browser-friendly RPC URLs that support CORS
 const RPC_OPTIONS = [
@@ -621,8 +626,8 @@ export default function VerifyPage() {
                                 onClick={handleVerify}
                                 disabled={isVerifying || !transactionHash}
                                 className={`px-4 py-2 rounded-r-md font-medium ${isVerifying || !transactionHash
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-blue-500 text-white hover:bg-blue-600'
                                     }`}
                             >
                                 {isVerifying ? 'Verifying...' : 'Verify'}

@@ -42,6 +42,10 @@ import ConnectWallet from '../components/ConnectWallet';
 import { getConnectedWallets } from '../lib/walletHelpers';
 import { getChainForWallet, getWalletBalance, calculateUsdValue } from '../lib/assetHelpers';
 import { PROOF_OF_FUNDS_ABI, PROOF_OF_FUNDS_ADDRESS, PROOF_TYPES, EXPIRY_OPTIONS, SIGNATURE_MESSAGES } from '../config/constants';
+import Layout from '../components/Layout';
+import ShareProofDialog from '../components/ShareProofDialog';
+import { generateAccessKey, encryptProof, hashAccessKey } from '../lib/zk/proofEncryption';
+import { formatReferenceId, generateReferenceId } from '../lib/zk/referenceId';
 
 export default function Create() {
     const router = useRouter();
@@ -62,6 +66,8 @@ export default function Create() {
     const [assetScanComplete, setAssetScanComplete] = useState(false);
     const [walletBalances, setWalletBalances] = useState({});
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
+    const [showShareDialog, setShowShareDialog] = useState(false);
+    const [createdProof, setCreatedProof] = useState(null);
 
     /**
      * Fetches wallet balance data for connected wallets
@@ -305,5 +311,30 @@ export default function Create() {
         }
     };
 
-    // ... Rest of the component rendering ...
-} 
+    const connectWallet = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const walletData = await mockConnectWallet();
+            setSelectedWallet(walletData);
+        } catch (err) {
+            console.error('Wallet connection error:', err);
+            setError('Failed to connect wallet: ' + (err.message || 'Unknown error'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateProof = async (e) => {
+        e.preventDefault();
+
+        if (!selectedWallet) {
+            setError('Please connect your wallet first');
+            return;
+        }
+
+        if (proofType === 'threshold' && (!amount || isNaN(parseFloat(amount)))) {
+            setError('Please enter a valid amount');
+            // ... Rest of the component rendering ...
+        } 
