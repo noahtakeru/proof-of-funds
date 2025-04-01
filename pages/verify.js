@@ -84,7 +84,15 @@ export default function VerifyPage() {
         return false;
     });
 
-    const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
+    const [proofCategory, setProofCategory] = useState(() => {
+        // Check URL parameters for tab selection if in browser
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+            return tab === 'zk' ? 'zk' : 'standard';
+        }
+        return 'standard';
+    }); // 'standard' or 'zk'
     const [proofType, setProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
     const [zkProofType, setZkProofType] = useState('standard'); // 'standard', 'threshold', 'maximum'
     const [verificationMode, setVerificationMode] = useState('transaction'); // Only 'transaction' now
@@ -108,6 +116,16 @@ export default function VerifyPage() {
             return () => window.removeEventListener('storage', handleStorageChange);
         }
     }, []);
+    
+    // Monitor URL query parameters for tab changes
+    useEffect(() => {
+        if (router.isReady) {
+            const { tab } = router.query;
+            if (tab === 'zk') {
+                setProofCategory('zk');
+            }
+        }
+    }, [router.isReady, router.query]);
 
     // Read contract for standard proof verification
     const { data: standardProofResult, isLoading: isLoadingStandard, refetch: refetchStandard } = useContractRead({
@@ -591,6 +609,31 @@ export default function VerifyPage() {
 
             <main>
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                    {/* Proof category tabs */}
+                    <div className="mb-6 border-b border-gray-200">
+                        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button
+                                onClick={() => setProofCategory('standard')}
+                                className={`${proofCategory === 'standard'
+                                    ? 'border-primary-600 text-primary-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Standard Proof
+                            </button>
+                            <button
+                                onClick={() => setProofCategory('zk')}
+                                className={`${proofCategory === 'zk'
+                                    ? 'border-primary-600 text-primary-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Zero-Knowledge Proof
+                            </button>
+                        </nav>
+                    </div>
+
+                    {proofCategory === 'standard' ? (
                     <div className="mb-4">
                         <label htmlFor="txHash" className="block text-gray-700 font-medium mb-2">
                             Transaction Hash

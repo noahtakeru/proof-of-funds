@@ -30,23 +30,28 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 
+// This page is now integrated into the main create.js page with tabs
+// This file exists for backward compatibility
 export default function CreateZKProof() {
     const router = useRouter();
-    const { address, isConnected } = useAccount();
     
-    // Form state
-    const [walletAddress, setWalletAddress] = useState('');
-    const [balance, setBalance] = useState('');
-    const [threshold, setThreshold] = useState('');
-    const [proofType, setProofType] = useState(0); // 0: standard, 1: threshold, 2: maximum
-    const [expiryDays, setExpiryDays] = useState(7);
+    // Redirect to the main create page with zk tab selected
+    useEffect(() => {
+        router.push({
+            pathname: '/create',
+            query: { tab: 'zk' }
+        });
+    }, [router]);
     
-    // UI state
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [showShareDialog, setShowShareDialog] = useState(false);
-    const [createdProof, setCreatedProof] = useState(null);
-    const [detectingBalance, setDetectingBalance] = useState(false);
+    // Return loading state while redirecting
+    return (
+        <Layout title="Redirecting...">
+            <div className="container mx-auto px-4 py-8 max-w-4xl text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Redirecting to the new Create Proof page with Zero-Knowledge functionality...</p>
+            </div>
+        </Layout>
+    );
     
     // Set the wallet address from the connected wallet
     useEffect(() => {

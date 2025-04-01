@@ -1,9 +1,15 @@
 {
     "presets": [
+        [
+            "@babel/preset-env",
+            {
+                "targets": {
+                    "node": "current"
+                },
+                "modules": "commonjs"
+            }
+        ],
         "next/babel"
     ],
-    "sourceType": "module",
-    "assumptions": {
-        "setPublicClassFields": true
-    }
+    "plugins": []
 }

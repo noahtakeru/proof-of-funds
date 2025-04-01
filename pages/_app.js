@@ -12,11 +12,13 @@ import '../styles/globals.css';
 import { AppProps } from 'next/app';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { WagmiConfig, createClient, configureChains } from 'wagmi';
-import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
-import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-import { InjectedConnector } from 'wagmi/connectors/injected';
 import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext';
+
+// Use dynamic imports for the wagmi library to avoid ESM issues
+const WagmiProvider = dynamic(
+    () => import('../components/WagmiProvider').then((mod) => mod.WagmiProvider),
+    { ssr: false }
+);
 
 /**
  * Polygon Amoy Testnet Configuration
@@ -127,13 +129,13 @@ function MyApp({ Component, pageProps }) {
     }, []);
 
     return (
-        <WagmiConfig client={client}>
+        <WagmiProvider>
             <PhantomMultiWalletProvider>
                 <Layout>
                     <Component {...pageProps} />
                 </Layout>
             </PhantomMultiWalletProvider>
-        </WagmiConfig>
+        </WagmiProvider>
     );
 }
 

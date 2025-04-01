@@ -4,12 +4,8 @@ export function middleware(request) {
     // Get the pathname of the request
     const { pathname } = request.nextUrl;
 
-    // If it's the home page, redirect to the ZK home page
-    if (pathname === '/') {
-        return NextResponse.redirect(new URL('/zk-home', request.url));
-    }
-
-    // Otherwise, continue with the request
+    // No redirection - allow the home page to render normally
+    // Continue with the request
     return NextResponse.next();
 }
 

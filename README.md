@@ -108,6 +108,12 @@ proof-of-funds/
 - Smart contract tests: `npm run test`
 - Frontend tests: (coming soon)
 
+To test the ZK proof functionality:
+
+- **Run unit tests**: `npm run test:zk:unit`
+- **Run workflow test**: `npm run test:zk:workflow` - This tests the entire ZK proof lifecycle from creation to verification
+- **Run script tests**: `npm run test:zk`
+
 ## Deployment
 
 ### Contract Deployment
@@ -134,3 +140,57 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Zero-Knowledge Proof System
+
+This project includes a comprehensive zero-knowledge proof system that enables users to prove they have sufficient funds without revealing exact balances or wallet addresses.
+
+### Key Features
+
+- **Private Proof Generation**: Create cryptographic proofs that verify your fund ownership without exposing sensitive information.
+- **Proof Types**:
+  - **Balance Proofs**: Verify you own exactly a certain amount.
+  - **Threshold Proofs**: Prove you have at least a certain amount.
+  - **Maximum Proofs**: Verify your balance is under a specified limit.
+- **Reference ID System**: Proofs are assigned unique reference IDs for sharing.
+- **Secure Access Keys**: Encrypted proofs can only be decrypted with the correct access key.
+- **Time-Limited Validity**: Set expiration dates for proofs.
+- **Proof Management**: View, share, and revoke your proofs.
+
+### Architecture
+
+The ZK proof system consists of several modules:
+
+- **Reference ID Management**: `lib/zk/referenceId.js`
+- **Proof Encryption**: `lib/zk/proofEncryption.js`
+- **Proof Verification**: `lib/zk/zkProofVerifier.js`
+- **UI Components**:
+  - `components/VerificationForm.js`
+  - `components/VerificationResult.js`
+  - `components/ShareProofDialog.js`
+  - `components/ProofList.js`
+
+### Pages
+
+- **ZK Home**: `/zk-home` - Overview and links to ZK functionality
+- **Create Proof**: `/create-zk` - Generate new ZK proofs
+- **Verify Proof**: `/verify-zk` - Verify proofs using reference IDs and access keys
+- **Manage Proofs**: `/manage-zk` - View and manage your proofs
+
+### Testing
+
+The ZK proof system includes comprehensive tests:
+
+1. **Unit Tests**: Run with `npm test`
+2. **Script Tests**: Run with `npm run test:zk`
+
+### Development
+
+To work on the ZK proof system:
+
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Run the development server with `npm run dev`
+4. Navigate to the ZK home page at http://localhost:3000/zk-home
+
+For more details, see the code documentation in the respective files.

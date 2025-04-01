@@ -72,12 +72,6 @@ export default function Navbar() {
                                 Create Proof
                             </Link>
                             <Link
-                                href="/create-zk"
-                                className={getActiveClass('/create-zk')}
-                            >
-                                Create ZK Proof
-                            </Link>
-                            <Link
                                 href="/verify"
                                 className={getActiveClass('/verify')}
                             >

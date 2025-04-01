@@ -53,7 +53,15 @@ export default function ManagePage() {
     const [isLoadingZkProofs, setIsLoadingZkProofs] = useState(false);
 
     // New state for temporary wallet management
-    const [activeTab, setActiveTab] = useState('proofs'); // 'proofs', 'temp-wallets', or 'zk-proofs'
+    const [activeTab, setActiveTab] = useState(() => {
+        // Check URL parameters for tab selection if in browser
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+            return tab || 'proofs'; // Default to 'proofs' if no tab specified
+        }
+        return 'proofs';
+    }); // 'proofs', 'temp-wallets', or 'zk-proofs'
     const [temporaryWallets, setTemporaryWallets] = useState([]);
     const [isLoadingWallets, setIsLoadingWallets] = useState(false);
     const [walletMessage, setWalletMessage] = useState('');
@@ -73,6 +81,19 @@ export default function ManagePage() {
             return () => window.removeEventListener('storage', handleStorageChange);
         }
     }, []);
+    
+    /**
+     * Monitor URL query parameters for tab changes
+     */
+    const router = useRouter();
+    useEffect(() => {
+        if (router.isReady) {
+            const { tab } = router.query;
+            if (tab) {
+                setActiveTab(tab);
+            }
+        }
+    }, [router.isReady, router.query]);
 
     /**
      * Contract read hook to get the list of user's proof IDs

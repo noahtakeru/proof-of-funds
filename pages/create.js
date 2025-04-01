@@ -46,6 +46,8 @@ import Layout from '../components/Layout';
 import ShareProofDialog from '../components/ShareProofDialog';
 import { generateAccessKey, encryptProof, hashAccessKey } from '../lib/zk/proofEncryption';
 import { formatReferenceId, generateReferenceId } from '../lib/zk/referenceId';
+import { generateZKProof, createProofPackage } from '../lib/zk/zkProofGenerator';
+import { ethers } from 'ethers';
 
 export default function Create() {
     const router = useRouter();
@@ -336,5 +338,52 @@ export default function Create() {
 
         if (proofType === 'threshold' && (!amount || isNaN(parseFloat(amount)))) {
             setError('Please enter a valid amount');
-            // ... Rest of the component rendering ...
-        } 
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            // Implementation details would go here
+            console.log('Creating proof with', { selectedWallet, proofType, amount });
+            // Add actual implementation as needed
+        } catch (err) {
+            console.error('Error creating proof:', err);
+            setError(err.message || 'Failed to create proof');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Layout title="Create Proof of Funds">
+            <div className="max-w-4xl mx-auto">
+                <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+                    <div className="px-4 py-5 sm:px-6">
+                        <h1 className="text-2xl font-bold text-gray-900">Create Proof of Funds</h1>
+                        <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                            Generate a cryptographic proof of your funds without revealing your exact balance.
+                        </p>
+                    </div>
+
+                    {/* Form content would go here */}
+                    <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
+                        <div className="text-center py-10">
+                            <button
+                                type="button"
+                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                onClick={() => router.push('/create-zk')}
+                            >
+                                Create ZK Proof
+                            </button>
+                            <p className="mt-2 text-sm text-gray-500">
+                                For zero-knowledge proofs, please use our dedicated ZK proof creation page.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Layout>
+    );
+} 
