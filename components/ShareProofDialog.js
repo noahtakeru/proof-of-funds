@@ -1,124 +1,118 @@
 /**
  * Share Proof Dialog Component
  * 
- * Modal dialog for sharing proof reference ID and access key
+ * A modal dialog that displays the reference ID and access key for a newly created
+ * zero-knowledge proof and provides options to copy or share them.
+ * 
+ * @param {Object} props Component props
+ * @param {string} props.referenceId The formatted reference ID of the proof
+ * @param {string} props.accessKey The access key for decrypting the proof
+ * @param {Function} props.onClose Function to call when the dialog is closed
+ * @param {Function} props.onManage Function to call when the "Manage Proofs" button is clicked
  */
 
-import React, { useState } from 'react';
-import { formatReferenceId } from '../lib/zk/referenceId';
+import { useState } from 'react';
 
-const ShareProofDialog = ({ proof, onClose }) => {
-    const [copySuccess, setCopySuccess] = useState('');
-
-    if (!proof) return null;
-
-    // Format the proof information for sharing
-    const sharingText = `
-Proof of Funds Verification
---------------------------
-Reference ID: ${formatReferenceId(proof.referenceId)}
-Access Key: ${proof.accessKey}
-Expires: ${new Date(proof.expiresAt).toLocaleString()}
-
-To verify this proof, visit: ${window.location.origin}/verify
-`;
-
-    // Copy text to clipboard
-    const handleCopy = () => {
-        navigator.clipboard.writeText(sharingText).then(
-            () => {
-                setCopySuccess('Copied!');
-                setTimeout(() => setCopySuccess(''), 2000);
-            },
-            () => {
-                setCopySuccess('Failed to copy');
-            }
-        );
+export default function ShareProofDialog({ referenceId, accessKey, onClose, onManage }) {
+    const [copied, setCopied] = useState(false);
+    
+    // Combines reference ID and access key into a shareable format
+    const getShareText = () => {
+        return `Reference ID: ${referenceId}\nAccess Key: ${accessKey}\n\nUse these to verify my proof of funds.`;
     };
-
+    
+    // Copies the share text to the clipboard
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(getShareText())
+            .then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+            })
+            .catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+    };
+    
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-            <div className="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-                <div className="mt-3">
-                    <div className="flex justify-between items-center pb-3">
-                        <h3 className="text-lg font-medium text-gray-900">Share Proof of Funds</h3>
-                        <button
-                            className="text-gray-400 hover:text-gray-500"
-                            onClick={onClose}
-                        >
-                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen px-4">
+                {/* Backdrop */}
+                <div className="fixed inset-0 bg-black opacity-30" onClick={onClose}></div>
+                
+                {/* Dialog */}
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full z-50 p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">
+                        Proof Created Successfully
+                    </h2>
+                    
+                    <p className="text-gray-600 mb-4">
+                        Your zero-knowledge proof has been created. Save the reference ID and access key
+                        to share with others for verification.
+                    </p>
+                    
+                    <div className="mb-4 space-y-2">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Reference ID</label>
+                            <div className="flex mt-1">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={referenceId}
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Access Key</label>
+                            <div className="flex mt-1">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={accessKey}
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                                />
+                            </div>
+                        </div>
                     </div>
-
-                    <div className="mt-2">
-                        <p className="text-sm text-gray-500 mb-4">
-                            Share this information with the party that needs to verify your funds.
-                            Keep the access key secure - it gives access to your proof details.
-                        </p>
-
-                        <div className="bg-gray-50 p-3 rounded-md">
-                            <div className="mb-2">
-                                <label className="block text-sm font-medium text-gray-700">Reference ID</label>
-                                <div className="mt-1 flex rounded-md shadow-sm">
-                                    <input
-                                        type="text"
-                                        readOnly
-                                        value={formatReferenceId(proof.referenceId)}
-                                        className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md sm:text-sm border-gray-300 bg-gray-100"
-                                    />
-                                </div>
+                    
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
                             </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700">Access Key</label>
-                                <div className="mt-1 flex rounded-md shadow-sm">
-                                    <input
-                                        type="text"
-                                        readOnly
-                                        value={proof.accessKey}
-                                        className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md sm:text-sm border-gray-300 bg-gray-100"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="mb-2">
-                                <label className="block text-sm font-medium text-gray-700">Expires</label>
-                                <div className="mt-1">
-                                    <p className="text-sm text-gray-500">
-                                        {new Date(proof.expiresAt).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-700">Verification URL</label>
-                                <div className="mt-1">
-                                    <p className="text-sm text-indigo-600">
-                                        {window.location.origin}/verify
-                                    </p>
-                                </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-yellow-700">
+                                    Save this information securely. Anyone with both the reference ID and
+                                    access key can verify your proof.
+                                </p>
                             </div>
                         </div>
-
-                        <div className="mt-4">
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
+                        <button
+                            onClick={copyToClipboard}
+                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                        >
+                            {copied ? '✓ Copied!' : 'Copy to Clipboard'}
+                        </button>
+                        
+                        <div className="flex gap-3">
                             <button
-                                type="button"
-                                className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm"
-                                onClick={handleCopy}
+                                onClick={onManage}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                             >
-                                {copySuccess || 'Copy All Information'}
+                                Manage Proofs
                             </button>
-                        </div>
-
-                        <div className="mt-2">
+                            
                             <button
-                                type="button"
-                                className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm"
                                 onClick={onClose}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
                             >
-                                Close
+                                Done
                             </button>
                         </div>
                     </div>
@@ -126,6 +120,4 @@ To verify this proof, visit: ${window.location.origin}/verify
             </div>
         </div>
     );
-};
-
-export default ShareProofDialog;
+}

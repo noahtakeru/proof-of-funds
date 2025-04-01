@@ -34,7 +34,6 @@ import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
 import Head from 'next/head';
-import Layout from '../components/Layout';
 import VerificationForm from '../components/VerificationForm';
 import VerificationResult from '../components/VerificationResult';
 import { decryptProof } from '../lib/zk/proofEncryption';
@@ -92,12 +91,15 @@ export default function VerifyPage() {
     const [verificationMode, setVerificationMode] = useState('transaction'); // Only 'transaction' now
     const [walletAddress, setWalletAddress] = useState('');
     const [transactionHash, setTransactionHash] = useState('');
+    const [referenceId, setReferenceId] = useState('');
+    const [accessKey, setAccessKey] = useState('');
     const [amount, setAmount] = useState('');
     const [coinType, setCoinType] = useState('ETH'); // New state for coin type
     const [verificationStatus, setVerificationStatus] = useState(null); // null, true, false
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [proofDetails, setProofDetails] = useState(null); // To store proof details from transaction
+    const [zkProof, setZkProof] = useState(null);
 
     // Update userInitiatedConnection if it changes in localStorage
     useEffect(() => {
@@ -156,6 +158,72 @@ export default function VerifyPage() {
         args: [walletAddress || '0x0000000000000000000000000000000000000000'],
         enabled: false,
     });
+
+    // Function to handle ZK proof verification using reference ID and access key
+    const verifyZKProofWithReferenceId = async (refId, accKey) => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            setProofDetails(null);
+            setZkProof(null);
+
+            // Get the proof from localStorage or a server-side endpoint
+            const proofData = localStorage.getItem(`zkproof_${refId}`);
+            
+            if (!proofData) {
+                throw new Error('Proof not found. Make sure the reference ID is correct.');
+            }
+
+            // Parse the stored proof data
+            const parsedProofData = JSON.parse(proofData);
+            
+            console.log('Parsed proof data:', parsedProofData);
+            
+            // Decrypt the proof with the access key
+            const decryptedProof = await decryptProof(parsedProofData.encryptedProof, accKey);
+            
+            if (!decryptedProof) {
+                throw new Error('Invalid access key or corrupted proof data');
+            }
+
+            console.log('Decrypted proof:', decryptedProof);
+            
+            setZkProof(decryptedProof);
+
+            // Set metadata from the decrypted proof
+            const metadata = {
+                walletAddress: decryptedProof.originalInput.walletAddress,
+                amount: ethers.utils.formatEther(decryptedProof.originalInput.balance),
+                proofType: decryptedProof.originalInput.proofType,
+                threshold: ethers.utils.formatEther(decryptedProof.originalInput.threshold),
+                referenceId: refId,
+                timestamp: parsedProofData.createdAt,
+                expiryTime: parsedProofData.expiryTime,
+                tokenSymbol: 'ETH' // Default to ETH, could be stored in the proof
+            };
+
+            setWalletAddress(metadata.walletAddress);
+            setAmount(metadata.amount);
+            setProofType(metadata.proofType === 0 ? 'standard' : metadata.proofType === 1 ? 'threshold' : 'maximum');
+            setProofDetails(metadata);
+
+            // Verify the ZK proof locally
+            const isValid = await verifyProofLocally(decryptedProof, metadata.walletAddress, metadata.proofType);
+            setVerificationStatus(isValid);
+
+            return {
+                success: isValid,
+                metadata
+            };
+        } catch (err) {
+            console.error('Error verifying ZK proof:', err);
+            setError(err.message || 'Failed to verify ZK proof');
+            setVerificationStatus(false);
+            return { success: false, error: err.message };
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Function to extract proof data from transaction hash
     const getProofFromTransaction = async (txHash) => {
@@ -506,68 +574,81 @@ export default function VerifyPage() {
         setProofDetails(null);
 
         try {
-            // Only transaction-based verification now
-            if (!transactionHash) {
-                setError("Please enter a transaction hash");
-                return;
+            if (proofCategory === 'standard') {
+                // Standard proof verification (transaction-based)
+                if (!transactionHash) {
+                    setError("Please enter a transaction hash");
+                    return;
+                }
+
+                // Validate transaction hash format
+                const hashStatus = getTransactionHashStatus(transactionHash);
+                if (!hashStatus.valid) {
+                    setError(hashStatus.message);
+                    return;
+                }
+
+                setIsLoading(true);
+
+                // Get proof data from transaction
+                const proofData = await getProofFromTransaction(transactionHash);
+
+                if (!proofData) {
+                    setVerificationStatus(false);
+                    return;
+                }
+
+                // Determine the proof type from the proof data
+                let proofTypeEnum;
+                let proofTypeStr;
+
+                if (proofData.proofType === 0) {
+                    proofTypeEnum = PROOF_TYPES.STANDARD;
+                    proofTypeStr = 'standard';
+                    setProofType('standard');
+                } else if (proofData.proofType === 1) {
+                    proofTypeEnum = PROOF_TYPES.THRESHOLD;
+                    proofTypeStr = 'threshold';
+                    setProofType('threshold');
+                } else if (proofData.proofType === 2) {
+                    proofTypeEnum = PROOF_TYPES.MAXIMUM;
+                    proofTypeStr = 'maximum';
+                    setProofType('maximum');
+                }
+
+                // Set the wallet address from the proof data for internal use
+                setWalletAddress(proofData.user);
+
+                // Note: We don't require the user to enter an amount anymore
+                // We use the amount extracted from the transaction
+
+                // Now perform the appropriate verification based on proof type
+                let verified = false;
+
+                if (proofTypeStr === 'standard') {
+                    await refetchStandard();
+                    verified = standardProofResult;
+                } else if (proofTypeStr === 'threshold') {
+                    await refetchThreshold();
+                    verified = thresholdProofResult;
+                } else if (proofTypeStr === 'maximum') {
+                    await refetchMaximum();
+                    verified = maximumProofResult;
+                }
+
+                setVerificationStatus(verified);
+            } else if (proofCategory === 'zk') {
+                // ZK proof verification (reference ID and access key)
+                if (!referenceId || !accessKey) {
+                    setError("Please enter both reference ID and access key");
+                    return;
+                }
+
+                // Verify ZK proof
+                const result = await verifyZKProofWithReferenceId(referenceId, accessKey);
+
+                // Result handling is inside the verifyZKProofWithReferenceId function
             }
-
-            // Validate transaction hash format
-            const hashStatus = getTransactionHashStatus(transactionHash);
-            if (!hashStatus.valid) {
-                setError(hashStatus.message);
-                return;
-            }
-
-            setIsLoading(true);
-
-            // Get proof data from transaction
-            const proofData = await getProofFromTransaction(transactionHash);
-
-            if (!proofData) {
-                setVerificationStatus(false);
-                return;
-            }
-
-            // Determine the proof type from the proof data
-            let proofTypeEnum;
-            let proofTypeStr;
-
-            if (proofData.proofType === 0) {
-                proofTypeEnum = PROOF_TYPES.STANDARD;
-                proofTypeStr = 'standard';
-                setProofType('standard');
-            } else if (proofData.proofType === 1) {
-                proofTypeEnum = PROOF_TYPES.THRESHOLD;
-                proofTypeStr = 'threshold';
-                setProofType('threshold');
-            } else if (proofData.proofType === 2) {
-                proofTypeEnum = PROOF_TYPES.MAXIMUM;
-                proofTypeStr = 'maximum';
-                setProofType('maximum');
-            }
-
-            // Set the wallet address from the proof data for internal use
-            setWalletAddress(proofData.user);
-
-            // Note: We don't require the user to enter an amount anymore
-            // We use the amount extracted from the transaction
-
-            // Now perform the appropriate verification based on proof type
-            let verified = false;
-
-            if (proofTypeStr === 'standard') {
-                await refetchStandard();
-                verified = standardProofResult;
-            } else if (proofTypeStr === 'threshold') {
-                await refetchThreshold();
-                verified = thresholdProofResult;
-            } else if (proofTypeStr === 'maximum') {
-                await refetchMaximum();
-                verified = maximumProofResult;
-            }
-
-            setVerificationStatus(verified);
         } catch (error) {
             console.error('Error verifying proof:', error);
             setError(error.message || 'Failed to verify proof');
@@ -603,40 +684,111 @@ export default function VerifyPage() {
                     </nav>
                 </div>
                 <p className="mt-2 text-gray-600">
-                    Verify a proof of funds by entering the transaction hash.
+                    Verify a proof of funds by entering the transaction hash or ZK proof reference ID.
                 </p>
             </header>
 
             <main>
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                    <div className="mb-4">
-                        <label htmlFor="txHash" className="block text-gray-700 font-medium mb-2">
-                            Transaction Hash
-                        </label>
-                        <div className="flex">
-                            <input
-                                type="text"
-                                id="txHash"
-                                value={transactionHash}
-                                onChange={(e) => setTransactionHash(e.target.value)}
-                                placeholder="0x..."
-                                className="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                    {/* Proof category tabs */}
+                    <div className="mb-6 border-b border-gray-200">
+                        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                             <button
-                                onClick={handleVerify}
-                                disabled={isVerifying || !transactionHash}
-                                className={`px-4 py-2 rounded-r-md font-medium ${isVerifying || !transactionHash
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                                    }`}
+                                onClick={() => setProofCategory('standard')}
+                                className={`${proofCategory === 'standard'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                             >
-                                {isVerifying ? 'Verifying...' : 'Verify'}
+                                Standard Proof
                             </button>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-500">
-                            Enter the blockchain transaction hash that contains the proof submission.
-                        </p>
+                            <button
+                                onClick={() => setProofCategory('zk')}
+                                className={`${proofCategory === 'zk'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Zero-Knowledge Proof
+                            </button>
+                        </nav>
                     </div>
+
+                    {proofCategory === 'standard' ? (
+                        <div>
+                            <div className="mb-4">
+                                <label htmlFor="txHash" className="block text-gray-700 font-medium mb-2">
+                                    Transaction Hash
+                                </label>
+                                <div className="flex">
+                                    <input
+                                        type="text"
+                                        id="txHash"
+                                        value={transactionHash}
+                                        onChange={(e) => setTransactionHash(e.target.value)}
+                                        placeholder="0x..."
+                                        className="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <button
+                                        onClick={handleVerify}
+                                        disabled={isVerifying || !transactionHash}
+                                        className={`px-4 py-2 rounded-r-md font-medium ${isVerifying || !transactionHash
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            }`}
+                                    >
+                                        {isVerifying ? 'Verifying...' : 'Verify'}
+                                    </button>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Enter the blockchain transaction hash that contains the proof submission.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="mb-4">
+                                <label htmlFor="refId" className="block text-gray-700 font-medium mb-2">
+                                    Reference ID
+                                </label>
+                                <input
+                                    type="text"
+                                    id="refId"
+                                    value={referenceId}
+                                    onChange={(e) => setReferenceId(e.target.value)}
+                                    placeholder="Enter reference ID"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label htmlFor="accessKey" className="block text-gray-700 font-medium mb-2">
+                                    Access Key
+                                </label>
+                                <input
+                                    type="text"
+                                    id="accessKey"
+                                    value={accessKey}
+                                    onChange={(e) => setAccessKey(e.target.value)}
+                                    placeholder="Enter access key"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <button
+                                    onClick={handleVerify}
+                                    disabled={isVerifying || !referenceId || !accessKey}
+                                    className={`w-full px-4 py-2 rounded-md font-medium ${isVerifying || !referenceId || !accessKey
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                        }`}
+                                >
+                                    {isVerifying ? 'Verifying...' : 'Verify ZK Proof'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 rounded-md">
@@ -654,11 +806,11 @@ export default function VerifyPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-500">Proof ID</h3>
-                                        <p className="mt-1">{proofDetails.proofId}</p>
+                                        <p className="mt-1">{proofDetails.proofId || proofDetails.referenceId || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-500">User Address</h3>
-                                        <p className="mt-1 break-all">{proofDetails.user}</p>
+                                        <p className="mt-1 break-all">{proofDetails.user || proofDetails.walletAddress}</p>
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-500">Proof Type</h3>
@@ -672,18 +824,20 @@ export default function VerifyPage() {
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-500">Expiry Date</h3>
-                                        <p className="mt-1">{proofDetails.expiryDate}</p>
+                                        <p className="mt-1">{proofDetails.expiryDate || proofDetails.expiryTime}</p>
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-medium text-gray-500">Contract Address</h3>
-                                        <p className="mt-1 break-all">{proofDetails.contractAddress}</p>
+                                        <p className="mt-1 break-all">{proofDetails.contractAddress || 'N/A'}</p>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-500">Proof Hash</h3>
-                                    <p className="mt-1 break-all">{proofDetails.proofHash}</p>
-                                </div>
+                                {proofDetails.proofHash && (
+                                    <div>
+                                        <h3 className="text-sm font-medium text-gray-500">Proof Hash</h3>
+                                        <p className="mt-1 break-all">{proofDetails.proofHash}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -691,4 +845,4 @@ export default function VerifyPage() {
             </main>
         </div>
     );
-} 
+}
