@@ -34,6 +34,8 @@ import { getTemporaryWalletsWithBalances, recycleUnusedWallets } from '../lib/wa
 import ProofList from '../components/ProofList';
 import Head from 'next/head';
 import Link from 'next/link';
+import Layout from '../components/Layout';
+import { ethers } from 'ethers';
 
 export default function ManagePage() {
     // Track if user has explicitly initiated a wallet connection
@@ -325,29 +327,13 @@ export default function ManagePage() {
     };
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-            <Head>
-                <title>Manage Proofs of Funds</title>
-                <meta name="description" content="Manage your active proofs of funds" />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
-
-            <header className="mb-8">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-800">Manage Your Proofs</h1>
-                    <nav className="flex space-x-4">
-                        <Link href="/" className="text-blue-500 hover:text-blue-700">
-                            Home
-                        </Link>
-                        <Link href="/create" className="text-blue-500 hover:text-blue-700">
-                            Create Proof
-                        </Link>
-                        <Link href="/verify" className="text-blue-500 hover:text-blue-700">
-                            Verify Proof
-                        </Link>
-                    </nav>
-                </div>
-            </header>
+        <Layout title="Manage Proofs of Funds">
+            <div className="container mx-auto px-4 py-8 max-w-4xl">
+                <header className="mb-8">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-3xl font-bold text-gray-800">Manage Your Proofs</h1>
+                    </div>
+                </header>
 
             <main>
                 {!isConnected ? (
@@ -688,6 +674,7 @@ export default function ManagePage() {
                     </div>
                 )}
             </main>
-        </div>
+            </div>
+        </Layout>
     );
 }

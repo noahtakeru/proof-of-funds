@@ -28,6 +28,7 @@ import { formatReferenceId } from '../lib/zk/referenceId';
 import ShareProofDialog from '../components/ShareProofDialog';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
+import Layout from '../components/Layout';
 
 export default function CreateZKProof() {
     const router = useRouter();
@@ -155,32 +156,16 @@ export default function CreateZKProof() {
     };
     
     return (
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-            <Head>
-                <title>Create Zero-Knowledge Proof</title>
-                <meta name="description" content="Create a zero-knowledge proof of funds without revealing your balance" />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
-            
-            <header className="mb-8">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-800">Create Zero-Knowledge Proof</h1>
-                    <nav className="flex space-x-4">
-                        <Link href="/" className="text-blue-500 hover:text-blue-700">
-                            Home
-                        </Link>
-                        <Link href="/verify" className="text-blue-500 hover:text-blue-700">
-                            Verify Proof
-                        </Link>
-                        <Link href="/manage" className="text-blue-500 hover:text-blue-700">
-                            Manage Proofs
-                        </Link>
-                    </nav>
-                </div>
-                <p className="mt-2 text-gray-600">
-                    Create a privacy-preserving proof of your wallet balance without revealing the exact amount.
-                </p>
-            </header>
+        <Layout title="Create Zero-Knowledge Proof">
+            <div className="container mx-auto px-4 py-8 max-w-4xl">
+                <header className="mb-8">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-3xl font-bold text-gray-800">Create Zero-Knowledge Proof</h1>
+                    </div>
+                    <p className="mt-2 text-gray-600">
+                        Create a privacy-preserving proof of your wallet balance without revealing the exact amount.
+                    </p>
+                </header>
             
             <main>
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -361,6 +346,7 @@ export default function CreateZKProof() {
                     onManage={() => router.push('/manage')}
                 />
             )}
-        </div>
+            </div>
+        </Layout>
     );
 }
