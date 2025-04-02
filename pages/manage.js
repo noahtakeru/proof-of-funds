@@ -1,28 +1,3 @@
-/**
- * Proof Management Page
- * 
- * This page allows users to manage their active proof of funds on the blockchain.
- * Users can view all their active proofs, check their expiration dates, and revoke
- * proofs that are no longer needed.
- * 
- * Key Features:
- * - View active proofs with detailed information (type, creation date, expiry)
- * - Revoke proofs that are no longer needed
- * - Responsive design with proper loading states and empty states
- * - Integration with the ProofOfFunds smart contract on Polygon Amoy testnet
- * 
- * Technical Implementation:
- * - Uses wagmi hooks for blockchain interaction (useContractRead, useContractWrite)
- * - Fetches proof details from the smart contract
- * - Implements optimistic UI updates when revoking proofs
- * - Manages wallet connection state from localStorage
- * 
- * @module ManagePage
- * @see pages/create.js - For creating new proofs
- * @see pages/verify.js - For verifying proofs
- * @see smart-contracts/contracts/ProofOfFunds.sol - Smart contract implementation
- */
-
 import { useState, useEffect } from 'react';
 import { useAccount, useContractRead, useContractWrite } from 'wagmi';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
@@ -31,13 +6,7 @@ import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 // const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
 
 export default function ManagePage() {
-    /**
-     * Component State:
-     * @state {boolean} userInitiatedConnection - Whether user has explicitly connected their wallet
-     * @state {Array} activeProofs - List of the user's active proofs fetched from the blockchain
-     * @state {boolean} isLoading - Whether proofs are currently being loaded
-     */
-    // Track if user has explicitly initiated a wallet connection
+    // Add a flag to track user-initiated connection, initialized from localStorage
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('userInitiatedConnection') === 'true';
@@ -49,10 +18,7 @@ export default function ManagePage() {
     const [activeProofs, setActiveProofs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    /**
-     * Listens for changes to the userInitiatedConnection flag in localStorage
-     * This ensures the component stays in sync with global wallet connection state
-     */
+    // Update userInitiatedConnection if it changes in localStorage
     useEffect(() => {
         const handleStorageChange = () => {
             setUserInitiatedConnection(localStorage.getItem('userInitiatedConnection') === 'true');
@@ -64,10 +30,7 @@ export default function ManagePage() {
         }
     }, []);
 
-    /**
-     * Contract read hook to get the list of user's proof IDs
-     * Only enabled if the user is connected and has explicitly initiated connection
-     */
+    // Read user's proofs - only if user has explicitly initiated a connection
     const { data: proofIds, refetch: refetchProofIds } = useContractRead({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -76,25 +39,14 @@ export default function ManagePage() {
         enabled: isConnected && userInitiatedConnection,
     });
 
-    /**
-     * Contract write hook for revoking proofs
-     * Used when the user wants to invalidate a previously created proof
-     * 
-     * @see smart-contracts/contracts/ProofOfFunds.sol - revokeProof function
-     */
+    // Contract write hook for revocation
     const { write: revokeProof, isLoading: isRevoking } = useContractWrite({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'revokeProof',
     });
 
-    /**
-     * Fetches detailed information for each proof ID returned by the contract
-     * Transforms the raw blockchain data into a more usable format for the UI
-     * 
-     * Note: Currently using a simulated implementation with mock data
-     * In production, this would fetch actual proof details from the blockchain
-     */
+    // Get details for each proof
     useEffect(() => {
         const fetchProofDetails = async () => {
             if (!proofIds || !proofIds.length) {
@@ -104,8 +56,6 @@ export default function ManagePage() {
             }
 
             try {
-                // In a production environment, this would be replaced with actual
-                // blockchain calls to get the detailed proof information
                 const proofPromises = proofIds.map(id =>
                     fetch(`https://api-amoy.polygonscan.com/api?module=proxy&action=eth_call&to=${CONTRACT_ADDRESS}&data=0x<function_signature>000000000000000000000000${id.toString(16).padStart(64, '0')}`)
                         .then(res => res.json())
@@ -124,7 +74,6 @@ export default function ManagePage() {
                 );
 
                 const proofs = await Promise.all(proofPromises);
-                // Filter to only show active and non-expired proofs
                 setActiveProofs(proofs.filter(p => !p.isRevoked && p.expiryTime > Date.now()));
             } catch (error) {
                 console.error("Error fetching proof details:", error);
@@ -136,48 +85,31 @@ export default function ManagePage() {
         fetchProofDetails();
     }, [proofIds, isConnected]);
 
-    /**
-     * Handles the revocation of a specific proof
-     * Calls the revokeProof function on the smart contract and updates the UI
-     * 
-     * @param {number} proofId - The ID of the proof to revoke
-     * @returns {Promise<void>}
-     */
+    // Handle proof revocation
     const handleRevokeProof = async (proofId) => {
         if (!isConnected) return;
 
         try {
-            // Call the smart contract to revoke the proof
             revokeProof({
                 args: [proofId],
             });
 
-            // Optimistically update UI before blockchain confirmation
+            // Optimistically update UI
             setActiveProofs(proofs => proofs.filter(p => p.id !== proofId));
 
-            // Refetch the list of proofs to ensure UI is in sync with blockchain state
+            // Refetch proof IDs after successful revocation
             refetchProofIds();
         } catch (error) {
             console.error('Error revoking proof:', error);
         }
     };
 
-    /**
-     * Formats a timestamp as a locale-appropriate date and time string
-     * 
-     * @param {number} timestamp - Unix timestamp in milliseconds
-     * @returns {string} Formatted date and time
-     */
+    // Format timestamp for display
     const formatDate = (timestamp) => {
         return new Date(timestamp).toLocaleString();
     };
 
-    /**
-     * Converts a numeric proof type to its human-readable name
-     * 
-     * @param {number} type - Proof type (0: Standard, 1: Threshold, 2: Maximum)
-     * @returns {string} Human-readable proof type name
-     */
+    // Get proof type name
     const getProofTypeName = (type) => {
         switch (type) {
             case 0: return 'Standard';

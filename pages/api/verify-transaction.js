@@ -1,342 +1,267 @@
 /**
- * Proof of Funds Transaction Verification API
+ * API route for transaction-based proof verification
  * 
- * This API endpoint provides server-side verification of proof-of-funds transactions
- * on the Polygon Amoy blockchain. It retrieves and parses transaction data to extract
- * proof details for verification purposes.
- * 
- * Key Features:
- * - CORS-friendly operation (avoids browser CORS issues with direct RPC connections)
- * - Multi-provider fallback system for reliable blockchain access
- * - Detailed proof data extraction from transaction logs
- * - Comprehensive error handling and debugging information
- * 
- * @route   GET /api/verify-transaction
- * @param   {string} hash - Transaction hash to verify
- * @returns {object} Proof details and verification status
- * 
- * Technical Implementation:
- * - Uses ethers.js for blockchain interaction
- * - Implements fallback RPC providers for reliability
- * - Parses transaction logs using contract ABIs
- * - Extracts relevant proof data including user address, proof type, and amounts
- * 
- * Related Components:
- * - pages/verify.js: Frontend verification page
- * - smart-contracts/contracts/ProofOfFunds.sol: Smart contract containing verification logic
+ * This endpoint bypasses CORS issues by using the server to fetch transaction data
+ * from the blockchain. It accepts a transaction hash and returns the proof details.
  */
 
-// Array of RPC URLs for the Polygon Amoy testnet, used as fallbacks
-const POLYGON_AMOY_RPC_URLS = [
-    'https://polygon-amoy.g.alchemy.com/v2/demo',
-    'https://polygon-amoy-rpc.publicnode.com',
-    'https://amoy.polygon.drpc.org'
+import { ethers } from 'ethers';
+import { CONTRACT_ABI, CONTRACT_ADDRESS } from '../../config/constants';
+
+// Array of server-side RPC URLs for Polygon Amoy to try
+const SERVER_RPC_URLS = [
+    "https://polygon-amoy.g.alchemy.com/v2/demo",
+    "https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
+    "https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42",
+    "https://rpc-amoy.polygon.technology"
 ];
 
-// The contract address for the Proof of Funds contract
-const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-
-/**
- * API route handler for transaction verification
- * Fetches transaction details and extracts proof data
- * 
- * @param {object} req - Next.js request object
- * @param {object} res - Next.js response object
- */
 export default async function handler(req, res) {
-    // Get the transaction hash from the query parameters
-    const { hash } = req.query;
-
-    // Validate the transaction hash
-    if (!hash || !/^0x[a-fA-F0-9]{64}$/.test(hash)) {
-        return res.status(400).json({
-            error: 'Invalid transaction hash provided. A valid transaction hash starts with 0x followed by 64 hexadecimal characters.'
-        });
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    console.log(`Verifying transaction with hash: ${hash}`);
+    // Extract the transaction hash from the request body
+    const { txHash } = req.body;
 
+    if (!txHash) {
+        return res.status(400).json({ error: 'Transaction hash is required' });
+    }
+
+    console.log("API: Verifying transaction:", txHash);
+
+    // Try each RPC endpoint until one works
     let lastError = null;
-    let provider = null;
 
-    // Try each RPC URL until one works
-    for (const rpcUrl of POLYGON_AMOY_RPC_URLS) {
+    for (const rpcUrl of SERVER_RPC_URLS) {
         try {
-            console.log(`Attempting to connect to RPC URL: ${rpcUrl}`);
-            const { ethers } = await import('ethers');
-            provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+            console.log(`API: Trying RPC URL: ${rpcUrl}`);
 
-            // Test the connection with a simple call
+            // Create a provider for the Polygon Amoy network
+            const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+            // Test the connection first
             await provider.getNetwork();
-            console.log(`Successfully connected to ${rpcUrl}`);
-            break; // Exit the loop if connection is successful
-        } catch (error) {
-            console.error(`Failed to connect to ${rpcUrl}:`, error);
-            lastError = error;
-            provider = null;
-        }
-    }
 
-    if (!provider) {
-        return res.status(500).json({
-            error: `Failed to connect to any RPC provider. Please try again later. Last error: ${lastError?.message || 'Unknown error'}`
-        });
-    }
+            // Get the transaction receipt
+            const receipt = await provider.getTransactionReceipt(txHash);
 
-    try {
-        const { ethers } = await import('ethers');
+            if (!receipt) {
+                console.log(`API: Transaction not found using ${rpcUrl}`);
+                lastError = `Transaction not found using ${rpcUrl}`;
+                continue; // Try next RPC URL
+            }
 
-        // Fetch the transaction receipt
-        console.log(`Fetching transaction receipt for hash: ${hash}`);
-        const receipt = await provider.getTransactionReceipt(hash);
+            console.log(`API: Transaction found with ${receipt.logs?.length || 0} logs`);
 
-        if (!receipt) {
-            return res.status(404).json({
-                error: 'Transaction not found. Please make sure you entered a valid transaction hash on the Polygon Amoy network.'
-            });
-        }
-
-        console.log('Transaction receipt found:', {
-            blockNumber: receipt.blockNumber,
-            status: receipt.status,
-            logs: receipt.logs.length
-        });
-
-        if (receipt.status !== 1) {
-            return res.status(400).json({
-                error: 'Transaction failed. This transaction was reverted on the blockchain.'
-            });
-        }
-
-        // Check if the transaction was sent to our contract
-        console.log(`Looking for logs from contract address: ${CONTRACT_ADDRESS}`);
-
-        const logsFromContract = receipt.logs.filter(log =>
-            log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase()
-        );
-
-        console.log(`Found ${logsFromContract.length} logs from the contract address`);
-
-        /**
-         * Parses and extracts proof data from transaction logs
-         * @param {Array} logs - Transaction logs to parse
-         * @param {string} contractAddress - Address of the contract to use for parsing
-         * @returns {Object|null} Extracted proof data or null if parsing failed
-         */
-        const extractProofData = async (logs, contractAddress) => {
-            try {
-                // Import the ABI from the local file
-                const abi = [
-                    {
-                        "anonymous": false,
-                        "inputs": [
-                            {
-                                "indexed": true,
-                                "internalType": "uint256",
-                                "name": "proofId",
-                                "type": "uint256"
-                            },
-                            {
-                                "indexed": true,
-                                "internalType": "address",
-                                "name": "user",
-                                "type": "address"
-                            },
-                            {
-                                "indexed": false,
-                                "internalType": "enum ProofOfFunds.ProofType",
-                                "name": "proofType",
-                                "type": "uint8"
-                            },
-                            {
-                                "indexed": false,
-                                "internalType": "bytes32",
-                                "name": "proofHash",
-                                "type": "bytes32"
-                            },
-                            {
-                                "indexed": false,
-                                "internalType": "uint256",
-                                "name": "expiryTime",
-                                "type": "uint256"
-                            }
-                        ],
-                        "name": "ProofSubmitted",
-                        "type": "event"
-                    }
-                ];
-
-                const contract = new ethers.Contract(contractAddress, abi, provider);
-
-                // Parse the logs using the contract interface
-                const parsedLogs = logs.map(log => {
-                    try {
-                        return contract.interface.parseLog(log);
-                    } catch (e) {
-                        console.error('Error parsing log:', e);
-                        return null;
-                    }
-                }).filter(Boolean);
-
-                console.log(`Successfully parsed ${parsedLogs.length} logs`);
-
-                if (parsedLogs.length === 0) {
-                    return null;
-                }
-
-                // Find the ProofSubmitted event
-                const proofSubmittedEvent = parsedLogs.find(log => log.name === 'ProofSubmitted');
-
-                if (!proofSubmittedEvent) {
-                    console.warn('ProofSubmitted event not found in the parsed logs');
-                    return null;
-                }
-
-                console.log('Found ProofSubmitted event:', proofSubmittedEvent.name);
-
-                // Extract proof data from the event
-                const proofId = proofSubmittedEvent.args.proofId.toString();
-                const userAddress = proofSubmittedEvent.args.user;
-                const proofType = parseInt(proofSubmittedEvent.args.proofType);
-                const proofHash = proofSubmittedEvent.args.proofHash;
-                const expiryTime = proofSubmittedEvent.args.expiryTime.toNumber();
-
-                console.log('Extracted proof data:', {
-                    proofId,
-                    userAddress,
-                    proofType,
-                    proofHash,
-                    expiryTime
+            // Check transaction status
+            if (receipt.status !== 1) {
+                return res.status(400).json({
+                    error: 'Transaction failed on the blockchain'
                 });
+            }
 
-                // Get full proof details from the contract
-                try {
-                    // This will throw if the function doesn't exist or fails
-                    const proofResult = await contract.getProof(proofId);
-                    console.log('Proof details from contract:', proofResult);
+            // Get full transaction data
+            const txData = await provider.getTransaction(txHash);
 
-                    // Extract values from the getProof result if available
-                    let signatureMessage = '';
+            // Initialize contract interface to parse logs
+            const contractInterface = new ethers.utils.Interface(CONTRACT_ABI);
 
-                    // If getProof returns results, extract the signature message
-                    if (proofResult && proofResult.length > 5) {
-                        signatureMessage = proofResult[5];
-                    }
+            // Create contract instance
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
 
-                    // Parse amount from signature message
-                    let amount = '0';
-                    let tokenSymbol = 'ETH';
+            // Get logs from this transaction that match our contract address
+            const contractLogs = receipt.logs.filter(log =>
+                log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase()
+            );
 
-                    if (signatureMessage.includes('at least')) {
-                        const match = signatureMessage.match(/at least ([0-9.]+)/);
-                        if (match && match[1]) {
-                            amount = match[1];
+            console.log(`API: Found ${contractLogs.length} logs for contract ${CONTRACT_ADDRESS}`);
+
+            // Variable to store the actual contract address we end up using
+            let actualContractAddress = CONTRACT_ADDRESS;
+            let actualContract = contract;
+
+            // If no logs found for our expected contract address, check other addresses
+            if (contractLogs.length === 0) {
+                // Get all unique addresses in the logs
+                const uniqueAddresses = [...new Set(receipt.logs.map(log => log.address.toLowerCase()))];
+                console.log("API: Unique addresses in logs:", uniqueAddresses);
+
+                if (uniqueAddresses.length > 0) {
+                    // Try with first contract address found in logs
+                    const possibleContractLogs = receipt.logs.filter(log =>
+                        log.address.toLowerCase() === uniqueAddresses[0].toLowerCase()
+                    );
+
+                    if (possibleContractLogs.length > 0) {
+                        try {
+                            // Try to parse one of the logs with our ABI
+                            const testLog = contractInterface.parseLog(possibleContractLogs[0]);
+                            console.log("API: Successfully parsed log with alternate address:", testLog.name);
+
+                            // If we can parse it, use these logs instead
+                            actualContractAddress = uniqueAddresses[0];
+                            actualContract = new ethers.Contract(actualContractAddress, CONTRACT_ABI, provider);
+                            contractLogs.push(...possibleContractLogs);
+                        } catch (e) {
+                            console.log("API: Could not parse logs from alternate contract:", e.message);
                         }
-                    } else if (signatureMessage.includes('at most')) {
-                        const match = signatureMessage.match(/at most ([0-9.]+)/);
-                        if (match && match[1]) {
-                            amount = match[1];
-                        }
                     }
-
-                    // Extract additional data from transaction input if available
-                    const tx = await provider.getTransaction(hash);
-                    if (tx && tx.data) {
-                        console.log('Transaction input data:', tx.data);
-                        // Further decoding of input data could be done here
-                    }
-
-                    return {
-                        proofId,
-                        userAddress,
-                        proofType,
-                        proofHash,
-                        expiryTime,
-                        expiryDate: new Date(expiryTime * 1000).toLocaleString(),
-                        amount,
-                        tokenSymbol,
-                        signatureMessage,
-                        contractAddress,
-                        txHash: hash
-                    };
-                } catch (proofError) {
-                    console.error('Error getting full proof details:', proofError);
-
-                    // Return basic proof data even if full details can't be retrieved
-                    return {
-                        proofId,
-                        userAddress,
-                        proofType,
-                        proofHash,
-                        expiryTime,
-                        expiryDate: new Date(expiryTime * 1000).toLocaleString(),
-                        amount: '0',
-                        tokenSymbol: 'ETH',
-                        signatureMessage: '',
-                        contractAddress,
-                        txHash: hash
-                    };
                 }
-            } catch (error) {
-                console.error(`Error extracting proof data from ${contractAddress}:`, error);
-                return null;
+
+                if (contractLogs.length === 0) {
+                    console.log("API: No logs could be parsed with our ABI");
+                    // Dump all events to see what's happening
+                    receipt.logs.forEach((log, i) => {
+                        console.log(`API: Log ${i} from ${log.address}: Topics: ${JSON.stringify(log.topics)}`);
+                    });
+
+                    lastError = 'No logs found for the proof contract - CONTRACT_ADDRESS may be incorrect';
+                    continue; // Try next RPC URL
+                }
             }
-        };
 
-        // Try to extract proof data from our known contract
-        let proofData = null;
-
-        if (logsFromContract.length > 0) {
-            proofData = await extractProofData(logsFromContract, CONTRACT_ADDRESS);
-        }
-
-        // If we couldn't extract from our contract, try with the first contract in the logs
-        if (!proofData && receipt.logs.length > 0) {
-            console.log('No proof data found from known contract, trying to extract from the first log');
-            const alternateContractAddress = receipt.logs[0].address;
-            console.log(`Trying alternate contract address: ${alternateContractAddress}`);
-            proofData = await extractProofData(receipt.logs, alternateContractAddress);
-        }
-
-        if (!proofData) {
-            return res.status(400).json({
-                error: 'This transaction does not appear to be a valid proof submission. No proof data could be extracted.'
+            // Parse logs to find proof events
+            const parsedLogs = [];
+            contractLogs.forEach((log) => {
+                try {
+                    const parsedLog = contractInterface.parseLog(log);
+                    console.log("API: Found event:", parsedLog.name);
+                    parsedLogs.push({ log, parsedLog });
+                } catch (e) {
+                    console.log("API: Couldn't parse log:", e.message);
+                }
             });
-        }
 
-        /**
-         * Converts numeric proof type to human-readable name
-         * @param {number} type - Proof type enum value
-         * @returns {string} Human-readable proof type name
-         */
-        const getProofTypeName = (type) => {
-            switch (type) {
-                case 0:
-                    return 'Standard';
-                case 1:
-                    return 'Threshold';
-                case 2:
-                    return 'Maximum';
-                case 3:
-                    return 'Zero-Knowledge';
-                default:
-                    return 'Unknown';
+            // Try to find ProofSubmitted or any similar event
+            const proofSubmittedLog = parsedLogs.find(entry =>
+                entry.parsedLog.name === 'ProofSubmitted' ||
+                entry.parsedLog.name.includes('Proof')
+            );
+
+            if (!proofSubmittedLog) {
+                console.log("API: No ProofSubmitted event found");
+                lastError = 'No proof submission found in this transaction';
+                continue; // Try next RPC URL
             }
-        };
 
-        // Format the response
-        const formattedProofData = {
-            ...proofData,
-            proofType: getProofTypeName(proofData.proofType),
-            verified: true
-        };
+            // Extract data from the event
+            const parsedLog = proofSubmittedLog.parsedLog;
+            console.log("API: Found proof event:", parsedLog.name);
 
-        // Return the verification result
-        return res.status(200).json({ proofData: formattedProofData });
-    } catch (error) {
-        console.error('Error verifying transaction:', error);
-        return res.status(500).json({
-            error: `Error verifying transaction: ${error.message}`
-        });
+            // Log all the event arguments to debug
+            console.log("API: Event arguments:");
+            for (const key in parsedLog.args) {
+                if (isNaN(parseInt(key))) { // Skip numeric keys, which are duplicates
+                    const value = parsedLog.args[key];
+                    // Convert BigNumber to string if needed
+                    const displayValue = value && value._isBigNumber ? value.toString() : value;
+                    console.log(`  ${key}: ${displayValue}`);
+                }
+            }
+
+            // Try to extract the important values
+            const userAddress = parsedLog.args.user || parsedLog.args.wallet || parsedLog.args.owner;
+            const proofTypeValue = parsedLog.args.proofType ?
+                (parsedLog.args.proofType._isBigNumber ?
+                    parsedLog.args.proofType.toNumber() :
+                    parsedLog.args.proofType) : 0;
+            const proofHash = parsedLog.args.proofHash || parsedLog.args.hash;
+
+            if (!userAddress) {
+                lastError = 'Could not find user address in event data';
+                continue; // Try next RPC URL
+            }
+
+            // Parse the transaction input
+            let amountFromTx = "0";
+            let tokenSymbol = "ETH"; // Default to ETH
+
+            if (txData && txData.data) {
+                try {
+                    // Try to decode the function call
+                    const decodedInput = contractInterface.parseTransaction({ data: txData.data });
+                    console.log("API: Decoded function call:", decodedInput.name);
+
+                    // Try to find threshold amount which is usually the verified amount
+                    if (decodedInput.args && decodedInput.args.thresholdAmount) {
+                        amountFromTx = ethers.utils.formatEther(decodedInput.args.thresholdAmount);
+                    }
+                    // Otherwise try other amount parameters
+                    else if (decodedInput.args && decodedInput.args.amount) {
+                        amountFromTx = ethers.utils.formatEther(decodedInput.args.amount);
+                    }
+
+                    // Get token symbol if available
+                    if (decodedInput.args && decodedInput.args.tokenSymbol) {
+                        tokenSymbol = decodedInput.args.tokenSymbol;
+                    }
+                } catch (e) {
+                    console.log("API: Could not decode transaction input:", e.message);
+                }
+            }
+
+            // Now get the proof data directly from the contract
+            let proofData;
+            try {
+                // Using the contract's getProof method directly
+                proofData = await actualContract.getProof(userAddress);
+                console.log("API: Proof data from contract:", proofData);
+            } catch (e) {
+                console.error("API: Error getting proof data from contract:", e);
+                // Continue with event data only
+                proofData = {
+                    thresholdAmount: ethers.BigNumber.from(0),
+                    timestamp: null,
+                    expiryTime: null
+                };
+            }
+
+            // Extract timestamp
+            let timestamp = null;
+            if (proofData.timestamp && proofData.timestamp._isBigNumber) {
+                timestamp = new Date(proofData.timestamp.toNumber() * 1000).toLocaleString();
+            }
+
+            // Extract expiry
+            let expiryTime = null;
+            if (proofData.expiryTime && proofData.expiryTime._isBigNumber) {
+                expiryTime = new Date(proofData.expiryTime.toNumber() * 1000).toLocaleString();
+            }
+
+            // Use threshold amount from contract data if available
+            let thresholdAmount = "0";
+            if (proofData.thresholdAmount && proofData.thresholdAmount._isBigNumber) {
+                thresholdAmount = ethers.utils.formatEther(proofData.thresholdAmount);
+            }
+
+            // Build the response data
+            const details = {
+                user: userAddress,
+                proofType: proofTypeValue,
+                proofHash: proofHash,
+                thresholdAmount: thresholdAmount !== "0" ? thresholdAmount : "0",
+                amount: amountFromTx !== "0" ? amountFromTx : thresholdAmount,
+                tokenSymbol: tokenSymbol,
+                timestamp: timestamp,
+                expiryTime: expiryTime,
+                txHash: txHash,
+                contractAddress: actualContractAddress
+            };
+
+            return res.status(200).json({ success: true, proofDetails: details });
+        } catch (error) {
+            console.error(`API Error with ${rpcUrl}:`, error.message);
+            lastError = error.message;
+            // Continue trying other RPC URLs
+        }
     }
+
+    // If we get here, all RPC URLs failed
+    console.error('All API RPC connections failed. Last error:', lastError);
+    return res.status(500).json({
+        error: lastError || 'An error occurred while verifying the transaction',
+        message: 'Could not connect to any blockchain providers. Please try again later.'
+    });
 } 

@@ -1,30 +1,22 @@
 /**
- * Proof of Funds Verification Page
+ * Proof Verification Page
  * 
- * This page enables users to verify proofs of funds created on the Arbitr platform.
- * It supports multiple verification methods including transaction hash verification
- * and direct blockchain contract verification.
+ * This page allows users to verify proof of funds created on the Arbitr platform.
+ * It interacts with smart contracts on the Polygon blockchain to validate various
+ * types of fund verification proofs.
  * 
- * Key Features:
- * - Transaction hash verification that extracts proof data from the blockchain
- * - Support for multiple verification types: standard, threshold, maximum, and zero-knowledge proofs
- * - Direct smart contract verification for proof validation
- * - Status indicators for verification results
- * - Detailed verification result display
+ * Key features:
+ * - Support for multiple verification types:
+ *   - Standard proofs (exact amount verification)
+ *   - Threshold proofs (minimum amount verification)
+ *   - Maximum proofs (maximum amount verification)
+ *   - Zero-knowledge proofs (private verification)
+ * - Blockchain-based verification through smart contract calls
+ * - User-friendly verification UI with status indicators
+ * - Detailed verification results display
  * 
- * Technical Implementation:
- * - Uses RPC connections to the Polygon Amoy testnet to fetch transaction data
- * - Dynamically parses transaction logs to extract proof data
- * - Utilizes wagmi hooks for contract reading
- * - Implements error handling and fallback mechanisms for RPC connections
- * - Provides detailed debugging information for verification failures
- * 
- * Related Components:
- * - Smart contract: ProofOfFunds.sol - Contains the verification logic
- * - API: pages/api/verify-transaction.js - Server-side verification endpoint
- * 
- * Note: This component requires a working provider to connect to the blockchain.
- * For local development, it uses Alchemy's public Polygon Amoy RPC endpoint.
+ * The page uses wagmi hooks for contract interaction, enabling direct verification
+ * against the deployed Arbitr proof of funds contracts on Polygon network.
  */
 
 import { useState, useEffect } from 'react';
@@ -33,7 +25,6 @@ import Link from 'next/link';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
-import Head from 'next/head';
 
 // Browser-friendly RPC URLs that support CORS
 const RPC_OPTIONS = [
@@ -73,7 +64,7 @@ const getWorkingProvider = async () => {
 };
 
 export default function VerifyPage() {
-    const router = useRouter();
+    // Add a flag to track user-initiated connection, initialized from localStorage
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('userInitiatedConnection') === 'true';
@@ -575,115 +566,191 @@ export default function VerifyPage() {
     const isVerifying = isLoadingStandard || isLoadingThreshold || isLoadingMaximum || isLoadingZK || isLoading;
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-            <Head>
-                <title>Verify Proof of Funds</title>
-                <meta name="description" content="Verify proof of funds" />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
+        <div className="max-w-3xl mx-auto mt-8">
+            <h1 className="text-3xl font-bold text-center mb-8">Verify Proof of Funds</h1>
 
-            <header className="mb-8">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-800">Verify Proof of Funds</h1>
-                    <nav className="flex space-x-4">
-                        <Link href="/" className="text-blue-500 hover:text-blue-700">
-                            Home
-                        </Link>
-                        <Link href="/create" className="text-blue-500 hover:text-blue-700">
-                            Create Proof
-                        </Link>
-                        <Link href="/manage" className="text-blue-500 hover:text-blue-700">
-                            Manage Proofs
-                        </Link>
-                    </nav>
-                </div>
-                <p className="mt-2 text-gray-600">
-                    Verify a proof of funds by entering the transaction hash.
-                </p>
-            </header>
+            <div className="bg-white p-8 rounded-lg shadow-md">
+                <h2 className="text-xl font-semibold mb-6">Proof Verification</h2>
 
-            <main>
-                <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                    <div className="mb-4">
-                        <label htmlFor="txHash" className="block text-gray-700 font-medium mb-2">
+                <form onSubmit={handleVerify} className="space-y-6">
+                    {/* Transaction Hash Input */}
+                    <div>
+                        <label htmlFor="transactionHash" className="block text-sm font-medium text-gray-700">
                             Transaction Hash
                         </label>
-                        <div className="flex">
-                            <input
-                                type="text"
-                                id="txHash"
-                                value={transactionHash}
-                                onChange={(e) => setTransactionHash(e.target.value)}
-                                placeholder="0x..."
-                                className="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                                onClick={handleVerify}
-                                disabled={isVerifying || !transactionHash}
-                                className={`px-4 py-2 rounded-r-md font-medium ${isVerifying || !transactionHash
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-blue-500 text-white hover:bg-blue-600'
-                                    }`}
-                            >
-                                {isVerifying ? 'Verifying...' : 'Verify'}
-                            </button>
-                        </div>
+                        <input
+                            type="text"
+                            id="transactionHash"
+                            placeholder="0x..."
+                            value={transactionHash}
+                            onChange={(e) => setTransactionHash(e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        />
                         <p className="mt-1 text-sm text-gray-500">
-                            Enter the blockchain transaction hash that contains the proof submission.
+                            Enter the transaction hash of the proof you want to verify.
+                            A transaction hash starts with "0x" followed by 64 hexadecimal characters.
                         </p>
+
+                        {/* Transaction hash validation feedback */}
+                        {transactionHash && (
+                            <p className={`mt-1 text-sm ${getTransactionHashStatus(transactionHash).valid ? 'text-green-600' : 'text-red-600'}`}>
+                                {getTransactionHashStatus(transactionHash).message}
+                            </p>
+                        )}
+
+                        {/* Example transactions */}
+                        <div className="mt-2">
+                            <p className="text-sm text-gray-500">Or try one of these example transactions:</p>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                                {EXAMPLE_TX_HASHES.map((hash) => (
+                                    <button
+                                        key={hash}
+                                        type="button"
+                                        onClick={() => useExampleHash(hash)}
+                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    >
+                                        Example Transaction
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
+                    {/* Verify Button */}
+                    <div>
+                        <button
+                            type="submit"
+                            disabled={!transactionHash || isVerifying}
+                            className={`w-full ${!transactionHash || isVerifying
+                                ? 'bg-gray-300 cursor-not-allowed'
+                                : 'bg-primary-600 hover:bg-primary-700'
+                                } text-white rounded-md py-2 px-4 flex justify-center items-center`}
+                        >
+                            {isVerifying ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Verifying...
+                                </>
+                            ) : (
+                                'Verify Proof'
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Error message */}
                     {error && (
-                        <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 rounded-md">
-                            <p className="font-medium">Verification Failed</p>
-                            <p>{error}</p>
-                        </div>
-                    )}
-
-                    {proofDetails && (
-                        <div className="border border-gray-200 rounded-md overflow-hidden">
-                            <div className={`p-4 text-white font-medium ${verificationStatus ? 'bg-green-500' : 'bg-yellow-500'}`}>
-                                {verificationStatus ? 'Proof Verified Successfully' : 'Proof Information Retrieved'}
-                            </div>
-                            <div className="p-4 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">Proof ID</h3>
-                                        <p className="mt-1">{proofDetails.proofId}</p>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">User Address</h3>
-                                        <p className="mt-1 break-all">{proofDetails.user}</p>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">Proof Type</h3>
-                                        <p className="mt-1">{proofDetails.proofType === 0 ? 'Standard' : proofDetails.proofType === 1 ? 'Threshold (At Least)' : 'Maximum (At Most)'}</p>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">Amount</h3>
-                                        <p className="mt-1">
-                                            {proofDetails.amount} {proofDetails.tokenSymbol}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">Expiry Date</h3>
-                                        <p className="mt-1">{proofDetails.expiryDate}</p>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-500">Contract Address</h3>
-                                        <p className="mt-1 break-all">{proofDetails.contractAddress}</p>
-                                    </div>
+                        <div className="bg-red-50 border-l-4 border-red-400 p-4 my-4">
+                            <div className="flex items-start">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
                                 </div>
-
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-500">Proof Hash</h3>
-                                    <p className="mt-1 break-all">{proofDetails.proofHash}</p>
+                                <div className="ml-3">
+                                    <h3 className="text-sm font-medium text-red-800">Verification Error</h3>
+                                    <div className="mt-2 text-sm text-red-700">
+                                        <p>{error}</p>
+                                        {error.includes('Transaction not found') && (
+                                            <div className="mt-2">
+                                                <p>Possible reasons:</p>
+                                                <ul className="list-disc pl-5 mt-1">
+                                                    <li>The transaction hash might be incorrect</li>
+                                                    <li>The transaction may be on a different network (this app verifies on Polygon Amoy testnet)</li>
+                                                    <li>The transaction might be too recent and hasn't been indexed yet - try again in a minute</li>
+                                                    <li>The blockchain RPC providers might be experiencing connectivity issues</li>
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
+
+                    {/* Verification Result */}
+                    {verificationStatus !== null && (
+                        <div className={`p-4 border rounded-md ${verificationStatus ? 'border-green-300 bg-green-50 text-green-900' : 'border-red-300 bg-red-50 text-red-900'}`}>
+                            <div className="flex items-center">
+                                {verificationStatus ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                )}
+                                <p className="text-sm font-medium">
+                                    {verificationStatus ? 'Proof Verified Successfully' : 'Proof Verification Failed'}
+                                </p>
+                            </div>
+
+                            {/* Show proof details if available */}
+                            {verificationStatus && proofDetails && (
+                                <div className="mt-4 text-sm">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <p className="font-medium">Wallet Address:</p>
+                                            <p className="text-gray-700 break-all">{proofDetails.user}</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">Amount:</p>
+                                            <p className="text-gray-700">{proofDetails.thresholdAmount !== "0" ? proofDetails.thresholdAmount : proofDetails.amount} {proofDetails.tokenSymbol}</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">Proof Type:</p>
+                                            <p className="text-gray-700 capitalize">{proofDetails.proofType === 0 ? 'Standard' : proofDetails.proofType === 1 ? 'Threshold (At Least)' : 'Maximum (At Most)'}</p>
+                                        </div>
+                                        {proofDetails.timestamp && (
+                                            <div>
+                                                <p className="font-medium">Created At:</p>
+                                                <p className="text-gray-700">{proofDetails.timestamp}</p>
+                                            </div>
+                                        )}
+                                        {proofDetails.expiryTime && (
+                                            <div>
+                                                <p className="font-medium">Expires At:</p>
+                                                <p className="text-gray-700">{proofDetails.expiryTime}</p>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="font-medium">Transaction:</p>
+                                            <a
+                                                href={`https://amoy.polygonscan.com/tx/${proofDetails.txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:underline break-all"
+                                            >
+                                                View on Explorer
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </form>
+            </div>
+
+            {/* Information Section */}
+            <div className="mt-12 border-t pt-6">
+                <h2 className="text-xl font-semibold mb-4">About Verification</h2>
+                <p className="text-gray-600 mb-4">
+                    This tool verifies proofs of funds created on the blockchain. Enter the transaction hash
+                    of a proof to verify its authenticity and view details including the amount, timestamp, and expiry.
+                </p>
+                <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
+                    <h3 className="font-medium text-blue-800 mb-2">How Verification Works</h3>
+                    <p className="text-sm text-gray-600">
+                        When you provide a transaction hash, the system retrieves the associated blockchain data and verifies
+                        that the proof was properly signed by the wallet owner at the time of creation. This creates
+                        an immutable record showing that specific funds were controlled by a specific wallet at that point in time.
+                    </p>
                 </div>
-            </main>
+            </div>
         </div>
     );
 } 
