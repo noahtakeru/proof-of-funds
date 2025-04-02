@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
+import { verifyZKProof } from '../lib/zk/zkUtils';
 
 // Browser-friendly RPC URLs that support CORS
 const RPC_OPTIONS = [
@@ -518,19 +519,45 @@ export default function VerifyPage() {
             // Determine the proof type from the proof data
             let proofTypeEnum;
             let proofTypeStr;
+            
+            // Check if this is a ZK proof from transaction data
+            // First ensure receipt exists to avoid undefined error
+            const isZKProof = receipt && receipt.logs && receipt.logs.some(log => 
+                log.address.toLowerCase() === ZK_VERIFIER_ADDRESS.toLowerCase()
+            );
 
-            if (proofData.proofType === 0) {
-                proofTypeEnum = PROOF_TYPES.STANDARD;
-                proofTypeStr = 'standard';
-                setProofType('standard');
-            } else if (proofData.proofType === 1) {
-                proofTypeEnum = PROOF_TYPES.THRESHOLD;
-                proofTypeStr = 'threshold';
-                setProofType('threshold');
-            } else if (proofData.proofType === 2) {
-                proofTypeEnum = PROOF_TYPES.MAXIMUM;
-                proofTypeStr = 'maximum';
-                setProofType('maximum');
+            if (isZKProof) {
+                // Set proof category to ZK
+                setProofCategory('zk');
+                console.log('Detected ZK proof transaction');
+                
+                // Still determine the proof type
+                if (proofData.proofType === 0) {
+                    proofTypeStr = 'standard';
+                    setZkProofType('standard');
+                } else if (proofData.proofType === 1) {
+                    proofTypeStr = 'threshold';
+                    setZkProofType('threshold');
+                } else if (proofData.proofType === 2) {
+                    proofTypeStr = 'maximum';
+                    setZkProofType('maximum');
+                }
+            } else {
+                setProofCategory('standard');
+                // Standard proof verification
+                if (proofData.proofType === 0) {
+                    proofTypeEnum = PROOF_TYPES.STANDARD;
+                    proofTypeStr = 'standard';
+                    setProofType('standard');
+                } else if (proofData.proofType === 1) {
+                    proofTypeEnum = PROOF_TYPES.THRESHOLD;
+                    proofTypeStr = 'threshold';
+                    setProofType('threshold');
+                } else if (proofData.proofType === 2) {
+                    proofTypeEnum = PROOF_TYPES.MAXIMUM;
+                    proofTypeStr = 'maximum';
+                    setProofType('maximum');
+                }
             }
 
             // Set the wallet address from the proof data for internal use
@@ -542,15 +569,43 @@ export default function VerifyPage() {
             // Now perform the appropriate verification based on proof type
             let verified = false;
 
-            if (proofTypeStr === 'standard') {
-                await refetchStandard();
-                verified = standardProofResult;
-            } else if (proofTypeStr === 'threshold') {
-                await refetchThreshold();
-                verified = thresholdProofResult;
-            } else if (proofTypeStr === 'maximum') {
-                await refetchMaximum();
-                verified = maximumProofResult;
+            if (isZKProof) {
+                // Perform ZK proof verification
+                try {
+                    console.log('Attempting to verify ZK proof');
+                    
+                    // In a real implementation, we would extract proof data from the logs
+                    // For now, we'll simulate ZK verification with mock data
+                    verified = await verifyZKProof({
+                        proof: JSON.stringify({
+                            pi_a: ['1', '2', '3'],
+                            pi_b: [['4', '5'], ['6', '7'], ['8', '9']],
+                            pi_c: ['10', '11', '12']
+                        }),
+                        publicSignals: JSON.stringify([proofData.user, '1000000000000000000']),
+                        proofType: ZK_PROOF_TYPES[proofTypeStr.toUpperCase()]
+                    });
+                    
+                    console.log('ZK verification result:', verified);
+                    // In development mode, the verification will always return true
+                } catch (zkError) {
+                    console.error('Error verifying ZK proof:', zkError);
+                    setError('Failed to verify ZK proof: ' + zkError.message);
+                    setVerificationStatus(false);
+                    return;
+                }
+            } else {
+                // Standard verification
+                if (proofTypeStr === 'standard') {
+                    await refetchStandard();
+                    verified = standardProofResult;
+                } else if (proofTypeStr === 'threshold') {
+                    await refetchThreshold();
+                    verified = thresholdProofResult;
+                } else if (proofTypeStr === 'maximum') {
+                    await refetchMaximum();
+                    verified = maximumProofResult;
+                }
             }
 
             setVerificationStatus(verified);
@@ -702,7 +757,12 @@ export default function VerifyPage() {
                                         </div>
                                         <div>
                                             <p className="font-medium">Proof Type:</p>
-                                            <p className="text-gray-700 capitalize">{proofDetails.proofType === 0 ? 'Standard' : proofDetails.proofType === 1 ? 'Threshold (At Least)' : 'Maximum (At Most)'}</p>
+                                            <p className="text-gray-700 capitalize">
+                                                {proofCategory === 'zk' ? 'Zero-Knowledge ' : ''}
+                                                {proofDetails.proofType === 0 ? 'Standard' : 
+                                                 proofDetails.proofType === 1 ? 'Threshold (At Least)' : 
+                                                 'Maximum (At Most)'}
+                                            </p>
                                         </div>
                                         {proofDetails.timestamp && (
                                             <div>
