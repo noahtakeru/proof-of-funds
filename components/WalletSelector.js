@@ -1,32 +1,3 @@
-/**
- * WalletSelector Component
- * 
- * A modal component that provides a unified interface for connecting to different blockchain
- * wallets, supporting multiple wallet types including MetaMask (EVM), Phantom (Solana), 
- * and WalletConnect (cross-chain).
- * 
- * Key Features:
- * - Dynamic detection of installed wallet extensions
- * - Multiple wallet connection options
- * - Chain-specific wallet selection
- * - Integration with wagmi for EVM wallet connections
- * - Fallback connection mechanisms if primary methods fail
- * - Supports multi-account selection for Phantom wallet
- * 
- * Technical Implementation:
- * - Uses React hooks for state management
- * - Implements global window references for cross-component communication
- * - Persists wallet connections to localStorage
- * - Dispatches custom events for wallet connection state changes
- * - Includes click-outside handler for modal dismissal
- * 
- * Related Components:
- * - ConnectWallet.js: Parent component that manages overall wallet connection state
- * - PhantomMultiWalletSelector.js: Specialized component for selecting multiple Phantom accounts
- * 
- * @param {Function} onClose - Callback function to close the wallet selector modal
- */
-
 import { useState, useEffect, useRef } from 'react';
 import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
 import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
@@ -42,10 +13,7 @@ export default function WalletSelector({ onClose }) {
     // Add ref to main container
     const selectorRef = useRef(null);
 
-    /**
-     * Makes wagmi connect function and MetaMask connector available globally
-     * This allows other non-React modules like walletHelpers.js to access these resources
-     */
+    // Make wagmi connect and MetaMask connector available globally for walletHelpers
     useEffect(() => {
         if (typeof window !== 'undefined') {
             // Make wagmi's connect function available globally for the walletHelpers.js
