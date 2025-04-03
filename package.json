@@ -13,7 +13,9 @@
     "deploy:local": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network hardhat",
     "deploy:amoy": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network polygon_amoy",
     "verify:amoy": "hardhat run scripts/verify.js --config hardhat.config.cjs --network polygon_amoy",
-    "node": "hardhat node --config hardhat.config.cjs"
+    "node": "hardhat node --config hardhat.config.cjs",
+    "zk:build-circuits": "node lib/zk/scripts/build-circuits.js",
+    "zk:test": "jest lib/zk/__tests__"
   },
   "dependencies": {
     "@ethersproject/keccak256": "^5.8.0",
