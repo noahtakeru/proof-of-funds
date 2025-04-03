@@ -13,7 +13,13 @@
     "deploy:local": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network hardhat",
     "deploy:amoy": "hardhat run scripts/deploy.js --config hardhat.config.cjs --network polygon_amoy",
     "verify:amoy": "hardhat run scripts/verify.js --config hardhat.config.cjs --network polygon_amoy",
-    "node": "hardhat node --config hardhat.config.cjs"
+    "node": "hardhat node --config hardhat.config.cjs",
+    "zk:build-circuits": "node lib/zk/scripts/build-circuits.js",
+    "zk:test": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/setup.test.js --config jest.config.cjs",
+    "test:zk": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/setup.test.js --config jest.config.cjs",
+    "test:zk:all": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__ --config jest.config.cjs",
+    "test:zk:snarkjs": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/snarkjsLoader.test.js --config jest.config.cjs",
+    "test:zk:api": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/zkApiEndpoints.test.js --config jest.config.cjs"
   },
   "dependencies": {
     "@ethersproject/keccak256": "^5.8.0",
@@ -38,6 +44,7 @@
   "devDependencies": {
     "@babel/core": "^7.26.10",
     "@babel/preset-env": "^7.26.9",
+    "@babel/preset-typescript": "^7.27.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
@@ -45,18 +52,23 @@
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.15",
+    "babel-jest": "^29.7.0",
     "babel-loader": "^10.0.0",
     "chai": "^5.2.0",
     "dotenv": "^16.4.7",
     "eslint": "^8.54.0",
     "eslint-config-next": "13.5.6",
     "hardhat": "^2.22.19",
+    "jest": "^29.7.0",
+    "node-mocks-http": "^1.16.2",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
+    "ts-jest": "^29.3.1",
     "typescript": "^5"
   }
 }
