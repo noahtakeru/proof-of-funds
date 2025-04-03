@@ -7,6 +7,10 @@
 
 import { ZK_PROOF_TYPES } from '../../config/constants';
 
+// Circuit type definition (used in our new code)
+export type CircuitType = 'standard' | 'threshold' | 'maximum';
+export type CircuitVersion = string;
+
 /**
  * Configuration parameters for ZK proof generation
  */
@@ -16,6 +20,17 @@ export interface ZKProofParams {
   proofType: number; // Use ZK_PROOF_TYPES enum values
   options?: ZKProofOptions;
   privateData?: any; // Additional private inputs that won't be exposed in publicSignals
+}
+
+/**
+ * Proof parameters (used in new code)
+ */
+export interface ProofParameters {
+  address?: string;
+  amount?: string;
+  privateKey?: string;
+  nonce?: string;
+  [key: string]: any; // Additional parameters
 }
 
 /**
@@ -56,11 +71,11 @@ export interface ZKVerifyParams {
  * Detailed verification result
  */
 export interface VerificationResult {
-  isValid: boolean;
-  verificationMethod: 'standard' | 'alternative' | 'server';
-  circuitVersion: string;
-  verificationTime: number;
-  errors?: string[];
+  valid: boolean;
+  circuitType: CircuitType;
+  verifiedAt: string;
+  verificationMethod: 'standard' | 'alternative' | 'server' | 'test-mock';
+  errorMessage?: string;
   warnings?: string[];
 }
 

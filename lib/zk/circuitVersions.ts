@@ -6,8 +6,22 @@
  * backward compatibility for verifying proofs generated with older circuits.
  */
 
-import { CircuitVersionRegistry, CircuitVersionConfig } from './types';
+import { CircuitVersionRegistry, CircuitVersionConfig, CircuitType, CircuitVersion } from './types';
 import { ZK_PROOF_TYPES } from '../../config/constants';
+
+/**
+ * Definition of a ZK circuit with its metadata
+ */
+export interface CircuitDefinition {
+  circuitType: CircuitType;
+  version: CircuitVersion;
+  wasmPath: string;
+  zkeyPath: string;
+  vkeyPath: string;
+  maxInputSize: number;
+  compatibleWith: CircuitVersion[];
+  deprecated: boolean;
+}
 
 // Current package version (used for versioning)
 export const PACKAGE_VERSION = '1.0.0';
@@ -234,4 +248,83 @@ export function getAvailableVersions(proofType: string | number): string[] {
   }
   
   return Object.keys(circuitVersions);
+}
+
+/**
+ * Get circuit by type
+ * @param circuitType The type of circuit to get
+ * @returns The circuit definition or undefined if not found
+ */
+export function getCircuitByType(circuitType: CircuitType): CircuitDefinition | undefined {
+  const circuitVersions = CIRCUIT_VERSIONS[circuitType];
+  if (!circuitVersions) {
+    return undefined;
+  }
+  
+  // Get the latest version
+  const latestConfig = getLatestCircuitVersion(circuitType);
+  
+  // Find the version key for this config
+  const version = Object.entries(circuitVersions)
+    .find(([_, config]) => config === latestConfig)?.[0];
+  
+  if (!version) return undefined;
+  
+  return {
+    circuitType,
+    version,
+    wasmPath: latestConfig.wasmPath,
+    zkeyPath: latestConfig.zkeyPath,
+    vkeyPath: latestConfig.vkeyPath,
+    maxInputSize: latestConfig.maxInputSize,
+    compatibleWith: latestConfig.compatibleWith,
+    deprecated: latestConfig.deprecated
+  };
+}
+
+/**
+ * Get circuit by version
+ * @param version The circuit version to get
+ * @returns The circuit definition or undefined if not found
+ */
+export function getCircuitByVersion(version: CircuitVersion): CircuitDefinition | undefined {
+  // Search for the circuit with this version
+  for (const [typeName, versions] of Object.entries(CIRCUIT_VERSIONS)) {
+    if (versions[version]) {
+      const config = versions[version];
+      return {
+        circuitType: typeName as CircuitType,
+        version,
+        wasmPath: config.wasmPath,
+        zkeyPath: config.zkeyPath,
+        vkeyPath: config.vkeyPath,
+        maxInputSize: config.maxInputSize,
+        compatibleWith: config.compatibleWith,
+        deprecated: config.deprecated
+      };
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Maps a proof type to a string
+ * @param proofType The proof type
+ * @returns The string representation of the proof type
+ */
+export function mapProofTypeToString(proofType: CircuitType): string {
+  return proofType;
+}
+
+/**
+ * Maps a string to a proof type
+ * @param proofTypeStr The string proof type
+ * @returns The proof type or undefined if not valid
+ */
+export function mapStringToProofType(proofTypeStr: string): CircuitType | undefined {
+  if (['standard', 'threshold', 'maximum'].includes(proofTypeStr)) {
+    return proofTypeStr as CircuitType;
+  }
+  return undefined;
 }

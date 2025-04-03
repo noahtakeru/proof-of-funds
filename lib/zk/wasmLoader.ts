@@ -5,10 +5,12 @@
  * loading WASM modules, handling errors, and providing fallbacks.
  * 
  * It also implements caching of WASM modules to improve performance
- * and reduce bandwidth usage.
+ * and reduces bandwidth usage, with support for Web Workers to
+ * prevent UI blocking during intensive operations.
  */
 
 import { WebAssemblySupport, PerformanceCapabilities } from './types';
+import { createProgressReporter } from './progressTracker';
 
 // Cache for loaded WASM modules
 const wasmCache = new Map<string, WebAssembly.Module>();
@@ -17,7 +19,7 @@ const wasmCache = new Map<string, WebAssembly.Module>();
  * Detects WebAssembly support and available features
  * @returns Object with WebAssembly support information
  */
-export async function detectWebAssemblySupport(): Promise<WebAssemblySupport> {
+export async function detectWasmSupport(): Promise<WebAssemblySupport> {
   const result: WebAssemblySupport = {
     supported: typeof WebAssembly === 'object',
     features: {
@@ -215,6 +217,189 @@ export function clearWasmCache(url?: string): void {
 }
 
 /**
+ * The worker message types for WASM operations
+ */
+type WasmWorkerMessage = {
+  type: 'load' | 'instantiate' | 'error' | 'progress' | 'result';
+  url?: string;
+  payload?: any;
+  error?: string;
+  progress?: number;
+};
+
+/**
+ * Creates an inline worker for WASM operations
+ * @returns Web Worker instance
+ */
+function createWasmWorker(): Worker {
+  // Define the worker script as a string
+  const workerScript = `
+    let wasmCache = new Map();
+    
+    // Listen for messages from the main thread
+    self.onmessage = async function(e) {
+      const { type, url, payload } = e.data;
+      
+      try {
+        if (type === 'load') {
+          // Load a WASM module
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch WASM module: ' + response.statusText);
+          }
+          
+          // Get content length for progress calculation
+          const contentLength = Number(response.headers.get('Content-Length') || '0');
+          const reader = response.body.getReader();
+          const chunks = [];
+          let receivedLength = 0;
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              break;
+            }
+            
+            chunks.push(value);
+            receivedLength += value.length;
+            
+            // Report progress
+            if (contentLength > 0) {
+              self.postMessage({
+                type: 'progress',
+                progress: Math.min(100, Math.round((receivedLength / contentLength) * 100))
+              });
+            }
+          }
+          
+          // Concatenate chunks
+          const wasmBytes = new Uint8Array(receivedLength);
+          let position = 0;
+          for (const chunk of chunks) {
+            wasmBytes.set(chunk, position);
+            position += chunk.length;
+          }
+          
+          // Compile the WASM module
+          const module = await WebAssembly.compile(wasmBytes);
+          
+          // Cache the module
+          wasmCache.set(url, module);
+          
+          // Return the module
+          self.postMessage({
+            type: 'result',
+            payload: { status: 'compiled' }
+          });
+        }
+        else if (type === 'instantiate') {
+          // Instantiate a WASM module with the provided imports
+          const module = wasmCache.get(url);
+          
+          if (!module) {
+            throw new Error('WASM module not found in cache: ' + url);
+          }
+          
+          const instance = await WebAssembly.instantiate(module, payload.imports || {});
+          
+          // Return the module exports
+          self.postMessage({
+            type: 'result',
+            payload: {
+              exports: Object.getOwnPropertyNames(instance.exports)
+            }
+          });
+        }
+      } catch (error) {
+        self.postMessage({
+          type: 'error',
+          error: error.message || 'Unknown error in WASM worker'
+        });
+      }
+    };
+  `;
+  
+  // Create a blob from the worker script
+  const blob = new Blob([workerScript], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(blob);
+  
+  // Create and return the worker
+  const worker = new Worker(workerUrl);
+  
+  // Clean up the URL when the worker is terminated
+  worker.addEventListener('error', () => {
+    URL.revokeObjectURL(workerUrl);
+  });
+  
+  return worker;
+}
+
+/**
+ * Loads a WASM module in a Web Worker to prevent UI blocking
+ * @param url URL to the WASM module
+ * @param options Options for loading
+ * @returns Promise that resolves when the module is loaded
+ */
+export async function loadWasmModuleInWorker(
+  url: string,
+  options: {
+    onProgress?: (percent: number) => void,
+    timeout?: number
+  } = {}
+): Promise<void> {
+  const { onProgress, timeout = 30000 } = options;
+  
+  // Check if Workers are supported
+  if (typeof Worker === 'undefined') {
+    throw new Error('Web Workers are not supported in this environment');
+  }
+  
+  return new Promise((resolve, reject) => {
+    // Create worker
+    const worker = createWasmWorker();
+    
+    // Set up timeout
+    const timeoutId = setTimeout(() => {
+      worker.terminate();
+      reject(new Error(`Loading WASM module in worker timed out after ${timeout}ms`));
+    }, timeout);
+    
+    // Listen for messages from the worker
+    worker.onmessage = (e) => {
+      const data = e.data as WasmWorkerMessage;
+      
+      if (data.type === 'progress' && onProgress) {
+        onProgress(data.progress || 0);
+      }
+      else if (data.type === 'result') {
+        clearTimeout(timeoutId);
+        resolve();
+      }
+      else if (data.type === 'error') {
+        clearTimeout(timeoutId);
+        worker.terminate();
+        reject(new Error(data.error || 'Unknown error in WASM worker'));
+      }
+    };
+    
+    // Handle worker errors
+    worker.onerror = (err) => {
+      clearTimeout(timeoutId);
+      worker.terminate();
+      reject(new Error(`Worker error: ${err.message}`));
+    };
+    
+    // Start loading the WASM module
+    worker.postMessage({
+      type: 'load',
+      url
+    });
+  });
+}
+
+/**
  * Checks the device's performance capabilities to determine
  * if it can handle ZK proof generation on the client-side
  * @returns Performance capability information
@@ -225,7 +410,7 @@ export async function checkPerformanceCapabilities(): Promise<PerformanceCapabil
   const memory = (navigator as any).deviceMemory || 4; // deviceMemory not in all browsers
   
   // Check WebAssembly support
-  const wasmSupport = await detectWebAssemblySupport();
+  const wasmSupport = await detectWasmSupport();
   
   // Check Web Workers support
   const supportsWorkers = typeof Worker !== 'undefined';
@@ -258,3 +443,154 @@ export async function checkPerformanceCapabilities(): Promise<PerformanceCapabil
     maxInputSize
   };
 }
+
+/**
+ * Main WASM Loader API
+ * Provides a simplified interface for working with WASM modules
+ */
+class WasmLoader {
+  private supportsWasm: boolean | null = null;
+  private supportsWorkers: boolean | null = null;
+  private capabilities: PerformanceCapabilities | null = null;
+  
+  /**
+   * Initializes the WASM loader
+   * @returns Promise resolving to true if initialization was successful
+   */
+  async initialize(): Promise<boolean> {
+    try {
+      // Create a progress reporter
+      const progress = createProgressReporter('wasm-loader-init');
+      
+      // Check WASM support
+      progress.reportProgress('detecting-wasm', 0, 'Detecting WebAssembly support');
+      const wasmSupport = await detectWasmSupport();
+      this.supportsWasm = wasmSupport.supported;
+      progress.reportProgress('detecting-wasm', 100, 'WebAssembly detection complete');
+      
+      // Check performance capabilities if WASM is supported
+      if (this.supportsWasm) {
+        progress.reportProgress('checking-capabilities', 0, 'Checking device capabilities');
+        this.capabilities = await checkPerformanceCapabilities();
+        this.supportsWorkers = this.capabilities.supportsWorkers;
+        progress.reportProgress('checking-capabilities', 100, 'Capability check complete');
+      }
+      
+      progress.complete({ success: true });
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize WASM loader:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Checks if WebAssembly is supported
+   * @returns True if WebAssembly is supported
+   */
+  isWasmSupported(): boolean {
+    if (this.supportsWasm === null) {
+      // Synchronous check if not initialized
+      this.supportsWasm = typeof WebAssembly === 'object';
+    }
+    return this.supportsWasm;
+  }
+  
+  /**
+   * Checks if Web Workers are supported
+   * @returns True if Web Workers are supported
+   */
+  areWorkersSupported(): boolean {
+    if (this.supportsWorkers === null) {
+      // Synchronous check if not initialized
+      this.supportsWorkers = typeof Worker !== 'undefined';
+    }
+    return this.supportsWorkers;
+  }
+  
+  /**
+   * Gets device capabilities
+   * @returns Device capabilities or null if not initialized
+   */
+  getCapabilities(): PerformanceCapabilities | null {
+    return this.capabilities;
+  }
+  
+  /**
+   * Determines if client-side processing is recommended
+   * @returns True if client-side processing is recommended
+   */
+  isClientSideRecommended(): boolean {
+    if (!this.capabilities) return false;
+    return this.capabilities.recommendedLocation === 'client';
+  }
+  
+  /**
+   * Loads a WASM module with automatic worker selection based on capabilities
+   * @param url URL to the WASM module
+   * @param options Options for loading
+   * @returns Promise resolving to the compiled module or null if not supported
+   */
+  async loadModule(
+    url: string,
+    options: {
+      useCache?: boolean,
+      useWorker?: boolean,
+      forceMainThread?: boolean,
+      timeout?: number,
+      onProgress?: (percent: number) => void
+    } = {}
+  ): Promise<WebAssembly.Module | null> {
+    const { 
+      useCache = true, 
+      useWorker = true,
+      forceMainThread = false,
+      timeout = 30000,
+      onProgress
+    } = options;
+    
+    // Check if WebAssembly is supported
+    if (!this.isWasmSupported()) {
+      console.warn('WebAssembly is not supported in this environment');
+      return null;
+    }
+    
+    // Determine if we should use a worker
+    const shouldUseWorker = 
+      useWorker && 
+      this.areWorkersSupported() && 
+      !forceMainThread;
+    
+    try {
+      if (shouldUseWorker) {
+        // Load in a worker
+        await loadWasmModuleInWorker(url, { onProgress, timeout });
+        
+        // We need to load again in the main thread to get the module
+        // But the worker has already cached the fetch result
+        return await loadWasmModule(url, { 
+          useCache, 
+          timeout, 
+          onProgress: undefined // Worker already reported progress
+        });
+      } else {
+        // Load in the main thread
+        return await loadWasmModule(url, { useCache, timeout, onProgress });
+      }
+    } catch (error) {
+      console.error('Error loading WASM module:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Clears the WASM module cache
+   * @param url Optional specific URL to clear, or all if not specified
+   */
+  clearCache(url?: string): void {
+    clearWasmCache(url);
+  }
+}
+
+// Export a singleton instance
+export const wasmLoader = new WasmLoader();
