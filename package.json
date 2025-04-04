@@ -19,7 +19,8 @@
     "test:zk": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/setup.test.js --config jest.config.cjs",
     "test:zk:all": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__ --config jest.config.cjs",
     "test:zk:snarkjs": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/snarkjsLoader.test.js --config jest.config.cjs",
-    "test:zk:api": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/zkApiEndpoints.test.js --config jest.config.cjs"
+    "test:zk:api": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/zkApiEndpoints.test.js --config jest.config.cjs",
+    "test:zk:circuits": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/circuits/ --config jest.config.cjs"
   },
   "dependencies": {
     "@ethersproject/keccak256": "^5.8.0",
