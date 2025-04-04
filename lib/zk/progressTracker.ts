@@ -23,12 +23,12 @@ export type ProgressCallback = (event: ProgressEvent) => void;
 class ZkProgressTracker extends EventEmitter {
   private static instance: ZkProgressTracker;
   private operations: Map<string, ProgressEvent>;
-  
+
   private constructor() {
     super();
     this.operations = new Map();
   }
-  
+
   /**
    * Get the singleton instance of the progress tracker
    */
@@ -38,7 +38,7 @@ class ZkProgressTracker extends EventEmitter {
     }
     return ZkProgressTracker.instance;
   }
-  
+
   /**
    * Register for progress updates on a specific operation
    * @param operation The operation to track
@@ -47,7 +47,7 @@ class ZkProgressTracker extends EventEmitter {
   public registerProgressCallback(operation: string, callback: ProgressCallback): void {
     this.on(`progress:${operation}`, callback);
   }
-  
+
   /**
    * Unregister from progress updates
    * @param operation The operation to unregister from
@@ -56,7 +56,7 @@ class ZkProgressTracker extends EventEmitter {
   public unregisterProgressCallback(operation: string, callback: ProgressCallback): void {
     this.off(`progress:${operation}`, callback);
   }
-  
+
   /**
    * Report progress on an operation
    * @param event The progress event
@@ -66,7 +66,7 @@ class ZkProgressTracker extends EventEmitter {
     this.emit(`progress:${event.operation}`, event);
     this.emit('progress', event);
   }
-  
+
   /**
    * Start tracking a new operation
    * @param operation The operation name
@@ -82,10 +82,10 @@ class ZkProgressTracker extends EventEmitter {
         message: `Initializing ${step}`
       });
     });
-    
+
     this.emit(`operation:start`, { operation, steps });
   }
-  
+
   /**
    * Mark an operation as complete
    * @param operation The operation name
@@ -96,7 +96,7 @@ class ZkProgressTracker extends EventEmitter {
     const steps = Array.from(this.operations.keys())
       .filter(key => key.startsWith(`${operation}:`))
       .map(key => key.split(':')[1]);
-      
+
     steps.forEach(step => {
       this.reportProgress({
         operation,
@@ -105,10 +105,10 @@ class ZkProgressTracker extends EventEmitter {
         message: `Completed ${step}`
       });
     });
-    
+
     this.emit(`operation:complete`, { operation, result });
   }
-  
+
   /**
    * Report an error in an operation
    * @param operation The operation name
@@ -123,10 +123,10 @@ class ZkProgressTracker extends EventEmitter {
       message: `Error in ${step}: ${error.message || 'Unknown error'}`,
       detail: error
     });
-    
+
     this.emit(`operation:error`, { operation, step, error });
   }
-  
+
   /**
    * Get the current progress of all operations
    * @returns A map of operation/step to progress event
@@ -134,7 +134,7 @@ class ZkProgressTracker extends EventEmitter {
   public getCurrentProgress(): Map<string, ProgressEvent> {
     return new Map(this.operations);
   }
-  
+
   /**
    * Reset the progress of all operations
    */
@@ -170,7 +170,7 @@ export function createProgressReporter(operation: string) {
         detail
       });
     },
-    
+
     /**
      * Report an error on a step
      * @param step The step name
@@ -179,7 +179,7 @@ export function createProgressReporter(operation: string) {
     reportError(step: string, error: any) {
       zkProgressTracker.reportError(operation, step, error);
     },
-    
+
     /**
      * Mark the operation as complete
      * @param result Optional result data
@@ -187,7 +187,7 @@ export function createProgressReporter(operation: string) {
     complete(result?: any) {
       zkProgressTracker.completeOperation(operation, result);
     },
-    
+
     /**
      * Create a wrapped function that reports progress
      * @param fn The function to wrap
@@ -198,14 +198,25 @@ export function createProgressReporter(operation: string) {
       fn: T,
       step: string
     ): (...args: Parameters<T>) => Promise<ReturnType<T>> {
+      // Return a new function with the same signature as the original
       return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
         try {
-          this.reportProgress(step, 10, 'Starting operation');
+          // Report that we're starting the step
+          this.reportProgress(step, 0, `Starting ${step}`);
+
+          // Call the original function with the provided arguments
           const result = await fn(...args);
-          this.reportProgress(step, 100, 'Operation complete');
+
+          // If successful, report 100% completion
+          this.reportProgress(step, 100, `Completed ${step}`);
+
+          // Return the original function's result
           return result;
         } catch (error) {
+          // If an error occurs, report it
           this.reportError(step, error);
+
+          // Re-throw the error to maintain the original function's behavior
           throw error;
         }
       };
