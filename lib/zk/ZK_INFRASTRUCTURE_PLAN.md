@@ -1573,6 +1573,9 @@ export class GasManager {
      - Develop CI/CD pipeline integration
      - Add visual regression testing
      - Implement test coverage reporting
+   - Address Module System Inconsistency
+     - Standardizing the module systems (CommonJS vs ESM)
+     - Unblock full testing with (npm run test:zk:all)
 
 2. **Security & Performance Testing (Days 2-4)**
    - Conduct thorough security penetration testing:
