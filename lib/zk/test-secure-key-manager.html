@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Key Manager Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0051a8;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        #log {
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Secure Key Manager Test</h1>
+    <p>This is a test page for the Secure Key Manager and Storage implementation. Click the buttons below to test different functionality.</p>
+    
+    <div>
+        <button id="generatePassword">Generate Secure Password</button>
+        <button id="encryptData">Encrypt Data</button>
+        <button id="decryptData">Decrypt Data</button>
+        <button id="encryptPrivateKey">Encrypt Private Key</button>
+        <button id="decryptPrivateKey">Decrypt Private Key</button>
+        <button id="storeWallet">Store Wallet</button>
+        <button id="retrieveWallet">Retrieve Wallet</button>
+        <button id="storeCircuitInput">Store Circuit Input</button>
+        <button id="retrieveCircuitInput">Retrieve Circuit Input</button>
+        <button id="cleanupStorage">Cleanup Storage</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script type="module">
+        // Implementation of the secure key manager and storage
+        // This is a simplified version for testing purposes
+        
+        // Secure Key Manager implementation
+        class SecureKeyManager {
+            constructor() {
+                this.crypto = window.crypto;
+                this.encryptionAlgorithm = 'AES-GCM';
+                this.keyDerivationAlgorithm = 'PBKDF2';
+                this.hashAlgorithm = 'SHA-256';
+                this.iterationCount = 100000; // High iteration count for PBKDF2
+                this.keyLength = 256; // AES-256
+            }
+            
+            // Generate encryption key from password and salt
+            async generateEncryptionKey(password, salt) {
+                try {
+                    // Generate salt if not provided
+                    const keySalt = salt || new Uint8Array(16);
+                    if (!salt) {
+                        this.crypto.getRandomValues(keySalt);
+                    }
+                    
+                    // Import password as key material
+                    const keyMaterial = await this.crypto.subtle.importKey(
+                        'raw',
+                        new TextEncoder().encode(password),
+                        { name: this.keyDerivationAlgorithm },
+                        false,
+                        ['deriveBits', 'deriveKey']
+                    );
+                    
+                    // Derive the encryption key using PBKDF2
+                    const key = await this.crypto.subtle.deriveKey(
+                        {
+                            name: this.keyDerivationAlgorithm,
+                            salt: keySalt,
+                            iterations: this.iterationCount,
+                            hash: this.hashAlgorithm
+                        },
+                        keyMaterial,
+                        { name: this.encryptionAlgorithm, length: this.keyLength },
+                        false,
+                        ['encrypt', 'decrypt']
+                    );
+                    
+                    return { key, salt: keySalt };
+                } catch (error) {
+                    throw new Error(`Key generation failed: ${error.message}`);
+                }
+            }
+            
+            // Encrypt data with AES-GCM
+            async encrypt(data, password) {
+                try {
+                    // Convert data to string if it's an object
+                    const dataString = typeof data === 'object' ? JSON.stringify(data) : String(data);
+                    const dataBytes = new TextEncoder().encode(dataString);
+                    
+                    // Generate IV for AES-GCM
+                    const iv = new Uint8Array(12);
+                    this.crypto.getRandomValues(iv);
+                    
+                    // Generate encryption key
+                    const { key, salt } = await this.generateEncryptionKey(password);
+                    
+                    // Encrypt the data
+                    const encryptedData = await this.crypto.subtle.encrypt(
+                        {
+                            name: this.encryptionAlgorithm,
+                            iv: iv
+                        },
+                        key,
+                        dataBytes
+                    );
+                    
+                    // Format for storage
+                    return {
+                        version: '1.0',
+                        algorithm: this.encryptionAlgorithm,
+                        keyDerivation: this.keyDerivationAlgorithm,
+                        ciphertext: Array.from(new Uint8Array(encryptedData)),
+                        iv: Array.from(iv),
+                        salt: Array.from(salt),
+                        timestamp: Date.now(),
+                        metadata: {
+                            type: 'encrypted-data',
+                            contentType: typeof data === 'object' ? 'json' : 'string'
+                        }
+                    };
+                } catch (error) {
+                    throw new Error(`Encryption failed: ${error.message}`);
+                }
+            }
+            
+            // Decrypt data with AES-GCM
+            async decrypt(encryptedData, password) {
+                try {
+                    // Validate encrypted data format
+                    if (!encryptedData || !encryptedData.ciphertext || !encryptedData.iv || !encryptedData.salt) {
+                        throw new Error('Invalid encrypted data format');
+                    }
+                    
+                    // Convert array data back to typed arrays
+                    const ciphertext = new Uint8Array(encryptedData.ciphertext);
+                    const iv = new Uint8Array(encryptedData.iv);
+                    const salt = new Uint8Array(encryptedData.salt);
+                    
+                    // Generate the same key using provided salt
+                    const { key } = await this.generateEncryptionKey(password, salt);
+                    
+                    // Decrypt the data
+                    const decryptedBuffer = await this.crypto.subtle.decrypt(
+                        {
+                            name: this.encryptionAlgorithm,
+                            iv: iv
+                        },
+                        key,
+                        ciphertext
+                    );
+                    
+                    // Convert buffer to string
+                    const decryptedString = new TextDecoder().decode(decryptedBuffer);
+                    
+                    // Parse JSON if needed
+                    if (encryptedData.metadata && encryptedData.metadata.contentType === 'json') {
+                        return JSON.parse(decryptedString);
+                    }
+                    
+                    return decryptedString;
+                } catch (error) {
+                    throw new Error(`Decryption failed: ${error.message}`);
+                }
+            }
+            
+            // Encrypt a private key with enhanced security
+            async encryptPrivateKey(privateKey, password) {
+                try {
+                    const encryptedData = await this.encrypt(privateKey, password);
+                    
+                    // Add specific metadata for private keys
+                    encryptedData.metadata = {
+                        ...encryptedData.metadata,
+                        type: 'encrypted-private-key',
+                        keyType: 'ethereum-private-key',
+                    };
+                    
+                    return encryptedData;
+                } catch (error) {
+                    throw new Error(`Private key encryption failed: ${error.message}`);
+                }
+            }
+            
+            // Decrypt a private key
+            async decryptPrivateKey(encryptedKey, password) {
+                try {
+                    // Validate this is actually an encrypted private key
+                    if (!encryptedKey.metadata || encryptedKey.metadata.type !== 'encrypted-private-key') {
+                        throw new Error('Data is not an encrypted private key');
+                    }
+                    
+                    return await this.decrypt(encryptedKey, password);
+                } catch (error) {
+                    throw new Error(`Private key decryption failed: ${error.message}`);
+                }
+            }
+            
+            // Generate a secure random password
+            generateSecurePassword(length = 32) {
+                const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+                const charsetLength = charset.length;
+                
+                // Generate random values
+                const randomValues = new Uint8Array(length);
+                this.crypto.getRandomValues(randomValues);
+                
+                // Convert to password string
+                let password = '';
+                for (let i = 0; i < length; i++) {
+                    password += charset[randomValues[i] % charsetLength];
+                }
+                
+                return password;
+            }
+            
+            // Securely wipe sensitive data
+            secureWipe(data) {
+                if (!data) return;
+                
+                if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
+                    // Overwrite with zeros
+                    new Uint8Array(data.buffer || data).fill(0);
+                } else if (Array.isArray(data)) {
+                    // Wipe array contents
+                    for (let i = 0; i < data.length; i++) {
+                        if (typeof data[i] === 'object' && data[i] !== null) {
+                            this.secureWipe(data[i]);
+                        }
+                        data[i] = null;
+                    }
+                    data.length = 0;
+                } else if (typeof data === 'object' && data !== null) {
+                    // Wipe object properties
+                    Object.keys(data).forEach(key => {
+                        if (typeof data[key] === 'object' && data[key] !== null) {
+                            this.secureWipe(data[key]);
+                        }
+                        data[key] = null;
+                    });
+                }
+            }
+        }
+        
+        // Generate Unique ID for storage keys
+        const generateUniqueId = () => {
+            const timestampPart = Date.now().toString(36);
+            const randomPart = Math.random().toString(36).substring(2, 15);
+            return `${timestampPart}-${randomPart}`;
+        };
+        
+        // Secure Storage implementation
+        class SecureStorage {
+            constructor(keyManager) {
+                this.storage = window.sessionStorage;
+                this.keyManager = keyManager;
+                this.prefix = {
+                    wallet: 'temp-wallet-',
+                    input: 'zk-input-',
+                    session: 'zk-session-'
+                };
+            }
+            
+            // Store a wallet securely
+            async storeWallet(walletData, password, expiresIn = 30 * 60 * 1000) {
+                try {
+                    const walletId = generateUniqueId();
+                    
+                    // Encrypt private key separately for enhanced security
+                    const encryptedPrivateKey = await this.keyManager.encryptPrivateKey(
+                        walletData.privateKey, 
+                        password
+                    );
+                    
+                    // Create storage object without private key
+                    const storageObject = {
+                        id: walletId,
+                        address: walletData.address,
+                        encryptedPrivateKey,
+                        expiresAt: Date.now() + expiresIn,
+                        created: Date.now(),
+                        type: 'wallet'
+                    };
+                    
+                    // Store in session storage
+                    this.storage.setItem(
+                        `${this.prefix.wallet}${walletId}`,
+                        JSON.stringify(storageObject)
+                    );
+                    
+                    return walletId;
+                } catch (error) {
+                    throw new Error(`Failed to store wallet: ${error.message}`);
+                }
+            }
+            
+            // Retrieve a stored wallet
+            async getWallet(walletId, password) {
+                try {
+                    // Retrieve encrypted wallet data
+                    const storedData = this.storage.getItem(`${this.prefix.wallet}${walletId}`);
+                    if (!storedData) {
+                        throw new Error('Wallet not found or expired');
+                    }
+                    
+                    const walletData = JSON.parse(storedData);
+                    
+                    // Check expiration
+                    if (Date.now() > walletData.expiresAt) {
+                        this.removeItem(`${this.prefix.wallet}${walletId}`);
+                        throw new Error('Wallet has expired');
+                    }
+                    
+                    // Decrypt private key
+                    const privateKey = await this.keyManager.decryptPrivateKey(
+                        walletData.encryptedPrivateKey,
+                        password
+                    );
+                    
+                    // Return wallet with decrypted private key
+                    return {
+                        id: walletData.id,
+                        address: walletData.address,
+                        privateKey,
+                        created: walletData.created,
+                        expiresAt: walletData.expiresAt
+                    };
+                } catch (error) {
+                    throw new Error(`Failed to retrieve wallet: ${error.message}`);
+                }
+            }
+            
+            // Store circuit input data
+            async storeCircuitInput(inputData, password, expiresIn = 15 * 60 * 1000) {
+                try {
+                    const inputId = generateUniqueId();
+                    
+                    // Encrypt the entire input data
+                    const encryptedData = await this.keyManager.encrypt(inputData, password);
+                    
+                    // Create storage object
+                    const storageObject = {
+                        id: inputId,
+                        encryptedData,
+                        expiresAt: Date.now() + expiresIn,
+                        created: Date.now(),
+                        type: 'circuit-input'
+                    };
+                    
+                    // Store in session storage
+                    this.storage.setItem(
+                        `${this.prefix.input}${inputId}`,
+                        JSON.stringify(storageObject)
+                    );
+                    
+                    return inputId;
+                } catch (error) {
+                    throw new Error(`Failed to store circuit input: ${error.message}`);
+                }
+            }
+            
+            // Retrieve circuit input data
+            async getCircuitInput(inputId, password) {
+                try {
+                    // Retrieve encrypted input data
+                    const storedData = this.storage.getItem(`${this.prefix.input}${inputId}`);
+                    if (!storedData) {
+                        throw new Error('Circuit input not found or expired');
+                    }
+                    
+                    const inputData = JSON.parse(storedData);
+                    
+                    // Check expiration
+                    if (Date.now() > inputData.expiresAt) {
+                        this.removeItem(`${this.prefix.input}${inputId}`);
+                        throw new Error('Circuit input has expired');
+                    }
+                    
+                    // Decrypt data
+                    const decryptedData = await this.keyManager.decrypt(
+                        inputData.encryptedData,
+                        password
+                    );
+                    
+                    return decryptedData;
+                } catch (error) {
+                    throw new Error(`Failed to retrieve circuit input: ${error.message}`);
+                }
+            }
+            
+            // Remove item from storage securely
+            removeItem(key) {
+                try {
+                    // Get the item first
+                    const item = this.storage.getItem(key);
+                    if (item) {
+                        // Parse it to get the structure
+                        const parsedItem = JSON.parse(item);
+                        
+                        // Wipe sensitive data
+                        if (parsedItem && typeof parsedItem === 'object') {
+                            this.keyManager.secureWipe(parsedItem);
+                        }
+                        
+                        // Remove from storage
+                        this.storage.removeItem(key);
+                    }
+                } catch (error) {
+                    console.error(`Error removing item ${key}:`, error);
+                }
+            }
+            
+            // Cleanup all storage items
+            cleanupAllItems() {
+                let removedCount = 0;
+                
+                // Get all keys
+                const keys = [];
+                for (let i = 0; i < this.storage.length; i++) {
+                    const key = this.storage.key(i);
+                    if (key.startsWith(this.prefix.wallet) || 
+                        key.startsWith(this.prefix.input) || 
+                        key.startsWith(this.prefix.session)) {
+                        keys.push(key);
+                    }
+                }
+                
+                // Remove all matching items
+                keys.forEach(key => {
+                    this.removeItem(key);
+                    removedCount++;
+                });
+                
+                return removedCount;
+            }
+        }
+        
+        // Instantiate the classes
+        const keyManager = new SecureKeyManager();
+        const storage = new SecureStorage(keyManager);
+        
+        // Logging function
+        function log(message, type = 'info') {
+            const logElem = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = type;
+            
+            // If it's an object, stringify it
+            if (typeof message === 'object') {
+                message = JSON.stringify(message, null, 2);
+                entry.innerHTML = `<pre>${message}</pre>`;
+            } else {
+                entry.textContent = message;
+            }
+            
+            logElem.appendChild(entry);
+            logElem.scrollTop = logElem.scrollHeight; // Scroll to bottom
+        }
+        
+        // Test variables
+        let encryptedData = null;
+        let encryptedKey = null;
+        let testPassword = 'test-password';
+        let walletId = null;
+        let inputId = null;
+        
+        // Test functions
+        document.getElementById('generatePassword').addEventListener('click', () => {
+            try {
+                const password = keyManager.generateSecurePassword();
+                log('Generated secure password:', 'success');
+                log(password);
+                
+                // Analyze password strength
+                const hasUppercase = /[A-Z]/.test(password);
+                const hasLowercase = /[a-z]/.test(password);
+                const hasNumbers = /[0-9]/.test(password);
+                const hasSpecial = /[^A-Za-z0-9]/.test(password);
+                
+                log(`Password strength analysis:`);
+                log(`- Length: ${password.length} characters`);
+                log(`- Uppercase letters: ${hasUppercase ? 'Yes' : 'No'}`);
+                log(`- Lowercase letters: ${hasLowercase ? 'Yes' : 'No'}`);
+                log(`- Numbers: ${hasNumbers ? 'Yes' : 'No'}`);
+                log(`- Special characters: ${hasSpecial ? 'Yes' : 'No'}`);
+                
+                // Generate a shorter one too
+                const shortPassword = keyManager.generateSecurePassword(16);
+                log('Short secure password (16 chars):', 'success');
+                log(shortPassword);
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('encryptData').addEventListener('click', async () => {
+            try {
+                // Test data to encrypt
+                const testData = {
+                    userId: 123456,
+                    userName: 'test-user',
+                    secretValue: 'this-is-a-secret',
+                    timestamp: Date.now()
+                };
+                
+                log('Encrypting test data...');
+                
+                // Encrypt the data
+                encryptedData = await keyManager.encrypt(testData, testPassword);
+                
+                log('Data encrypted successfully:', 'success');
+                log(encryptedData);
+                
+                // Verify structure
+                log('Encrypted data contains:');
+                log(`- Algorithm: ${encryptedData.algorithm}`);
+                log(`- Key derivation: ${encryptedData.keyDerivation}`);
+                log(`- IV length: ${encryptedData.iv.length} bytes`);
+                log(`- Salt length: ${encryptedData.salt.length} bytes`);
+                log(`- Ciphertext length: ${encryptedData.ciphertext.length} bytes`);
+                
+                // Verify no plaintext leakage
+                const dataString = JSON.stringify(encryptedData);
+                const leakCheck = JSON.stringify(testData);
+                const containsPlaintext = leakCheck.substring(1, leakCheck.length - 1)
+                    .split(',')
+                    .some(part => dataString.includes(part));
+                
+                log(`Plaintext data leaked in ciphertext: ${containsPlaintext ? 'YES (BAD)' : 'No (Good)'}`, 
+                    containsPlaintext ? 'error' : 'success');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('decryptData').addEventListener('click', async () => {
+            try {
+                if (!encryptedData) {
+                    log('No encrypted data available. Encrypt data first.', 'error');
+                    return;
+                }
+                
+                log('Decrypting data...');
+                
+                // Decrypt the data
+                const decryptedData = await keyManager.decrypt(encryptedData, testPassword);
+                
+                log('Data decrypted successfully:', 'success');
+                log(decryptedData);
+                
+                // Try incorrect password
+                try {
+                    log('Attempting decryption with wrong password...');
+                    const wrongResult = await keyManager.decrypt(encryptedData, 'wrong-password');
+                    log('WARNING: Decryption succeeded with wrong password!', 'error');
+                } catch (error) {
+                    log(`Decryption with wrong password failed as expected: ${error.message}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('encryptPrivateKey').addEventListener('click', async () => {
+            try {
+                // Test private key (this would normally be a secret)
+                const privateKey = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+                
+                log('Encrypting private key...');
+                
+                // Encrypt the private key
+                encryptedKey = await keyManager.encryptPrivateKey(privateKey, testPassword);
+                
+                log('Private key encrypted successfully:', 'success');
+                log(encryptedKey);
+                
+                // Verify metadata
+                log('Encrypted key contains:');
+                log(`- Type: ${encryptedKey.metadata.type}`);
+                log(`- Key type: ${encryptedKey.metadata.keyType}`);
+                
+                // Verify no plaintext leakage
+                const keyString = JSON.stringify(encryptedKey);
+                const containsPlaintext = keyString.includes(privateKey);
+                
+                log(`Private key leaked in ciphertext: ${containsPlaintext ? 'YES (BAD)' : 'No (Good)'}`,
+                    containsPlaintext ? 'error' : 'success');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('decryptPrivateKey').addEventListener('click', async () => {
+            try {
+                if (!encryptedKey) {
+                    log('No encrypted key available. Encrypt a private key first.', 'error');
+                    return;
+                }
+                
+                log('Decrypting private key...');
+                
+                // Decrypt the private key
+                const decryptedKey = await keyManager.decryptPrivateKey(encryptedKey, testPassword);
+                
+                log('Private key decrypted successfully:', 'success');
+                log(decryptedKey);
+                
+                // Try using the wrong metadata type
+                try {
+                    log('Attempting to decrypt with modified metadata...');
+                    const modifiedKey = {...encryptedKey};
+                    modifiedKey.metadata.type = 'not-a-private-key';
+                    
+                    const wrongResult = await keyManager.decryptPrivateKey(modifiedKey, testPassword);
+                    log('WARNING: Decryption succeeded with wrong metadata!', 'error');
+                } catch (error) {
+                    log(`Decryption with wrong metadata failed as expected: ${error.message}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('storeWallet').addEventListener('click', async () => {
+            try {
+                // Test wallet data
+                const walletData = {
+                    address: '0x1234567890abcdef1234567890abcdef12345678',
+                    privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+                };
+                
+                log('Storing wallet data securely...');
+                
+                // Store the wallet
+                walletId = await storage.storeWallet(walletData, testPassword);
+                
+                log(`Wallet stored successfully with ID: ${walletId}`, 'success');
+                
+                // Verify storage
+                const storedData = sessionStorage.getItem(`temp-wallet-${walletId}`);
+                const parsedData = JSON.parse(storedData);
+                
+                log('Stored wallet data:');
+                log(parsedData);
+                
+                // Check for private key exposure
+                const containsPlaintext = storedData.includes(walletData.privateKey);
+                log(`Private key exposed in storage: ${containsPlaintext ? 'YES (BAD)' : 'No (Good)'}`,
+                    containsPlaintext ? 'error' : 'success');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('retrieveWallet').addEventListener('click', async () => {
+            try {
+                if (!walletId) {
+                    log('No wallet ID available. Store a wallet first.', 'error');
+                    return;
+                }
+                
+                log(`Retrieving wallet with ID: ${walletId}...`);
+                
+                // Retrieve the wallet
+                const wallet = await storage.getWallet(walletId, testPassword);
+                
+                log('Wallet retrieved successfully:', 'success');
+                log(wallet);
+                
+                // Try to retrieve with wrong password
+                try {
+                    log('Attempting retrieval with wrong password...');
+                    const wrongWallet = await storage.getWallet(walletId, 'wrong-password');
+                    log('WARNING: Retrieval succeeded with wrong password!', 'error');
+                } catch (error) {
+                    log(`Retrieval with wrong password failed as expected: ${error.message}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('storeCircuitInput').addEventListener('click', async () => {
+            try {
+                // Test circuit input
+                const circuitInput = {
+                    privateAmount: '1000000000000000000',
+                    publicAmount: '1000000000000000000',
+                    privateAddress: Array(20).fill(1),
+                    publicAddressHash: '0xhash123',
+                    nonce: Array.from(new Uint8Array(16).map((_, i) => i))
+                };
+                
+                log('Storing circuit input securely...');
+                
+                // Store the circuit input
+                inputId = await storage.storeCircuitInput(circuitInput, testPassword);
+                
+                log(`Circuit input stored successfully with ID: ${inputId}`, 'success');
+                
+                // Verify storage
+                const storedData = sessionStorage.getItem(`zk-input-${inputId}`);
+                const parsedData = JSON.parse(storedData);
+                
+                log('Stored circuit input data:');
+                log(parsedData);
+                
+                // Check for plaintext exposure
+                const inputString = JSON.stringify(circuitInput);
+                const containsPlaintext = Object.keys(circuitInput).some(key => 
+                    storedData.includes(`"${key}"`) && storedData.includes(circuitInput[key]));
+                
+                log(`Circuit input exposed in storage: ${containsPlaintext ? 'YES (BAD)' : 'No (Good)'}`,
+                    containsPlaintext ? 'error' : 'success');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('retrieveCircuitInput').addEventListener('click', async () => {
+            try {
+                if (!inputId) {
+                    log('No input ID available. Store a circuit input first.', 'error');
+                    return;
+                }
+                
+                log(`Retrieving circuit input with ID: ${inputId}...`);
+                
+                // Retrieve the circuit input
+                const input = await storage.getCircuitInput(inputId, testPassword);
+                
+                log('Circuit input retrieved successfully:', 'success');
+                log(input);
+                
+                // Try to retrieve with wrong password
+                try {
+                    log('Attempting retrieval with wrong password...');
+                    const wrongInput = await storage.getCircuitInput(inputId, 'wrong-password');
+                    log('WARNING: Retrieval succeeded with wrong password!', 'error');
+                } catch (error) {
+                    log(`Retrieval with wrong password failed as expected: ${error.message}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('cleanupStorage').addEventListener('click', async () => {
+            try {
+                log('Cleaning up all secure storage items...');
+                
+                // Clean up all items
+                const count = storage.cleanupAllItems();
+                
+                log(`Cleaned up ${count} storage items`, 'success');
+                
+                // Reset IDs
+                walletId = null;
+                inputId = null;
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Run initial checks
+        window.addEventListener('DOMContentLoaded', () => {
+            log('Secure Key Manager Test Page');
+            
+            // Check Web Crypto API availability
+            if (window.crypto && window.crypto.subtle) {
+                log('Web Crypto API is available', 'success');
+                log('AES-GCM and PBKDF2 operations should work correctly');
+            } else {
+                log('Web Crypto API is NOT available!', 'error');
+                log('This browser does not support the required cryptographic operations');
+            }
+            
+            // Check sessionStorage availability
+            if (window.sessionStorage) {
+                log('Session Storage is available', 'success');
+            } else {
+                log('Session Storage is NOT available!', 'error');
+            }
+            
+            log('Click the buttons above to test the Secure Key Manager');
+        });
+    </script>
+</body>
+</html>

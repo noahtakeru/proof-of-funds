@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client-Side Security Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0051a8;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        #log {
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        .warning { color: orange; }
+        .security { color: darkred; font-weight: bold; }
+        .timestamp { color: #777; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>Client-Side Security Test</h1>
+    <p>This test page demonstrates the ZK Client-Side Security implementation.</p>
+    
+    <div>
+        <h2>Session Management</h2>
+        <button id="initSession">Initialize Session</button>
+        <button id="checkSession">Check Session</button>
+        <button id="extendSession">Extend Session</button>
+        <button id="terminateSession">Terminate Session</button>
+    </div>
+    
+    <div>
+        <h2>Security Operations</h2>
+        <button id="storeWalletData">Store Wallet Data</button>
+        <button id="retrieveWalletData">Retrieve Wallet Data</button>
+        <button id="rotateKeys">Rotate Keys</button>
+        <button id="checkTampering">Check for Tampering</button>
+    </div>
+    
+    <div>
+        <h2>Audit Logging</h2>
+        <button id="viewSecurityLog">View Security Log</button>
+        <button id="triggerAnomaly">Trigger Security Anomaly</button>
+        <button id="verifySecurity">Verify Security</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script type="module">
+        // Implementation of the security components for testing
+        
+        // Secure Key Manager
+        class SecureKeyManager {
+            constructor() {
+                this.crypto = window.crypto;
+            }
+            
+            generateSecurePassword(length = 32) {
+                const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+                const charsetLength = charset.length;
+                
+                const randomValues = new Uint8Array(length);
+                this.crypto.getRandomValues(randomValues);
+                
+                let password = '';
+                for (let i = 0; i < length; i++) {
+                    password += charset[randomValues[i] % charsetLength];
+                }
+                
+                return password;
+            }
+            
+            secureWipe(data) {
+                // Implementation simplified for testing
+                if (data instanceof Uint8Array) {
+                    data.fill(0);
+                } else if (Array.isArray(data)) {
+                    data.length = 0;
+                } else if (typeof data === 'object' && data !== null) {
+                    Object.keys(data).forEach(key => {
+                        data[key] = null;
+                    });
+                }
+            }
+            
+            // Other methods would be implemented here
+        }
+        
+        // Security Audit Logger
+        class SecurityAuditLogger {
+            constructor(config = {}) {
+                this.logs = [];
+                this.signingKey = this.generateSigningKey();
+                this.lastLogHash = this.simpleHash('LOG_CHAIN_INIT' + Date.now());
+            }
+            
+            generateSigningKey() {
+                const keyBytes = new Uint8Array(32);
+                crypto.getRandomValues(keyBytes);
+                return Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+            
+            simpleHash(data) {
+                let hash = 0;
+                if (data.length === 0) return hash.toString(16);
+                
+                for (let i = 0; i < data.length; i++) {
+                    const char = data.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                
+                return hash.toString(16);
+            }
+            
+            async logInternal(message, level, data = {}) {
+                const timestamp = new Date().toISOString();
+                const logEntry = {
+                    message,
+                    level,
+                    timestamp,
+                    data,
+                    sequenceId: this.logs.length
+                };
+                
+                // Add simple chain hash
+                logEntry.previousHash = this.lastLogHash;
+                logEntry.hash = this.simpleHash(JSON.stringify({
+                    message, level, timestamp, data, previousHash: this.lastLogHash
+                }));
+                this.lastLogHash = logEntry.hash;
+                
+                this.logs.push(logEntry);
+                return logEntry;
+            }
+            
+            async log(message, data = {}) {
+                return this.logInternal(message, 'info', data);
+            }
+            
+            async logWarning(message, data = {}) {
+                return this.logInternal(message, 'warning', data);
+            }
+            
+            async logError(message, data = {}) {
+                return this.logInternal(message, 'error', data);
+            }
+            
+            async logSecurity(message, data = {}) {
+                return this.logInternal(message, 'security', data);
+            }
+            
+            getLogs() {
+                return [...this.logs];
+            }
+        }
+        
+        // Tamper Detection
+        class TamperDetection {
+            constructor(options = {}) {
+                this.enabled = options.enabled !== undefined ? options.enabled : true;
+                this.crypto = crypto;
+            }
+            
+            async protect(data, key) {
+                if (!this.enabled) return data;
+                
+                try {
+                    const protectedData = { ...data };
+                    
+                    // Add metadata
+                    protectedData.meta = {
+                        version: '1.0',
+                        timestamp: Date.now()
+                    };
+                    
+                    // Add canaries (simplified)
+                    protectedData.canaries = [
+                        { random: this.generateRandomValue(), timestamp: Date.now() }
+                    ];
+                    
+                    // Add simple signature
+                    protectedData.signature = this.calculateSimpleSignature(protectedData, key);
+                    
+                    return protectedData;
+                } catch (error) {
+                    console.error('Tamper protection failed:', error);
+                    return data;
+                }
+            }
+            
+            async verify(protectedData, key) {
+                if (!this.enabled || !protectedData) return true;
+                
+                try {
+                    // Extract the original signature
+                    const originalSignature = protectedData.signature;
+                    if (!originalSignature) return false;
+                    
+                    // Create a copy without the signature
+                    const dataToVerify = { ...protectedData };
+                    delete dataToVerify.signature;
+                    
+                    // Calculate the signature
+                    const calculatedSignature = this.calculateSimpleSignature(dataToVerify, key);
+                    
+                    // Compare signatures
+                    return originalSignature === calculatedSignature;
+                } catch (error) {
+                    console.error('Tamper verification failed:', error);
+                    return false;
+                }
+            }
+            
+            generateRandomValue() {
+                const randomBytes = new Uint8Array(8);
+                this.crypto.getRandomValues(randomBytes);
+                return Array.from(randomBytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+            }
+            
+            calculateSimpleSignature(data, key) {
+                // Simplified signature for testing
+                const dataString = JSON.stringify(data);
+                let hash = 0;
+                const input = dataString + key;
+                
+                for (let i = 0; i < input.length; i++) {
+                    const char = input.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                
+                return hash.toString(16);
+            }
+        }
+        
+        // Session Security Manager
+        class SessionSecurityManager {
+            constructor(config = {}) {
+                this.settings = {
+                    sessionDuration: 30 * 60 * 1000, // 30 minutes
+                    idleTimeout: 15 * 60 * 1000, // 15 minutes
+                    keyRotationInterval: 60 * 60 * 1000, // 1 hour
+                    ...config
+                };
+                
+                this.secureKeyManager = new SecureKeyManager();
+                this.auditLogger = new SecurityAuditLogger();
+                this.tamperDetection = new TamperDetection();
+                
+                this.sessionId = null;
+                this.sessionStart = null;
+                this.sessionExpiry = null;
+                this.lastActivity = null;
+                this.sessionPassword = null;
+                this.sessionExtensionCount = 0;
+                this.sessionKeys = new Map();
+                
+                // Setup browser events
+                if (typeof window !== 'undefined') {
+                    window.addEventListener('beforeunload', this.handleWindowUnload.bind(this));
+                    document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
+                    document.addEventListener('mousemove', this.updateLastActivity.bind(this));
+                    document.addEventListener('keydown', this.updateLastActivity.bind(this));
+                    document.addEventListener('click', this.updateLastActivity.bind(this));
+                }
+            }
+            
+            // Methods simplified for testing
+            
+            async initializeSession(options = {}) {
+                this.sessionId = this.generateSessionId();
+                this.sessionStart = Date.now();
+                this.sessionExpiry = this.sessionStart + this.settings.sessionDuration;
+                this.lastActivity = this.sessionStart;
+                this.sessionExtensionCount = 0;
+                this.sessionPassword = this.secureKeyManager.generateSecurePassword();
+                
+                const sessionData = {
+                    id: this.sessionId,
+                    created: this.sessionStart,
+                    expires: this.sessionExpiry,
+                    lastActivity: this.lastActivity
+                };
+                
+                const protectedSession = await this.tamperDetection.protect(
+                    sessionData,
+                    this.sessionPassword
+                );
+                
+                window.sessionStorage.setItem(
+                    `session-${this.sessionId}`,
+                    JSON.stringify(protectedSession)
+                );
+                
+                await this.auditLogger.log('Session initialized', {
+                    sessionId: this.sessionId,
+                    expires: new Date(this.sessionExpiry).toISOString()
+                });
+                
+                return {
+                    sessionId: this.sessionId,
+                    expires: this.sessionExpiry,
+                    created: this.sessionStart
+                };
+            }
+            
+            generateSessionId() {
+                const timestamp = Date.now().toString(36);
+                const randomBytes = new Uint8Array(8);
+                crypto.getRandomValues(randomBytes);
+                const randomPart = Array.from(randomBytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+                
+                return `${timestamp}-${randomPart}`;
+            }
+            
+            updateLastActivity() {
+                if (!this.sessionId) return;
+                
+                this.lastActivity = Date.now();
+            }
+            
+            extendSession() {
+                if (!this.sessionId) return false;
+                
+                // Extend the session
+                this.sessionExpiry = Date.now() + this.settings.sessionDuration;
+                this.sessionExtensionCount++;
+                
+                this.auditLogger.log('Session extended', {
+                    sessionId: this.sessionId,
+                    newExpiry: new Date(this.sessionExpiry).toISOString(),
+                    extensionCount: this.sessionExtensionCount
+                });
+                
+                return true;
+            }
+            
+            async terminateSession(reason = 'user_requested') {
+                if (!this.sessionId) return false;
+                
+                const oldSessionId = this.sessionId;
+                
+                await this.auditLogger.log('Session terminating', {
+                    sessionId: oldSessionId,
+                    reason: reason
+                });
+                
+                // Clear session data
+                window.sessionStorage.removeItem(`session-${oldSessionId}`);
+                
+                // Clear session state
+                this.sessionId = null;
+                this.sessionStart = null;
+                this.sessionExpiry = null;
+                this.lastActivity = null;
+                this.sessionPassword = null;
+                this.sessionExtensionCount = 0;
+                this.sessionKeys = new Map();
+                
+                await this.auditLogger.log('Session terminated', {
+                    sessionId: oldSessionId,
+                    reason: reason
+                });
+                
+                return true;
+            }
+            
+            isSessionActive() {
+                return !!this.sessionId && Date.now() < this.sessionExpiry;
+            }
+            
+            getSessionInfo() {
+                if (!this.sessionId) {
+                    return { active: false };
+                }
+                
+                return {
+                    active: true,
+                    sessionId: this.sessionId,
+                    created: this.sessionStart,
+                    expires: this.sessionExpiry,
+                    lastActivity: this.lastActivity,
+                    extensionCount: this.sessionExtensionCount,
+                    remainingTime: Math.max(0, this.sessionExpiry - Date.now()),
+                    idleTime: Date.now() - this.lastActivity,
+                    managedKeys: this.sessionKeys.size
+                };
+            }
+            
+            async storeWalletData(walletData) {
+                if (!this.sessionId) {
+                    throw new Error('No active session');
+                }
+                
+                const keyId = this.generateKeyId();
+                
+                // Store in session keys
+                this.sessionKeys.set(keyId, {
+                    walletData,
+                    createdAt: Date.now()
+                });
+                
+                await this.auditLogger.log('Wallet data stored', {
+                    sessionId: this.sessionId,
+                    keyId,
+                    address: walletData.address
+                });
+                
+                return keyId;
+            }
+            
+            async retrieveWalletData(keyId) {
+                if (!this.sessionId) {
+                    throw new Error('No active session');
+                }
+                
+                const keyInfo = this.sessionKeys.get(keyId);
+                if (!keyInfo) {
+                    throw new Error(`Key not found: ${keyId}`);
+                }
+                
+                await this.auditLogger.log('Wallet data retrieved', {
+                    sessionId: this.sessionId,
+                    keyId,
+                    address: keyInfo.walletData.address
+                });
+                
+                return keyInfo.walletData;
+            }
+            
+            generateKeyId() {
+                const randomBytes = new Uint8Array(8);
+                crypto.getRandomValues(randomBytes);
+                return Array.from(randomBytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+            }
+            
+            async rotateKeys() {
+                if (!this.sessionId) return;
+                
+                const keyIds = Array.from(this.sessionKeys.keys());
+                
+                await this.auditLogger.log('Starting key rotation', {
+                    sessionId: this.sessionId,
+                    keyCount: keyIds.length
+                });
+                
+                for (const keyId of keyIds) {
+                    const keyInfo = this.sessionKeys.get(keyId);
+                    const newKeyId = this.generateKeyId();
+                    
+                    // Create new key entry
+                    this.sessionKeys.set(newKeyId, {
+                        ...keyInfo,
+                        rotationTime: Date.now()
+                    });
+                    
+                    // Remove old key
+                    this.sessionKeys.delete(keyId);
+                    
+                    await this.auditLogger.log('Key rotated', {
+                        sessionId: this.sessionId,
+                        oldKeyId: keyId,
+                        newKeyId
+                    });
+                }
+                
+                return keyIds.length;
+            }
+            
+            async checkForTampering() {
+                if (!this.sessionId) return { tampered: false };
+                
+                try {
+                    // Check session data
+                    const sessionData = window.sessionStorage.getItem(`session-${this.sessionId}`);
+                    if (sessionData) {
+                        const parsedData = JSON.parse(sessionData);
+                        const isValid = await this.tamperDetection.verify(
+                            parsedData,
+                            this.sessionPassword
+                        );
+                        
+                        if (!isValid) {
+                            await this.auditLogger.logSecurity('Session data tampering detected', {
+                                sessionId: this.sessionId,
+                                action: 'tampering_detected',
+                                severity: 'high'
+                            });
+                            
+                            await this.terminateSession('tampered');
+                            return { tampered: true, reason: 'session_data' };
+                        }
+                    }
+                    
+                    return { tampered: false };
+                } catch (error) {
+                    await this.auditLogger.logError('Tampering check failed', {
+                        sessionId: this.sessionId,
+                        error: error.message
+                    });
+                    
+                    return { tampered: false, error: error.message };
+                }
+            }
+            
+            handleWindowUnload(event) {
+                if (this.sessionId) {
+                    this.terminateSession('tab_closed');
+                }
+            }
+            
+            handleVisibilityChange() {
+                if (!this.sessionId) return;
+                
+                if (document.visibilityState === 'visible') {
+                    this.updateLastActivity();
+                    this.checkForTampering();
+                }
+            }
+            
+            async simulateTampering() {
+                if (!this.sessionId) return false;
+                
+                // Get session data
+                const sessionDataString = window.sessionStorage.getItem(`session-${this.sessionId}`);
+                if (!sessionDataString) return false;
+                
+                try {
+                    // Parse and tamper with it
+                    const sessionData = JSON.parse(sessionDataString);
+                    
+                    // Tamper with a field
+                    if (sessionData.lastActivity) {
+                        sessionData.lastActivity = Date.now() - 1000000; // Tamper with last activity time
+                    } else if (sessionData.meta) {
+                        sessionData.meta.tampered = true; // Add tampered field
+                    }
+                    
+                    // Store it back
+                    window.sessionStorage.setItem(
+                        `session-${this.sessionId}`,
+                        JSON.stringify(sessionData)
+                    );
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error simulating tampering:', error);
+                    return false;
+                }
+            }
+        }
+        
+        // Create instances
+        const sessionManager = new SessionSecurityManager();
+        const auditLogger = sessionManager.auditLogger;
+        
+        // UI interaction code
+        
+        // Logging function
+        function log(message, type = 'info') {
+            const logElem = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = type;
+            
+            // Add timestamp
+            const timestamp = new Date().toLocaleTimeString();
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = `[${timestamp}] `;
+            entry.appendChild(timeSpan);
+            
+            // If it's an object, stringify it
+            if (typeof message === 'object') {
+                message = JSON.stringify(message, null, 2);
+                const pre = document.createElement('pre');
+                pre.textContent = message;
+                entry.appendChild(pre);
+            } else {
+                const span = document.createElement('span');
+                span.textContent = message;
+                entry.appendChild(span);
+            }
+            
+            logElem.appendChild(entry);
+            logElem.scrollTop = logElem.scrollHeight; // Scroll to bottom
+        }
+        
+        // Session Management
+        document.getElementById('initSession').addEventListener('click', async () => {
+            try {
+                const result = await sessionManager.initializeSession();
+                log('Session initialized:', 'success');
+                log(result);
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('checkSession').addEventListener('click', () => {
+            try {
+                const info = sessionManager.getSessionInfo();
+                if (info.active) {
+                    log('Session is active:', 'success');
+                    log(info);
+                    
+                    // Format time remaining
+                    const minutes = Math.floor(info.remainingTime / 60000);
+                    const seconds = Math.floor((info.remainingTime % 60000) / 1000);
+                    log(`Session expires in: ${minutes}m ${seconds}s`, 'info');
+                    
+                    // Format idle time
+                    const idleSeconds = Math.floor(info.idleTime / 1000);
+                    log(`Idle time: ${idleSeconds}s`, 'info');
+                } else {
+                    log('No active session', 'warning');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('extendSession').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session to extend', 'warning');
+                    return;
+                }
+                
+                const result = sessionManager.extendSession();
+                if (result) {
+                    log('Session extended:', 'success');
+                    
+                    const info = sessionManager.getSessionInfo();
+                    // Format new expiry time
+                    const expiryTime = new Date(info.expires).toLocaleTimeString();
+                    log(`New expiration time: ${expiryTime}`, 'info');
+                    log(`Extension count: ${info.extensionCount}`, 'info');
+                } else {
+                    log('Session extension failed', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('terminateSession').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session to terminate', 'warning');
+                    return;
+                }
+                
+                const result = await sessionManager.terminateSession('user_requested');
+                if (result) {
+                    log('Session terminated successfully', 'success');
+                } else {
+                    log('Session termination failed', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Security Operations
+        let currentKeyId = null;
+        
+        document.getElementById('storeWalletData').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session. Initialize a session first.', 'warning');
+                    return;
+                }
+                
+                // Generate a test wallet
+                const walletData = {
+                    address: '0x' + Math.random().toString(16).substring(2, 42),
+                    privateKey: '0x' + Math.random().toString(16).substring(2, 66),
+                    balance: Math.floor(Math.random() * 10000) / 100
+                };
+                
+                log('Storing wallet data:', 'info');
+                log({
+                    address: walletData.address,
+                    balance: walletData.balance,
+                    privateKey: '***** HIDDEN *****'
+                });
+                
+                currentKeyId = await sessionManager.storeWalletData(walletData);
+                log(`Wallet data stored with key ID: ${currentKeyId}`, 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('retrieveWalletData').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session', 'warning');
+                    return;
+                }
+                
+                if (!currentKeyId) {
+                    log('No wallet data stored. Store data first.', 'warning');
+                    return;
+                }
+                
+                const walletData = await sessionManager.retrieveWalletData(currentKeyId);
+                log('Retrieved wallet data:', 'success');
+                log({
+                    address: walletData.address,
+                    balance: walletData.balance,
+                    privateKey: '***** HIDDEN *****'
+                });
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('rotateKeys').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session', 'warning');
+                    return;
+                }
+                
+                const count = await sessionManager.rotateKeys();
+                if (count > 0) {
+                    log(`Rotated ${count} keys successfully`, 'success');
+                    // Current key ID is no longer valid
+                    log('Previous key ID is no longer valid. Get new key ID from rotateKeys response.', 'warning');
+                    currentKeyId = null;
+                } else {
+                    log('No keys to rotate', 'info');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('checkTampering').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session', 'warning');
+                    return;
+                }
+                
+                const result = await sessionManager.checkForTampering();
+                if (result.tampered) {
+                    log('Tampering detected!', 'security');
+                    log(result);
+                } else {
+                    log('No tampering detected', 'success');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Audit Logging
+        document.getElementById('viewSecurityLog').addEventListener('click', async () => {
+            try {
+                const logs = auditLogger.getLogs();
+                log(`Security Audit Log (${logs.length} entries):`, 'info');
+                
+                // Display last 10 logs for brevity
+                const recentLogs = logs.slice(-10);
+                recentLogs.forEach(entry => {
+                    const timestamp = new Date(entry.timestamp).toLocaleTimeString();
+                    log(`[${timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`, entry.level);
+                });
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('triggerAnomaly').addEventListener('click', async () => {
+            try {
+                if (!sessionManager.isSessionActive()) {
+                    log('No active session', 'warning');
+                    return;
+                }
+                
+                log('Simulating tampering with session data...', 'warning');
+                const result = await sessionManager.simulateTampering();
+                
+                if (result) {
+                    log('Tampering simulation successful', 'success');
+                    log('Now try clicking "Check for Tampering" to detect it', 'info');
+                } else {
+                    log('Tampering simulation failed', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('verifySecurity').addEventListener('click', async () => {
+            try {
+                // Run various security checks
+                
+                // 1. Check log integrity
+                log('Verifying security state...', 'info');
+                
+                const logs = auditLogger.getLogs();
+                let logIntegrityIntact = true;
+                
+                // Simple verification - in real implementation this would be more thorough
+                for (let i = 1; i < logs.length; i++) {
+                    if (logs[i].previousHash !== logs[i-1].hash) {
+                        logIntegrityIntact = false;
+                        break;
+                    }
+                }
+                
+                if (logIntegrityIntact) {
+                    log('✅ Audit log integrity verified', 'success');
+                } else {
+                    log('❌ Audit log integrity compromised', 'security');
+                }
+                
+                // 2. Check session state
+                if (sessionManager.isSessionActive()) {
+                    log('✅ Session is active and valid', 'success');
+                    
+                    // Verify storage
+                    const sessionDataString = window.sessionStorage.getItem(`session-${sessionManager.sessionId}`);
+                    if (sessionDataString) {
+                        log('✅ Session data found in storage', 'success');
+                    } else {
+                        log('❌ Session data missing from storage', 'security');
+                    }
+                } else {
+                    log('❓ No active session to verify', 'warning');
+                }
+                
+                // 3. Check for suspicious activity
+                const securityLogs = logs.filter(log => log.level === 'security');
+                if (securityLogs.length > 0) {
+                    log(`⚠️ Found ${securityLogs.length} security events in log:`, 'warning');
+                    securityLogs.forEach(entry => {
+                        log(`- ${entry.message}`, 'security');
+                    });
+                } else {
+                    log('✅ No security events detected in log', 'success');
+                }
+                
+                log('Security verification complete', 'info');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Initial log
+        log('Client-Side Security Test Page loaded successfully', 'info');
+        log('Start by initializing a session using the "Initialize Session" button', 'info');
+    </script>
+</body>
+</html>
