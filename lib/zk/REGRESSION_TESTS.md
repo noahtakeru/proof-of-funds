@@ -4,11 +4,25 @@ This document provides instructions for running regression tests for all complet
 
 ## Test Execution
 
-To run all regression tests:
+To run all regression tests, use the following commands:
 
 ```bash
-# From the project root
+# Navigate to the project root directory
+cd /Users/karpel/Documents/GitHub/proof-of-funds
+
+# Run the regression test script
 ./lib/zk/run-regression-tests.sh
+```
+
+The test script will:
+1. Verify all components from Week 1-4 are functioning correctly
+2. Provide a comprehensive summary showing pass/fail status for each task
+3. Calculate the overall pass percentage
+
+If you encounter permission issues with the script, you may need to make it executable:
+
+```bash
+chmod +x ./lib/zk/run-regression-tests.sh
 ```
 
 ## Week 1 Tasks
