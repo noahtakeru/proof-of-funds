@@ -271,7 +271,7 @@ export default function ConnectWallet() {
     const getWalletIcon = (type) => {
         // Convert type to lowercase
         const lowerType = type.toLowerCase();
-        
+
         // Check for EVM wallets (MetaMask)
         if (lowerType === 'evm' || lowerType === 'metamask') {
             return (
@@ -356,7 +356,8 @@ export default function ConnectWallet() {
                     </div>
                     <button
                         onClick={toggleWalletMenu}
-                        className="btn btn-primary text-sm"
+                        className="btn btn-primary whitespace-nowrap"
+                        style={{ minWidth: '160px' }}
                     >
                         {connectedWallets.length > 0 ? 'Manage Wallets' : 'Add Wallet'}
                     </button>
@@ -431,10 +432,10 @@ export default function ConnectWallet() {
                 ref={connectBtnRef}
                 id="connect-wallet-button"
                 onClick={initiateConnection}
-                className="btn btn-primary"
-                style={{ zIndex: 50 }} // Ensure button is clickable
+                className="btn btn-primary whitespace-nowrap"
+                style={{ minWidth: '160px', zIndex: 50 }}
             >
-                Connect Wallet{buttonClicked ? '...' : ''}
+                {buttonClicked ? 'Connecting...' : 'Connect Wallet'}
             </button>
 
             {/* Always render the modal at the document root level */}

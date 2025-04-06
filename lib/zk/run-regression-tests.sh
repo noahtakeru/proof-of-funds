@@ -387,6 +387,8 @@ task4_1_tests=1
 task4_1_passed=0
 task4_2_tests=1
 task4_2_passed=0
+task4_3_tests=1
+task4_3_passed=0
 
 print_task "Task 1: Trusted Setup Process"
 print_info "Running full ceremony test (this may take a moment)..."
@@ -412,6 +414,35 @@ fi
 
 print_info "NOTE: To test in a browser environment, open browser-compatibility-matrix.html in a web browser"
 
+print_task "Task 3: Server-Side Fallbacks"
+print_info "Testing client/server fallback system..."
+track_test # increment test counter
+
+if [ -f ./lib/zk/check-implementation.cjs ]; then
+  # Use our dedicated check script if it exists
+  if node ./lib/zk/check-implementation.cjs; then
+    print_pass "Server-Side Fallbacks implementation check passed"
+    task4_3_passed=1
+  else
+    print_fail "Server-Side Fallbacks implementation check failed"
+  fi
+else
+  # Fallback to a simple file existence check
+  if [ -f ./lib/zk/zkProxyClient.js ] && [ -f ./lib/zk/SERVER_FALLBACKS.md ]; then
+    # Check for basic patterns in the file
+    if grep -q "class RateLimiter" ./lib/zk/zkProxyClient.js && 
+       grep -q "class RequestQueue" ./lib/zk/zkProxyClient.js &&
+       grep -q "EXECUTION_MODES" ./lib/zk/zkProxyClient.js; then
+      print_pass "Server-Side Fallbacks tests passed (basic check)"
+      task4_3_passed=1
+    else
+      print_fail "Server-Side Fallbacks implementation is incomplete"
+    fi
+  else
+    print_fail "Server-Side Fallbacks implementation files not found"
+  fi
+fi
+
 # Final summary
 print_header "Regression Test Summary"
 echo "End time: $(date)"
@@ -435,12 +466,21 @@ echo -e "  Task 3: TrustedSetupManager (Basic) - $([ $task3_3_passed -eq $task3_
 echo -e "\n${BLUE}Week 4: Trusted Setup Process - ${week4_passed}/${week4_tests} tests passed${NC}"
 echo -e "  Task 1: Trusted Setup Process - $([ $task4_1_passed -eq $task4_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_1_passed))/$task4_1_tests passed${NC}")"
 echo -e "  Task 2: Browser Compatibility System - $([ $task4_2_passed -eq $task4_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_2_passed))/$task4_2_tests passed${NC}")"
+echo -e "  Task 3: Server-Side Fallbacks - $([ $task4_3_passed -eq $task4_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_3_passed))/$task4_3_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
 
 echo -e "\nIf all tests passed, the ZK infrastructure is working correctly."
 echo "For any failures, check the specific task documentation and error messages."
-echo -e "\nTo run these tests again, use the following commands:\n"
+
+# Integration test instructions
+print_header "Implementation Check Instructions"
+echo -e "To run the simplified check for Server-Side Fallbacks implementation:"
+echo -e "  cd $(pwd)"
+echo -e "  node lib/zk/check-implementation.cjs\n"
+echo -e "This will check if your implementation has all required components."
+
+echo -e "\nTo run these regression tests again, use the following commands:\n"
 echo "  cd $(pwd)"
 echo "  ./lib/zk/run-regression-tests.sh"

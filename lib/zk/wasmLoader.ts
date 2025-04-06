@@ -620,3 +620,13 @@ class WasmLoader {
 
 // Export a singleton instance
 export const wasmLoader = new WasmLoader();
+
+// Default export for easier importing in CommonJS environments
+export default {
+  detectWasmSupport,
+  loadWasmModule,
+  clearWasmCache,
+  loadWasmModuleInWorker,
+  checkPerformanceCapabilities,
+  wasmLoader
+};
