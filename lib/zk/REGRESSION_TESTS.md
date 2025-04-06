@@ -283,6 +283,38 @@ Run the comprehensive trusted setup ceremony test:
 node --input-type=module -e "import './lib/zk/__tests__/ceremony/test-ceremony.js'"
 ```
 
+### Task 2: Browser Compatibility System
+
+Test the browser compatibility detection system:
+
+```bash
+# Test in Node.js environment (terminal)
+node --input-type=module -e "import './lib/zk/__tests__/browser-compatibility-test.js'"
+```
+
+To test in a browser environment, you can either:
+
+1. Open the HTML compatibility matrix directly:
+```bash
+# Open the HTML file directly
+open ./lib/zk/browser-compatibility-matrix.html
+```
+
+2. Or serve the project with a static file server and open in browser:
+```bash
+# Install serve if not already installed
+npm install -g serve
+
+# Start a static file server
+serve
+
+# Then open in browser: http://localhost:5000/lib/zk/browser-compatibility-matrix.html
+```
+
+Expected results:
+- In Node.js: The test should show "Running in Node.js environment" and recommend server-side execution
+- In Browser: The test should show detailed browser capabilities and benchmark results specific to your browser
+
 ## Custom Test Runners
 
 Each task can have a dedicated test runner for more detailed testing:

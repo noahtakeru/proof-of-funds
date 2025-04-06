@@ -385,6 +385,8 @@ current_week="4"
 # Initialize task-specific counters
 task4_1_tests=1
 task4_1_passed=0
+task4_2_tests=1
+task4_2_passed=0
 
 print_task "Task 1: Trusted Setup Process"
 print_info "Running full ceremony test (this may take a moment)..."
@@ -396,6 +398,19 @@ if node --input-type=module -e "import './lib/zk/__tests__/ceremony/test-ceremon
 else
   print_fail "Trusted Setup Process tests failed"
 fi
+
+print_task "Task 2: Browser Compatibility System"
+print_info "Testing browser compatibility detection in Node.js..."
+track_test # increment test counter
+
+if node --input-type=module -e "import './lib/zk/__tests__/browser-compatibility-test.js'"; then
+  print_pass "Browser Compatibility System tests passed"
+  task4_2_passed=1
+else
+  print_fail "Browser Compatibility System tests failed"
+fi
+
+print_info "NOTE: To test in a browser environment, open browser-compatibility-matrix.html in a web browser"
 
 # Final summary
 print_header "Regression Test Summary"
@@ -419,6 +434,7 @@ echo -e "  Task 3: TrustedSetupManager (Basic) - $([ $task3_3_passed -eq $task3_
 
 echo -e "\n${BLUE}Week 4: Trusted Setup Process - ${week4_passed}/${week4_tests} tests passed${NC}"
 echo -e "  Task 1: Trusted Setup Process - $([ $task4_1_passed -eq $task4_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_1_passed))/$task4_1_tests passed${NC}")"
+echo -e "  Task 2: Browser Compatibility System - $([ $task4_2_passed -eq $task4_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_2_passed))/$task4_2_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
