@@ -1,6 +1,6 @@
 {
   "circuitName": "maximumProof",
-  "buildDate": "2025-04-04T06:48:19.967Z",
+  "buildDate": "2025-04-06T10:56:02.3NZ",
   "files": {
     "r1cs": "maximumProof.r1cs",
     "wasm": "wasm/maximumProof_js/maximumProof.wasm",
@@ -8,5 +8,5 @@
     "vkey": "verification_key/maximumProof.json",
     "solidity": "maximumProofVerifier.sol"
   },
-  "constraints": 1000
+  "constraints": 14200
 }

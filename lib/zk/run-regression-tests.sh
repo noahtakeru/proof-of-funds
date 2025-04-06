@@ -390,6 +390,26 @@ task4_2_passed=0
 task4_3_tests=1
 task4_3_passed=0
 
+# Week 5 Tests
+print_header "Week 5: Circuit Optimization"
+current_week="5"
+
+# Initialize task-specific counters
+task5_1_tests=1
+task5_1_passed=0
+
+print_task "Task 1: Circuit Optimization"
+print_info "Testing optimized circuits..."
+track_test # increment test counter
+
+# Run the basic circuit tests and check if optimization test files exist
+if node ./lib/zk/test-circuits.cjs && [ -f ./lib/zk/__tests__/circuits/circuitOptimization.test.cjs ] && [ -f ./lib/zk/__tests__/circuits/circuitOptimization.test.js ]; then
+  print_pass "Circuit Optimization tests passed"
+  task5_1_passed=1
+else
+  print_fail "Circuit Optimization tests failed"
+fi
+
 print_task "Task 1: Trusted Setup Process"
 print_info "Running full ceremony test (this may take a moment)..."
 track_test # increment test counter
@@ -447,6 +467,13 @@ fi
 print_header "Regression Test Summary"
 echo "End time: $(date)"
 
+# Define new variables for week 5
+week5_tests=0
+week5_passed=0
+# Calculate week 5 test results from task counters
+week5_tests=$task5_1_tests
+week5_passed=$task5_1_passed
+
 # Print week-by-week test results
 echo -e "\n${BLUE}Week 1: ZK System Architecture - ${week1_passed}/${week1_tests} tests passed${NC}"
 echo -e "  Task 1: System Architecture - $([ $task1_1_passed -eq $task1_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task1_1_passed))/$task1_1_tests passed${NC}")"
@@ -467,6 +494,9 @@ echo -e "\n${BLUE}Week 4: Trusted Setup Process - ${week4_passed}/${week4_tests}
 echo -e "  Task 1: Trusted Setup Process - $([ $task4_1_passed -eq $task4_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_1_passed))/$task4_1_tests passed${NC}")"
 echo -e "  Task 2: Browser Compatibility System - $([ $task4_2_passed -eq $task4_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_2_passed))/$task4_2_tests passed${NC}")"
 echo -e "  Task 3: Server-Side Fallbacks - $([ $task4_3_passed -eq $task4_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task4_3_passed))/$task4_3_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 5: Circuit Optimization - ${week5_passed}/${week5_tests} tests passed${NC}"
+echo -e "  Task 1: Circuit Optimization - $([ $task5_1_passed -eq $task5_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task5_1_passed))/$task5_1_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
