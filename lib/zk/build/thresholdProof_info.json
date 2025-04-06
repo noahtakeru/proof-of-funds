@@ -1,6 +1,6 @@
 {
   "circuitName": "thresholdProof",
-  "buildDate": "2025-04-04T06:48:19.954Z",
+  "buildDate": "2025-04-06T10:56:02.3NZ",
   "files": {
     "r1cs": "thresholdProof.r1cs",
     "wasm": "wasm/thresholdProof_js/thresholdProof.wasm",
@@ -8,5 +8,5 @@
     "vkey": "verification_key/thresholdProof.json",
     "solidity": "thresholdProofVerifier.sol"
   },
-  "constraints": 1000
+  "constraints": 14000
 }
