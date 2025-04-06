@@ -1,6 +1,6 @@
 {
   "circuitName": "standardProof",
-  "buildDate": "2025-04-06T10:56:02.3NZ",
+  "buildDate": "2025-04-06T21:32:05.254Z",
   "files": {
     "r1cs": "standardProof.r1cs",
     "wasm": "wasm/standardProof_js/standardProof.wasm",
@@ -8,5 +8,5 @@
     "vkey": "verification_key/standardProof.json",
     "solidity": "standardProofVerifier.sol"
   },
-  "constraints": 9500
+  "constraints": 1000
 }

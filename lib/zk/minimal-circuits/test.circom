@@ -1,11 +1,13 @@
-// Test circuit
+pragma circom 2.0.0;
 
-// Custom template
-template MyTest() {
-    signal input a;
-    signal output b;
+// This is a minimal test circuit for compilation
+
+template TestCircuit() {
+    signal input x;
+    signal input y;
+    signal output z;
     
-    b <== a * a;
+    z <== x * y;
 }
 
-component main = MyTest();
+component main = TestCircuit();
