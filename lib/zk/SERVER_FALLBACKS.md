@@ -282,15 +282,54 @@ const result = await zkClient.generateProof(
 
 ## Testing
 
-The system includes comprehensive test coverage:
+The system includes comprehensive test coverage with both mock-based and real cryptographic tests:
 
-1. **Unit Tests**: Testing individual components in isolation
-2. **Integration Tests**: Testing components working together
-3. **End-to-End Tests**: Testing the complete system in realistic scenarios
-4. **Fallback Tests**: Specific tests for fallback mechanisms
-5. **Performance Benchmarking**: Tests to measure and compare performance
+### Integration Test Infrastructure
 
-All tests are integrated with the existing regression test framework to ensure ongoing compatibility.
+A robust integration test infrastructure is implemented to validate the system with real cryptographic operations:
+
+```
+integration/
+  ├── circuitTests/                        # Tests for individual circuits
+  │   ├── standardProof.test.js            # Tests for standard proof circuit
+  │   ├── thresholdProof.test.js           # Tests for threshold proof circuit
+  │   └── maximumProof.test.js             # Tests for maximum proof circuit
+  ├── mockValidation/                      # Tests comparing mock vs. real behavior
+  │   ├── proofGeneration.test.js          # Compares general proof generation
+  │   ├── thresholdProofValidation.test.js # Compares threshold proof behavior
+  │   └── maximumProofValidation.test.js   # Compares maximum proof behavior
+  ├── systemTests/                         # End-to-end system tests
+  │   └── clientServer.test.js             # Tests client/server switching
+  ├── utils/                               # Utilities for integration testing
+  ├── runIntegrationTests.js               # Custom test runner
+  └── README.md                            # Documentation file
+```
+
+### Test Categories
+
+1. **Unit Tests**: Fast tests for individual components using mock implementations.
+
+2. **Integration Tests with Real Cryptography**: Tests using actual snarkjs library and circuit artifacts:
+   - Tests for all three circuit types (standard, threshold, maximum)
+   - Compares mock and real implementations for behavior consistency
+   - Tests proof generation and verification with real cryptographic operations
+
+3. **System Tests**: End-to-end testing of the client/server switching functionality:
+   - Tests client-side and server-side execution paths
+   - Validates that hybrid mode selects appropriate execution location
+   - Ensures proofs generated on client work on server and vice versa
+
+4. **Fallback Tests**: Specialized tests for fallback mechanisms:
+   - Tests graceful recovery when client-side execution fails
+   - Validates fallback to server under memory pressure
+   - Tests error handling and retry mechanisms
+
+5. **Performance Benchmarking**: Tests to measure performance characteristics:
+   - Compares client and server execution times
+   - Measures memory usage during operations
+   - Identifies performance bottlenecks
+
+All tests are integrated with the existing regression test framework to ensure ongoing compatibility and can be run using the custom test runner (`runIntegrationTests.js`).
 
 ## Browser Support
 

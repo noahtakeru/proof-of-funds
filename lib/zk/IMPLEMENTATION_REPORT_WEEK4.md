@@ -89,6 +89,42 @@ A comprehensive testing framework was implemented to validate the Server-Side Fa
 
 All tests are integrated with the existing regression test framework to ensure compatibility with the overall project.
 
+#### Integration Test Infrastructure
+
+In response to concerns about testing with mocks potentially "faking" results, we developed a robust integration test infrastructure with real cryptographic operations:
+
+1. **Test Directory Structure**:
+   - `/lib/zk/__tests__/integration/circuitTests/`: Real cryptographic tests for each circuit
+   - `/lib/zk/__tests__/integration/mockValidation/`: Tests that validate mock implementation against real behavior
+   - `/lib/zk/__tests__/integration/systemTests/`: End-to-end client/server switching tests
+   - `/lib/zk/__tests__/integration/utils/`: Shared utilities for integration testing
+
+2. **Circuit Tests**:
+   - Tests for each circuit type (standard, threshold, maximum)
+   - Uses real snarkjs library and circuit artifacts
+   - Tests both valid and invalid inputs
+   - Verifies proofs with real verification keys
+
+3. **Mock Validation Tests**:
+   - Compares behavior between mock and real implementations
+   - Ensures mock implementations accurately reflect real behavior
+   - Documents differences and expected behavior
+   - Validates that tests are meaningful, not just passing
+
+4. **System Tests**:
+   - Tests client/server switching with real operations
+   - Verifies proofs generated on client work on server and vice versa
+   - Tests hybrid mode for appropriate execution location selection
+   - Simulates different device capability scenarios
+
+5. **Test Runner**:
+   - Custom test runner for integration tests
+   - Can run specific test categories
+   - Supports skipping tests when circuit artifacts aren't available
+   - Comprehensive reporting and error handling
+
+This infrastructure ensures that our tests provide meaningful validation rather than just "passing with mocks," giving us confidence in the correctness of our implementation.
+
 ## Technical Challenges and Solutions
 
 ### Challenge 1: Module System Compatibility
