@@ -1,22 +1,18 @@
 /**
  * Phantom Multi-Wallet Selector Component
  * 
- * Specialized interface for connecting multiple Phantom wallet accounts simultaneously.
+ * Specialized interface for detecting and connecting multiple Phantom wallet accounts.
  * This component provides a wizard-like experience to guide users through the process
- * of connecting multiple Solana wallets from the Phantom browser extension.
+ * of detecting multiple Solana wallets from the Phantom browser extension and selecting
+ * which ones to connect.
  * 
  * Key features:
- * - Interactive multi-step wallet connection process
- * - Support for connecting multiple distinct Phantom wallets in sequence
- * - Automatic detection of already connected wallets to prevent duplicates
- * - Message signing to verify wallet ownership
+ * - Interactive multi-step wallet detection process
+ * - Detection of wallet changes via Phantom's accountChanged events
+ * - Selection interface for choosing which detected wallets to connect
+ * - Automatic detection of already detected wallets to prevent duplicates
  * - Integration with the wallet connection persistence system
  * - Clear status and error handling for user feedback
- * 
- * The component works in conjunction with the PhantomMultiWalletContext to manage
- * multiple wallet connections across the application. It handles the technical
- * complexity of disconnecting and reconnecting to the Phantom extension to work
- * around the extension's limitation of single wallet connections.
  * 
  * @param {Object} props - Component props
  * @param {Function} props.onClose - Callback function to close the selector modal
@@ -27,8 +23,9 @@ import { saveWalletConnection } from '../lib/walletHelpers';
 import { usePhantomMultiWallet } from '../lib/PhantomMultiWalletContext';
 
 export default function PhantomMultiWalletSelector({ onClose }) {
-    const [connectedWallets, setConnectedWallets] = useState([]);
-    const [status, setStatus] = useState('initial'); // initial, connecting, paused, success, error
+    const [detectedWallets, setDetectedWallets] = useState([]);
+    const [selectedWalletIds, setSelectedWalletIds] = useState(new Set());
+    const [status, setStatus] = useState('initial'); // initial, detecting, listening, selecting, success, error
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
 
@@ -36,16 +33,108 @@ export default function PhantomMultiWalletSelector({ onClose }) {
     const phantomMultiWallet = usePhantomMultiWallet();
 
     // References for managing connection state
-    const connectionInProgressRef = useRef(false);
-    const connectedPublicKeysRef = useRef(new Set());
+    const detectionInProgressRef = useRef(false);
+    const detectedPublicKeysRef = useRef(new Set());
+    const accountChangeListenerRef = useRef(null);
 
-    // Start the wallet connection process
-    const startWalletConnection = async () => {
+    // Set up account change listener
+    useEffect(() => {
+        // Function to handle wallet account changes
+        const handleAccountChange = (publicKey) => {
+            if (!publicKey) {
+                console.log('Phantom wallet disconnected');
+                return;
+            }
+
+            const walletAddress = publicKey.toString();
+            console.log('Phantom wallet account changed:', walletAddress);
+
+            // Only add to our list if not already there
+            if (!detectedPublicKeysRef.current.has(walletAddress)) {
+                const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                const newWallet = {
+                    id: `phantom-${walletAddress}`,
+                    address: walletAddress,
+                    displayAddress: displayAddress,
+                    type: 'phantom',
+                    name: `Phantom Wallet ${detectedWallets.length + 1}`
+                };
+
+                setDetectedWallets(prev => [...prev, newWallet]);
+                detectedPublicKeysRef.current.add(walletAddress);
+
+                // Auto-select newly detected wallets
+                setSelectedWalletIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(newWallet.id);
+                    return newSet;
+                });
+
+                if (status === 'listening') {
+                    setMessage(`New wallet ${displayAddress} detected!`);
+                    setStatus('selecting');
+                }
+            } else if (status === 'listening') {
+                // If wallet is already detected but we're in listening mode, provide feedback
+                const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                setMessage(`Wallet ${displayAddress} already detected. Try switching to a different wallet in Phantom.`);
+            }
+        };
+
+        // Only set up the listener if Phantom is available
+        if (window.solana && window.solana.isPhantom) {
+            // Set the listener and save reference
+            console.log('Setting up Phantom account change listener');
+            accountChangeListenerRef.current = handleAccountChange;
+            window.solana.on('accountChanged', handleAccountChange);
+
+            // Check if a wallet is already connected
+            if (window.solana.isConnected && window.solana.publicKey) {
+                handleAccountChange(window.solana.publicKey);
+            }
+        }
+
+        // Clean up the listener on component unmount
+        return () => {
+            if (window.solana && window.solana.isPhantom && accountChangeListenerRef.current) {
+                console.log('Removing Phantom account change listener');
+                window.solana.off('accountChanged', accountChangeListenerRef.current);
+                accountChangeListenerRef.current = null;
+            }
+        };
+    }, [status, detectedWallets.length]);
+
+    // Toggle wallet selection
+    const toggleWalletSelection = (walletId) => {
+        setSelectedWalletIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(walletId)) {
+                newSet.delete(walletId);
+            } else {
+                newSet.add(walletId);
+            }
+            return newSet;
+        });
+    };
+
+    // Select all wallets
+    const selectAllWallets = () => {
+        const allIds = detectedWallets.map(wallet => wallet.id);
+        setSelectedWalletIds(new Set(allIds));
+    };
+
+    // Deselect all wallets
+    const deselectAllWallets = () => {
+        setSelectedWalletIds(new Set());
+    };
+
+    // Start the wallet detection process
+    const startWalletDetection = async () => {
         try {
             // Reset state
             setError('');
             setMessage('Connecting to Phantom wallet...');
-            setStatus('connecting');
+            setStatus('detecting');
 
             // Check if Phantom is installed
             if (!window.solana || !window.solana.isPhantom) {
@@ -54,27 +143,37 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 return;
             }
 
-            // Now connect to the wallet
-            await connectWallet();
+            // Now detect the initial wallet
+            await detectInitialWallet();
 
         } catch (error) {
-            console.error('Error starting wallet connection:', error);
-            setError(`Failed to start connection: ${error.message || 'Unknown error'}`);
+            console.error('Error starting wallet detection:', error);
+            setError(`Failed to start detection: ${error.message || 'Unknown error'}`);
             setStatus('error');
         }
     };
 
-    // Connect to a wallet and handle the connection process
-    const connectWallet = async () => {
+    // Detect the initial wallet
+    const detectInitialWallet = async () => {
         try {
-            // Reset connection in progress flag to allow new connection attempt
-            connectionInProgressRef.current = true;
+            // Reset detection in progress flag
+            detectionInProgressRef.current = true;
             setMessage('Opening Phantom wallet selection popup...');
 
             // Force a new connection with a popup
             console.log("Requesting Phantom wallet connection...");
-            const response = await window.solana.connect({ onlyIfTrusted: false });
-            console.log("Connection response:", response);
+
+            let response = null;
+
+            // If already connected, we'll use the current connection
+            if (window.solana.isConnected && window.solana.publicKey) {
+                response = { publicKey: window.solana.publicKey };
+                console.log("Already connected to Phantom wallet");
+            } else {
+                // Otherwise make a new connection
+                response = await window.solana.connect({ onlyIfTrusted: false });
+                console.log("Connection response:", response);
+            }
 
             const walletAddress = response.publicKey.toString();
             console.log("Connected to wallet:", walletAddress);
@@ -82,123 +181,190 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             // Format wallet address for display
             const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
 
-            // Request a signature to establish trust
+            // Request a signature to establish trust - but make it non-blocking
             try {
-                const message = `Connect wallet ${displayAddress} to Proof of Funds`;
+                const message = `Proof of Funds: Wallet Detection\n\nThis signature confirms this wallet for multi-wallet use. You can select additional wallets after this step.\n\nWallet: ${displayAddress}`;
                 const encodedMessage = new TextEncoder().encode(message);
-                await window.solana.signMessage(encodedMessage, "utf8");
+
+                // Add a timeout to the signature request in case it hangs
+                const signPromise = window.solana.signMessage(encodedMessage, "utf8");
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Signature request timed out")), 15000)
+                );
+
+                await Promise.race([signPromise, timeoutPromise])
+                    .catch(err => {
+                        console.log("Message signing skipped:", err.message);
+                    });
             } catch (signError) {
-                console.log("User declined to sign the message", signError);
-                // We'll still continue with the connection
+                console.log("User declined to sign the message or signing failed:", signError);
+                // We still continue with the detection, signing is optional
             }
 
-            // Check if this wallet is already in our list (only for internal tracking)
-            const isAlreadyConnected = connectedPublicKeysRef.current.has(walletAddress);
+            // Check if this wallet is already in our list
+            const isAlreadyDetected = detectedPublicKeysRef.current.has(walletAddress);
 
             // Only add this wallet to our list if it's not already there
-            if (!isAlreadyConnected) {
+            if (!isAlreadyDetected) {
                 const newWallet = {
+                    id: `phantom-${walletAddress}`,
                     address: walletAddress,
                     displayAddress: displayAddress,
+                    type: 'phantom',
+                    name: `Phantom Wallet ${detectedWallets.length + 1}`
                 };
-                setConnectedWallets(prev => [...prev, newWallet]);
-                connectedPublicKeysRef.current.add(walletAddress);
-                setMessage(`New wallet ${displayAddress} connected successfully!`);
+                setDetectedWallets(prev => [...prev, newWallet]);
+                detectedPublicKeysRef.current.add(walletAddress);
+
+                // Auto-select the first detected wallet
+                setSelectedWalletIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(newWallet.id);
+                    return newSet;
+                });
+
+                setMessage(`Wallet ${displayAddress} detected successfully!`);
             } else {
-                setMessage(`Wallet ${displayAddress} is already connected.`);
+                setMessage(`Wallet ${displayAddress} is already detected.`);
             }
 
-            setStatus('paused');
-            connectionInProgressRef.current = false;
+            setStatus('selecting');
+            detectionInProgressRef.current = false;
 
         } catch (error) {
-            console.error('Error connecting to wallet:', error);
-            if (error.code === 4001) { // User rejected
-                setError('Connection request was rejected. Please approve the connection in the Phantom popup.');
-            } else {
-                setError(`Connection failed: ${error.message || 'Unknown error'}`);
-            }
-            setStatus('paused');
-            connectionInProgressRef.current = false;
+            console.error('Error detecting wallet:', error);
+            const errorMessage = getPhantomErrorMessage(error);
+            setError(errorMessage);
+            setStatus('selecting');
+            detectionInProgressRef.current = false;
         }
     };
 
-    // Handle clicking the "Connect Next Wallet" button
-    const handleConnectNextWallet = async () => {
+    // Get a user-friendly error message for Phantom wallet errors
+    const getPhantomErrorMessage = (error) => {
+        // Handle specific error codes from Phantom
+        if (error.code === 4001) {
+            return 'Connection request was rejected. Please approve the connection in the Phantom popup.';
+        } else if (error.code === -32002) {
+            return 'A connection request is already pending. Please check your Phantom wallet extension.';
+        } else if (error.code === -32603) {
+            return 'Phantom extension encountered an internal error. Please try refreshing the page.';
+        } else if (error.name === 'WalletConnectionError') {
+            return 'Unable to connect to Phantom wallet. Please ensure the extension is installed and unlocked.';
+        } else if (error.message?.includes('disconnected port')) {
+            return 'Connection to Phantom was interrupted. This often happens when another wallet extension is also active. Try disabling other wallet extensions temporarily.';
+        }
+
+        // Default error message
+        return `Connection failed: ${error.message || 'Unknown error'}. Try refreshing the page or restarting your browser.`;
+    };
+
+    // Start listening for wallet changes - guide user to change wallets in the extension
+    const startListeningForWalletChanges = async () => {
         try {
-            // Reset any errors
-            setError('');
+            setStatus('listening');
+            setMessage('Opening Phantom wallet and waiting for wallet changes...');
 
-            // If a connection is in progress, ignore this request
-            if (connectionInProgressRef.current) {
-                return;
-            }
+            // Force open the Phantom wallet popup by requesting a connection
+            if (window.solana && window.solana.isPhantom) {
+                try {
+                    // Try a direct method to open the selector
+                    console.log("Attempting to open Phantom wallet selector...");
 
-            // Update UI to show disconnection is happening
-            setStatus('connecting');
-            setMessage('Disconnecting current wallet...');
+                    // First, check if we're connected and have a publicKey
+                    if (window.solana.isConnected && window.solana.publicKey) {
+                        try {
+                            // We'll use a simple message signature to force open the wallet
+                            // This is more reliable than reconnect attempts
+                            const timestamp = Date.now();
+                            const message = `Proof of Funds: Wallet Selection\n\nPlease use the Phantom extension to switch to a different wallet you'd like to detect.\n\nAfter confirming this message, you can switch wallets using the dropdown in the Phantom extension.`;
+                            const encodedMessage = new TextEncoder().encode(message);
 
-            // First, disconnect from the current wallet to ensure a clean connection
-            try {
-                if (window.solana && window.solana.isConnected) {
-                    await window.solana.disconnect();
-                    console.log("Successfully disconnected from wallet");
+                            // We don't actually need the result, just need to trigger the UI
+                            window.solana.signMessage(encodedMessage, "utf8")
+                                .catch(err => {
+                                    // This is expected - the goal is just to show the popup
+                                    console.log("Signature dialogue shown:", err);
+                                });
 
-                    // Also clear any connection state in Phantom if that method exists
-                    if (window.solana._handleDisconnect) {
-                        window.solana._handleDisconnect();
+                            console.log("Signature request sent to open Phantom wallet");
+                            setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
+                        } catch (signError) {
+                            console.error("Failed to open wallet with signature:", signError);
+
+                            // Fallback to disconnect/reconnect
+                            try {
+                                // Try disconnect then connect to force open the UI
+                                await window.solana.disconnect();
+                                await new Promise(resolve => setTimeout(resolve, 500)); // Short delay
+
+                                window.solana.connect({ onlyIfTrusted: false })
+                                    .catch(err => {
+                                        // This is expected - we just need the popup to show
+                                        console.log("Connection prompt displayed via fallback:", err);
+                                    });
+
+                                setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
+                            } catch (fallbackErr) {
+                                console.error("Fallback method failed:", fallbackErr);
+                                setMessage('Please open your Phantom extension manually and switch wallets.');
+                            }
+                        }
+                    } else {
+                        // Not connected - use simple connect
+                        window.solana.connect({ onlyIfTrusted: false })
+                            .catch(err => {
+                                // This is expected - we just need the popup to show
+                                console.log("Connection prompt displayed for new connection:", err);
+                            });
+
+                        setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
                     }
+                } catch (error) {
+                    console.error("Error opening Phantom wallet:", error);
+                    setMessage('Please open your Phantom wallet extension manually and switch wallets.');
                 }
-
-                // Wait to ensure the disconnection is complete
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-            } catch (disconnectError) {
-                console.log("Error during disconnect (non-critical):", disconnectError);
-                // Continue anyway since we're trying to connect a new wallet
+            } else {
+                setError('Phantom wallet not detected. Please install the Phantom extension first.');
+                setStatus('error');
             }
-
-            // Now update UI to show we're connecting
-            setMessage('Opening Phantom wallet selector...');
-
-            // Now connect to the new wallet
-            await connectWallet();
-
         } catch (error) {
-            console.error('Error in connect next wallet flow:', error);
-            setError(`Connection failed: ${error.message || 'Unknown error'}`);
-            setStatus('paused');
-            connectionInProgressRef.current = false;
+            console.error("Error starting wallet detection:", error);
+            setError(`Failed to start wallet detection: ${error.message || 'Unknown error'}`);
+            setStatus('error');
         }
     };
 
     // Cleanup function when component unmounts
     useEffect(() => {
         return () => {
-            // Disconnect from Phantom if connected
-            if (window.solana && window.solana.isConnected) {
-                window.solana.disconnect().catch(console.error);
-            }
+            // Clear in-memory wallet list to prevent memory leaks
+            detectedPublicKeysRef.current.clear();
         };
     }, []);
 
-    // Complete the connection process and save all wallets
+    // Complete the detection process and save selected wallets
     const handleFinish = () => {
         try {
-            setStatus('success');
+            // Get selected wallet addresses
+            const selectedWallets = detectedWallets.filter(wallet =>
+                selectedWalletIds.has(wallet.id)
+            );
 
-            // Disconnect from Phantom if connected
-            if (window.solana && window.solana.isConnected) {
-                window.solana.disconnect().catch(console.error);
+            // Exit if no wallets were selected
+            if (selectedWallets.length === 0) {
+                setError('No wallets were selected. Please select at least one wallet.');
+                return;
             }
 
-            // Get all connected wallet addresses
-            const walletAddresses = connectedWallets.map(wallet => wallet.address);
+            setStatus('success');
+            setMessage('Saving your selected wallets...');
 
-            // Save the connection information - 
-            // We need to save each wallet address individually since saveWalletConnection
-            // only processes the first item in the array for phantom wallets
-            for (const walletAddress of walletAddresses) {
+            // Get selected wallet addresses
+            const selectedWalletAddresses = selectedWallets.map(wallet => wallet.address);
+
+            // Save each selected wallet connection individually
+            for (const walletAddress of selectedWalletAddresses) {
                 saveWalletConnection('phantom', [walletAddress]);
             }
 
@@ -212,7 +378,10 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             window.dispatchEvent(walletChangeEvent);
             console.log('Dispatched wallet-connection-changed event from PhantomMultiWalletSelector');
 
-            // Notify parent about connection completion
+            setMessage(`Successfully saved ${selectedWallets.length} wallet(s)!`);
+
+            // Notify parent about connection completion after a brief delay
+            // to allow the user to see the success message
             setTimeout(() => {
                 onClose();
             }, 1500);
@@ -226,7 +395,7 @@ export default function PhantomMultiWalletSelector({ onClose }) {
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Connect Multiple Phantom Wallets</h2>
+                <h2 className="text-xl font-bold">Connect Phantom Wallets</h2>
                 <button
                     onClick={onClose}
                     className="text-gray-500 hover:text-gray-700 p-2"
@@ -236,19 +405,60 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 </button>
             </div>
 
-            {/* Connected wallets display */}
-            {connectedWallets.length > 0 && status !== 'success' && (
+            {/* Detected wallets display */}
+            {detectedWallets.length > 0 && status !== 'success' && (
                 <div className="mb-6">
-                    <h3 className="font-medium mb-3 text-lg">Connected Wallets ({connectedWallets.length})</h3>
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-medium text-lg">Detected Wallets ({detectedWallets.length})</h3>
+                        <div className="flex items-center space-x-2 text-sm">
+                            <button
+                                onClick={selectAllWallets}
+                                className="text-blue-600 hover:text-blue-800"
+                            >
+                                Select All
+                            </button>
+                            <span>|</span>
+                            <button
+                                onClick={deselectAllWallets}
+                                className="text-blue-600 hover:text-blue-800"
+                            >
+                                Deselect All
+                            </button>
+                        </div>
+                    </div>
                     <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-1">
-                        {connectedWallets.map((wallet, index) => (
-                            <div key={wallet.address} className="p-3 bg-gray-50 rounded-md border border-gray-200 flex items-center">
-                                <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full flex items-center justify-center text-xs mr-3 flex-shrink-0">
-                                    {index + 1}
+                        {detectedWallets.map((wallet) => (
+                            <div
+                                key={wallet.id}
+                                className={`p-3 rounded-md border flex items-center justify-between cursor-pointer transition-colors ${selectedWalletIds.has(wallet.id)
+                                    ? 'bg-blue-50 border-blue-300'
+                                    : 'bg-gray-50 border-gray-200'
+                                    }`}
+                                onClick={() => toggleWalletSelection(wallet.id)}
+                            >
+                                <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full flex items-center justify-center text-xs mr-3 flex-shrink-0">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M18.9,8.5H5.1c-1.6,0-2.8,1.3-2.8,2.8v5.4c0,1.6,1.3,2.8,2.8,2.8h13.7c1.6,0,2.8-1.3,2.8-2.8v-5.4C21.7,9.8,20.4,8.5,18.9,8.5z M12,15.3c-0.9,0-1.6-0.7-1.6-1.6s0.7-1.6,1.6-1.6s1.6,0.7,1.6,1.6S12.9,15.3,12,15.3z M18.5,9.9c-0.2,0-0.4-0.2-0.4-0.4s0.2-0.4,0.4-0.4s0.4,0.2,0.4,0.4S18.7,9.9,18.5,9.9z" />
+                                            <path d="M17.7,4.5L17.7,4.5l-3.8,0c-0.2,0-0.4,0.2-0.4,0.4s0.2,0.4,0.4,0.4l3.8,0c0.2,0,0.4-0.2,0.4-0.4S17.9,4.5,17.7,4.5z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div className="font-mono text-sm truncate">{wallet.displayAddress}</div>
+                                        <div className="text-xs text-gray-500">Phantom Wallet</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-mono text-sm truncate">{wallet.displayAddress}</div>
-                                    <div className="text-xs text-gray-500">Phantom Wallet</div>
+                                <div className="ml-3">
+                                    <div className={`w-5 h-5 border rounded-md flex items-center justify-center ${selectedWalletIds.has(wallet.id)
+                                        ? 'bg-blue-600 border-blue-600'
+                                        : 'bg-white border-gray-300'
+                                        }`}>
+                                        {selectedWalletIds.has(wallet.id) && (
+                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                                            </svg>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -259,32 +469,32 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             {/* Initial state */}
             {status === 'initial' && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md mb-6">
-                    <h3 className="font-medium text-blue-800 mb-2">Connect Multiple Phantom Wallets</h3>
+                    <h3 className="font-medium text-blue-800 mb-2">Detect Multiple Phantom Wallets</h3>
                     <p className="text-sm text-blue-700 mb-4">
-                        Connect multiple Phantom wallets to use them simultaneously in this app.
+                        Detect and select multiple Phantom wallets to use simultaneously in this app.
                     </p>
                     <ol className="list-decimal pl-5 text-sm text-blue-700 mb-4 space-y-2">
-                        <li>Click "Start Connection" to begin</li>
+                        <li>Click "Start Detection" to begin</li>
                         <li>Select a wallet when the Phantom popup appears</li>
-                        <li>Click "Connect Next Wallet" to add additional wallets</li>
-                        <li>Select a different wallet in the Phantom popup each time</li>
+                        <li>Find more wallets by switching directly in the Phantom extension</li>
+                        <li>Select which detected wallets you want to connect</li>
                     </ol>
                     <button
-                        onClick={startWalletConnection}
+                        onClick={startWalletDetection}
                         className="w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700"
                     >
                         <span className="flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                             </svg>
-                            Start Connection
+                            Start Detection
                         </span>
                     </button>
                 </div>
             )}
 
-            {/* Connecting state */}
-            {status === 'connecting' && (
+            {/* Detecting state */}
+            {status === 'detecting' && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md mb-6">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-blue-800">Opening Wallet Selector</h3>
@@ -297,51 +507,93 @@ export default function PhantomMultiWalletSelector({ onClose }) {
 
                     <div className="text-sm text-blue-700 mb-4">
                         <p>When the Phantom popup appears:</p>
-                        <p className="mt-2">1. Select the wallet you want to connect</p>
+                        <p className="mt-2">1. Select the wallet you want to detect</p>
                         <p className="mt-1">2. Click "Connect" to approve the connection</p>
                     </div>
                 </div>
             )}
 
-            {/* Paused state - after a wallet is connected, waiting for user action */}
-            {status === 'paused' && (
+            {/* Listening state - actively listening for wallet changes */}
+            {status === 'listening' && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md mb-6">
-                    <h3 className="font-medium text-blue-800 mb-2">Wallet Connection</h3>
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-medium text-blue-800">Listening for Wallet Changes</h3>
+                        <div className="inline-block w-5 h-5 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
 
                     <div className="bg-white p-3 rounded-md border border-blue-100 mb-4">
                         <p className="text-sm text-blue-800">{message}</p>
                     </div>
 
                     <div className="text-sm text-blue-700 mb-4">
-                        <p className="font-medium mb-1">To connect additional wallets:</p>
-                        <p>• Click "Connect Next Wallet" below</p>
-                        <p>• The system will disconnect the current wallet first</p>
-                        <p>• When the popup appears, select a different wallet</p>
+                        <p className="font-medium mb-1">To detect another wallet:</p>
+                        <ol className="list-decimal pl-5 space-y-1 mt-2">
+                            <li>Open the Phantom browser extension</li>
+                            <li>Click on the wallet icon in the top-right</li>
+                            <li>Select a different wallet from your list</li>
+                            <li>Or click "Add new wallet" to create/import one</li>
+                        </ol>
+                    </div>
+
+                    <button
+                        onClick={() => setStatus('selecting')}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700"
+                    >
+                        <span className="flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Stop Listening
+                        </span>
+                    </button>
+                </div>
+            )}
+
+            {/* Selection state - after wallets are detected, selecting which to connect */}
+            {status === 'selecting' && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md mb-6">
+                    <h3 className="font-medium text-blue-800 mb-2">Select Wallets to Connect</h3>
+
+                    <div className="bg-white p-3 rounded-md border border-blue-100 mb-4">
+                        <p className="text-sm text-blue-800">{message}</p>
+                    </div>
+
+                    <div className="text-sm text-blue-700 mb-4">
+                        <p className="font-medium mb-1">
+                            {selectedWalletIds.size} of {detectedWallets.length} wallets selected
+                        </p>
+                        <p>• Check the wallets you want to connect</p>
+                        <p>• Click "Detect More Wallets" to find additional wallets</p>
+                        <p>• Click "Connect Selected Wallets" when ready</p>
                     </div>
 
                     <div className="flex gap-3 mb-3">
                         <button
-                            onClick={handleConnectNextWallet}
+                            onClick={startListeningForWalletChanges}
                             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700"
                         >
                             <span className="flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
                                 </svg>
-                                Connect Next Wallet
+                                Detect More Wallets
                             </span>
                         </button>
                     </div>
 
                     <button
                         onClick={handleFinish}
-                        className="w-full px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700"
+                        disabled={selectedWalletIds.size === 0}
+                        className={`w-full px-4 py-2 text-white rounded-md font-medium ${selectedWalletIds.size > 0
+                            ? 'bg-green-600 hover:bg-green-700'
+                            : 'bg-gray-400 cursor-not-allowed'
+                            }`}
                     >
                         <span className="flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
-                            Complete with {connectedWallets.length} {connectedWallets.length === 1 ? 'Wallet' : 'Wallets'}
+                            Connect {selectedWalletIds.size} Selected {selectedWalletIds.size === 1 ? 'Wallet' : 'Wallets'}
                         </span>
                     </button>
                 </div>
@@ -353,7 +605,7 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <p className="text-lg font-medium">Successfully connected {connectedWallets.length} wallet(s)!</p>
+                    <p className="text-lg font-medium">Successfully connected {selectedWalletIds.size} wallet(s)!</p>
                     <p className="text-sm text-gray-600 mt-2">
                         You can now use all your connected Phantom wallets simultaneously.
                     </p>
@@ -383,11 +635,11 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             {/* How it works footer */}
             {status !== 'success' && (
                 <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500">
-                    <p className="mb-1"><strong>How multi-wallet connection works:</strong></p>
-                    <p>• The system disconnects between each wallet connection</p>
-                    <p>• This ensures a clean selection in the Phantom popup</p>
-                    <p>• Select a different wallet in the popup each time</p>
-                    <p>• Each wallet needs to approve the connection only once</p>
+                    <p className="mb-1"><strong>How wallet detection works:</strong></p>
+                    <p>• We listen for wallet changes in the Phantom extension</p>
+                    <p>• Simply switch wallets in Phantom to detect more</p>
+                    <p>• Select which detected wallets you want to connect</p>
+                    <p>• You'll be able to use all connected wallets simultaneously</p>
                 </div>
             )}
         </div>
