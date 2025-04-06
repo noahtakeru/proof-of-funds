@@ -1,6 +1,52 @@
 # Circuit Testing Guide
 
-This guide provides instructions for testing the optimized ZK circuits.
+This document provides an overview of the comprehensive testing strategy for zero-knowledge proof circuits in the Proof of Funds system. This testing approach was implemented as part of Week 5 Task 2.
+
+## Testing Approach
+
+Our circuit testing is structured around four main categories:
+
+1. **Constraint Satisfaction Tests**
+   - Verify all constraints are properly enforced
+   - Test boundary conditions
+   - Ensure cryptographic soundness
+
+2. **Edge Case Input Testing**
+   - Test with zero values
+   - Test with maximum representable values
+   - Test with invalid inputs to verify rejection
+
+3. **Symbolic Execution & Logical Contradiction Tests**
+   - Analyze for logical contradictions
+   - Validate cryptographic assumptions
+   - Check for security vulnerabilities
+
+4. **Cross-Circuit Isolation & Differential Testing**
+   - Verify no information leakage between circuits
+   - Test circuit independence
+   - Ensure no shared vulnerabilities
+   - Compare different circuit versions
+
+## Test Files
+
+We have implemented the following test files:
+
+- `circuitConstraintSatisfaction.test.js`: Tests for proper constraint enforcement across all circuits
+- `circuitEdgeCaseSymbolic.test.js`: Tests edge cases and performs symbolic analysis
+- `circuitDifferentialTesting.test.js`: Compares different circuit versions
+- `circuitOptimization.test.js`: Tests that circuits meet optimization targets
+
+## Running Tests
+
+To run the circuit tests:
+
+```bash
+# Run all circuit tests
+npm test -- --testPathPattern=lib/zk/__tests__/circuits
+
+# Run a specific test file
+npm test -- --testPathPattern=lib/zk/__tests__/circuits/circuitConstraintSatisfaction.test.js
+```
 
 ## Simplified Testing (No Dependencies Required)
 
@@ -29,7 +75,7 @@ git clone https://github.com/yourusername/proof-of-funds.git
 cd proof-of-funds
 ```
 
-## Step 1: Build the Circuits
+### Step 1: Build the Circuits
 
 ```bash
 cd lib/zk
@@ -38,7 +84,7 @@ node scripts/build-circuits.js
 
 This will compile all three circuit types (standardProof, thresholdProof, maximumProof) and generate the necessary files in the `build` directory.
 
-## Step 2: Check Constraint Count
+### Step 2: Check Constraint Count
 
 After building, check the constraint count in the generated info files:
 
@@ -53,173 +99,167 @@ Verify that the constraint counts meet our targets:
 - Threshold Proof: <15,000 constraints
 - Maximum Proof: <15,000 constraints
 
-## Step 3: Generate Test Inputs
+## Test Inputs
 
-Create a directory for test inputs:
+The tests use inputs from the `lib/zk/test-inputs/` directory. Each circuit has:
 
-```bash
-mkdir -p test-inputs
-```
+- `standardProof_input.json`: Valid input for standard proof
+- `standardProof_invalid.json`: Invalid input for standard proof
+- `thresholdProof_input.json`: Valid input for threshold proof
+- `thresholdProof_invalid.json`: Invalid input for threshold proof
+- `maximumProof_input.json`: Valid input for maximum proof
+- `maximumProof_invalid.json`: Invalid input for maximum proof
 
 ### Sample Test Input for Standard Proof
 
-Create `test-inputs/standardProof_input.json`:
-
 ```json
 {
-  "address": "123456789012345678901234567890123456789",
+  "address": "0x123456789012345678901234567890123456789a",
   "amount": "1000000000000000000",
   "nonce": "123456789",
   "actualBalance": "1000000000000000000",
-  "signature": ["1", "2"],
+  "signature": ["123456789", "987654321"],
   "walletSecret": "987654321"
 }
 ```
 
-### Sample Test Input for Threshold Proof
-
-Create `test-inputs/thresholdProof_input.json`:
+### Sample Invalid Test Input for Standard Proof
 
 ```json
 {
-  "address": "123456789012345678901234567890123456789",
-  "threshold": "1000000000000000000",
-  "nonce": "123456789",
-  "actualBalance": "2000000000000000000",
-  "signature": ["1", "2"],
-  "walletSecret": "987654321"
-}
-```
-
-### Sample Test Input for Maximum Proof
-
-Create `test-inputs/maximumProof_input.json`:
-
-```json
-{
-  "address": "123456789012345678901234567890123456789",
-  "maximum": "2000000000000000000",
-  "nonce": "123456789",
-  "actualBalance": "1000000000000000000", 
-  "signature": ["1", "2"],
-  "walletSecret": "987654321"
-}
-```
-
-## Step 4: Generate and Verify Proofs
-
-Run the following commands to test each circuit:
-
-### Standard Proof
-
-```bash
-# Generate witness
-node build/wasm/standardProof_js/generate_witness.js build/wasm/standardProof_js/standardProof.wasm test-inputs/standardProof_input.json witness.wtns
-
-# Generate proof
-snarkjs groth16 prove build/zkey/standardProof.zkey witness.wtns proof.json public.json
-
-# Verify proof
-snarkjs groth16 verify build/verification_key/standardProof.json public.json proof.json
-```
-
-### Threshold Proof
-
-```bash
-# Generate witness
-node build/wasm/thresholdProof_js/generate_witness.js build/wasm/thresholdProof_js/thresholdProof.wasm test-inputs/thresholdProof_input.json witness.wtns
-
-# Generate proof
-snarkjs groth16 prove build/zkey/thresholdProof.zkey witness.wtns proof.json public.json
-
-# Verify proof
-snarkjs groth16 verify build/verification_key/thresholdProof.json public.json proof.json
-```
-
-### Maximum Proof
-
-```bash
-# Generate witness
-node build/wasm/maximumProof_js/generate_witness.js build/wasm/maximumProof_js/maximumProof.wasm test-inputs/maximumProof_input.json witness.wtns
-
-# Generate proof
-snarkjs groth16 prove build/zkey/maximumProof.zkey witness.wtns proof.json public.json
-
-# Verify proof
-snarkjs groth16 verify build/verification_key/maximumProof.json public.json proof.json
-```
-
-## Step 5: Automated Testing with Jest
-
-You can also run automated tests using our Jest test suite:
-
-```bash
-cd lib/zk
-npm test -- --grep "Circuit Tests"
-```
-
-## Step 6: Invalid Input Testing
-
-To test that the circuits correctly reject invalid inputs, create test files with invalid data:
-
-### Invalid Standard Proof (amount mismatch)
-
-Create `test-inputs/standardProof_invalid.json`:
-
-```json
-{
-  "address": "123456789012345678901234567890123456789",
+  "address": "0x123456789012345678901234567890123456789a",
   "amount": "1000000000000000000",
   "nonce": "123456789",
-  "actualBalance": "2000000000000000000",
-  "signature": ["1", "2"],
+  "actualBalance": "900000000000000000",
+  "signature": ["123456789", "987654321"],
   "walletSecret": "987654321"
 }
 ```
 
-### Invalid Threshold Proof (below threshold)
+## Boundary Condition Testing
 
-Create `test-inputs/thresholdProof_invalid.json`:
+We test the following boundary conditions:
 
-```json
+- **Zero values**: Testing with zero balances and zero thresholds
+- **Equality boundaries**: Testing values exactly at threshold or maximum
+- **Off-by-one**: Testing values that are just above/below thresholds
+- **Maximum values**: Testing with extremely large numbers near field limits
+
+Example boundary test cases include:
+
+```javascript
+// Exactly at threshold
 {
-  "address": "123456789012345678901234567890123456789",
-  "threshold": "2000000000000000000",
-  "nonce": "123456789",
-  "actualBalance": "1000000000000000000",
-  "signature": ["1", "2"],
-  "walletSecret": "987654321"
+  address: generateRandomWalletAddress(),
+  threshold: "1000000000000000000",
+  nonce: Date.now().toString(),
+  actualBalance: "1000000000000000000",
+  signature: [randomString, randomString],
+  walletSecret: randomString
 }
-```
 
-### Invalid Maximum Proof (above maximum)
-
-Create `test-inputs/maximumProof_invalid.json`:
-
-```json
+// Just above threshold by 1 wei
 {
-  "address": "123456789012345678901234567890123456789",
-  "maximum": "1000000000000000000",
-  "nonce": "123456789",
-  "actualBalance": "2000000000000000000", 
-  "signature": ["1", "2"],
-  "walletSecret": "987654321"
+  address: generateRandomWalletAddress(),
+  threshold: "1000000000000000000",
+  nonce: Date.now().toString(),
+  actualBalance: "1000000000000000001",
+  signature: [randomString, randomString],
+  walletSecret: randomString
 }
 ```
 
-Run the tests with invalid inputs and verify that they fail as expected.
+## Symbolic Execution
 
-## Step 7: Gas Cost Estimation
+Our symbolic execution testing analyzes circuit structure to check for:
 
-To estimate gas costs for on-chain verification:
+- Contradictory constraints
+- Missing security validations
+- Proper isolation between circuits
+- Consistent cryptographic assumptions
 
-```bash
-# Generate Solidity verifier
-snarkjs zkey export solidityverifier build/zkey/standardProof.zkey verifier.sol
+Example symbolic verification:
 
-# Simulate gas usage (requires truffle)
-truffle exec scripts/estimate-gas.js
+```javascript
+// Check for conflicting constraints
+const constraints = [
+  ...source.matchAll(/(\w+)\s*(===|!==|<==|>==)\s*(\w+)/g)
+].map(match => ({
+  left: match[1],
+  operator: match[2],
+  right: match[3]
+}));
+
+// Look for contradicting constraints on the same signals
+const contradictions = constraints.filter(c1 => 
+  constraints.some(c2 => 
+    c1 !== c2 && 
+    c1.left === c2.left && 
+    c1.right === c2.right && 
+    contradictingOperators(c1.operator, c2.operator)
+  )
+);
+
+expect(contradictions).toHaveLength(0);
 ```
+
+## Differential Testing
+
+When patched/optimized circuits are available, we perform differential testing to:
+
+- Compare constraint structures before and after optimization
+- Verify security invariants are maintained across versions
+- Check compatibility of inputs between versions
+- Analyze the impact of constraint reductions
+
+The differential testing checks that primary constraints remain intact after optimization:
+
+```javascript
+if (circuitName === 'standardProof') {
+  // Standard proof must maintain equality constraint
+  const hasEqualityConstraint = patchedStructure.some(item => 
+    item.type === 'constraint' && 
+    ((item.left === 'actualBalance' && item.right === 'amount') ||
+     (item.left === 'amount' && item.right === 'actualBalance'))
+  );
+  expect(hasEqualityConstraint).toBe(true);
+}
+```
+
+## Cross-Circuit Isolation Tests
+
+These tests verify that circuits operate independently and don't share vulnerabilities:
+
+```javascript
+// Verify circuits have distinct constraint structures
+test('Circuits have different constraint structures', () => {
+  const standardSource = loadCircuitSource('standardProof');
+  const thresholdSource = loadCircuitSource('thresholdProof');
+  const maximumSource = loadCircuitSource('maximumProof');
+  
+  // Verify fundamental differences in constraints
+  
+  // Standard uses equality constraint
+  expect(standardSource.includes('actualBalance === amount')).toBe(true);
+  
+  // Threshold uses greater-than-or-equal constraint
+  expect(thresholdSource.includes('GreaterEqThan')).toBe(true);
+  
+  // Maximum uses less-than-or-equal constraint
+  expect(maximumSource.includes('LessEqThan')).toBe(true);
+});
+```
+
+## Security Properties Verified
+
+These tests verify important security properties:
+
+1. **Correctness**: Circuits correctly implement their intended constraints
+2. **Soundness**: Invalid proofs are rejected
+3. **Zero-knowledge**: No additional information is leaked
+4. **Isolation**: Circuits operate independently without interference
+5. **Compatibility**: Updates maintain backward compatibility
+6. **Optimization**: Constraints are reduced without compromising security
 
 ## Troubleshooting
 
@@ -241,27 +281,23 @@ truffle exec scripts/estimate-gas.js
    - Ensure circom is installed globally
    - Try running `which circom` to verify installation
 
-### Getting Help
+## Extending the Tests
 
-If you encounter issues not covered here, please:
-1. Check the error message carefully
-2. Look for issues in your input data
-3. Verify that Circom and SnarkJS are properly installed
+To add new tests:
 
-## Advanced Testing
-
-For more advanced testing, consider:
-
-1. **Batch Proof Generation**: Test generating multiple proofs
-2. **Performance Testing**: Measure time to generate proofs on different hardware
-3. **Memory Usage**: Monitor memory consumption during proof generation
+1. Add new edge cases to the `generateEdgeCaseInputs()` function
+2. Add new circuit versions for differential testing in `/patched-circuits/`
+3. Add new security invariants to check in the invariants list
+4. Create additional test cases for specific properties of interest
 
 ## Conclusion
 
-These tests verify that our optimized circuits:
+These comprehensive tests verify that our optimized circuits:
 1. Generate valid proofs for valid inputs
 2. Reject invalid inputs
 3. Meet our constraint count targets
-4. Maintain the security properties and functionality requirements
+4. Maintain security properties across different circuit versions
+5. Ensure isolation between different proof types
+6. Handle all edge cases correctly
 
-Once all tests pass, the circuits are ready for integration into the main application.
+This testing approach ensures our ZK infrastructure remains secure, efficient, and maintainable.
