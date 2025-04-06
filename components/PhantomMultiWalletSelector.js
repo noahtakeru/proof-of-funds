@@ -128,7 +128,7 @@ export default function PhantomMultiWalletSelector({ onClose }) {
         setSelectedWalletIds(new Set());
     };
 
-    // Start the wallet detection process
+    // Start the wallet detection process with enhanced detection
     const startWalletDetection = async () => {
         try {
             // Reset state
@@ -143,6 +143,49 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 return;
             }
 
+            // Check for previously discovered wallets first
+            const storedWallets = getStoredPhantomWallets();
+            if (storedWallets.length > 0) {
+                setMessage(`Found ${storedWallets.length} previously connected Phantom ${storedWallets.length > 1 ? 'wallets' : 'wallet'}!`);
+                
+                // Add these wallets to our detected list
+                const walletPromises = storedWallets.map(address => {
+                    const displayAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+                    const newWallet = {
+                        id: `phantom-${address}`,
+                        address: address,
+                        displayAddress: displayAddress,
+                        type: 'phantom',
+                        name: `Phantom Wallet ${detectedWallets.length + 1}`
+                    };
+                    
+                    // Only add wallets that aren't already in our list
+                    if (!detectedPublicKeysRef.current.has(address)) {
+                        detectedPublicKeysRef.current.add(address);
+                        return newWallet;
+                    }
+                    return null;
+                });
+                
+                // Filter out any null entries and add to state
+                const validWallets = (await Promise.all(walletPromises)).filter(Boolean);
+                
+                if (validWallets.length > 0) {
+                    setDetectedWallets(prev => [...prev, ...validWallets]);
+                    
+                    // Auto-select all previously discovered wallets
+                    setSelectedWalletIds(prev => {
+                        const newSet = new Set(prev);
+                        validWallets.forEach(wallet => newSet.add(wallet.id));
+                        return newSet;
+                    });
+                }
+                
+                // Even with stored wallets, we still need to detect the current one
+                // to establish a connection - this will populate the Phantom context
+                setMessage('Connecting to current Phantom wallet...');
+            }
+
             // Now detect the initial wallet
             await detectInitialWallet();
 
@@ -150,6 +193,33 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             console.error('Error starting wallet detection:', error);
             setError(`Failed to start detection: ${error.message || 'Unknown error'}`);
             setStatus('error');
+        }
+    };
+    
+    // Helper function to get stored Phantom wallets
+    const getStoredPhantomWallets = () => {
+        try {
+            // First check phantomDiscoveredWallets (from our enhanced PhantomMultiWallet)
+            const discoveredWallets = JSON.parse(localStorage.getItem('phantomDiscoveredWallets') || '[]');
+            
+            // Also check phantomWalletState for wallet performance data
+            const walletState = JSON.parse(localStorage.getItem('phantomWalletState') || '{}');
+            
+            // Check standard wallet data storage
+            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{}}');
+            const savedPhantomWallets = walletData?.wallets?.phantom || [];
+            
+            // Combine all unique addresses (Set automatically deduplicates)
+            const allAddresses = new Set([
+                ...discoveredWallets,
+                ...savedPhantomWallets,
+                ...Object.keys(walletState)
+            ]);
+            
+            return [...allAddresses];
+        } catch (e) {
+            console.error("Error getting stored Phantom wallets:", e);
+            return [];
         }
     };
 
