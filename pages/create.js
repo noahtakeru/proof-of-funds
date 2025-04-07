@@ -32,7 +32,7 @@ import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 import { isValidAmount } from '../lib/ethersUtils';
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { generateZKProof } from '../lib/zk/zkUtils';
+import { generateZKProof } from '../lib/zk/src/zkUtils';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {
@@ -898,124 +898,124 @@ export default function CreatePage() {
      */
     const prepareProofSubmission = async () => {
         console.log("Starting prepareProofSubmission");
-        
+
         // Return a Promise to ensure proper async/await handling
         return new Promise(async (resolve, reject) => {
             try {
-        // Prepare amount value based on input type
-        let finalAmount = amount;
-        let tokenDetails = [];
+                // Prepare amount value based on input type
+                let finalAmount = amount;
+                let tokenDetails = [];
 
-        if (amountInputType === 'tokens') {
-            finalAmount = calculateTotalUsdValue().toString();
-            tokenDetails = selectedTokens.map(token => ({
-                symbol: token.symbol,
-                chain: token.chain,
-                amount: token.amount,
-                usdValue: token.amount * (
-                    assetSummary?.convertedAssets?.find(
-                        a => a.symbol === token.symbol && a.chain === token.chain
-                    )?.usdRate || 0
-                )
-            }));
-        }
-
-        const expiryTime = getExpiryTimestamp(expiryDays);
-
-        // If using ZK proof, generate ZK proof and temporary wallet
-        let zkProofData = null;
-        let tempWallet = null;
-        
-        if (proofCategory === 'zk') {
-            try {
-                // Dynamically import ethers for parsing amount
-                const { getEthers, parseAmount } = await import('../lib/ethersUtils');
-                const { ethers } = await getEthers();
-                
-                // Convert amount to Wei
-                const amountInWei = await parseAmount(finalAmount);
-                
-                // Get the primary wallet's address
-                const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
-                if (!primaryWallet) {
-                    throw new Error('No wallet selected');
+                if (amountInputType === 'tokens') {
+                    finalAmount = calculateTotalUsdValue().toString();
+                    tokenDetails = selectedTokens.map(token => ({
+                        symbol: token.symbol,
+                        chain: token.chain,
+                        amount: token.amount,
+                        usdValue: token.amount * (
+                            assetSummary?.convertedAssets?.find(
+                                a => a.symbol === token.symbol && a.chain === token.chain
+                            )?.usdRate || 0
+                        )
+                    }));
                 }
-                
-                // Generate ZK proof
-                zkProofData = await generateZKProof({
-                    walletAddress: primaryWallet.fullAddress,
-                    amount: amountInWei.toString(),
-                    proofType: ZK_PROOF_TYPES[zkProofType.toUpperCase()] || ZK_PROOF_TYPES.STANDARD
-                });
-                
-                // Generate temporary wallet
-                tempWallet = await generateTemporaryWallet({
-                    chain: primaryWallet.chain.toLowerCase()
-                });
-                
-                console.log('ZK proof generated:', zkProofData);
-                console.log('Temporary wallet generated:', tempWallet.address);
-            } catch (error) {
-                console.error('Error generating ZK proof:', error);
-                alert(`Error generating ZK proof: ${error.message}`);
-                return; // Exit if ZK proof generation fails
-            }
-        }
 
-        // Generate proof data that includes all selected wallets and token details if applicable
-        const proofDataObj = {
-            timestamp: Date.now(),
-            expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
-            proofType: proofCategory === 'standard' ? proofType : zkProofType,
-            proofCategory: proofCategory, // Add the category (standard or zk)
-            wallets: selectedWallets.map(id => {
-                const wallet = connectedWallets.find(w => w.id === id);
-                return {
-                    id: wallet.id,
-                    address: wallet.fullAddress,
-                    chain: wallet.chain,
-                    type: wallet.type
+                const expiryTime = getExpiryTimestamp(expiryDays);
+
+                // If using ZK proof, generate ZK proof and temporary wallet
+                let zkProofData = null;
+                let tempWallet = null;
+
+                if (proofCategory === 'zk') {
+                    try {
+                        // Dynamically import ethers for parsing amount
+                        const { getEthers, parseAmount } = await import('../lib/ethersUtils');
+                        const { ethers } = await getEthers();
+
+                        // Convert amount to Wei
+                        const amountInWei = await parseAmount(finalAmount);
+
+                        // Get the primary wallet's address
+                        const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
+                        if (!primaryWallet) {
+                            throw new Error('No wallet selected');
+                        }
+
+                        // Generate ZK proof
+                        zkProofData = await generateZKProof({
+                            walletAddress: primaryWallet.fullAddress,
+                            amount: amountInWei.toString(),
+                            proofType: ZK_PROOF_TYPES[zkProofType.toUpperCase()] || ZK_PROOF_TYPES.STANDARD
+                        });
+
+                        // Generate temporary wallet
+                        tempWallet = await generateTemporaryWallet({
+                            chain: primaryWallet.chain.toLowerCase()
+                        });
+
+                        console.log('ZK proof generated:', zkProofData);
+                        console.log('Temporary wallet generated:', tempWallet.address);
+                    } catch (error) {
+                        console.error('Error generating ZK proof:', error);
+                        alert(`Error generating ZK proof: ${error.message}`);
+                        return; // Exit if ZK proof generation fails
+                    }
+                }
+
+                // Generate proof data that includes all selected wallets and token details if applicable
+                const proofDataObj = {
+                    timestamp: Date.now(),
+                    expiryTime: expiryTime * 1000, // Convert to milliseconds for JS
+                    proofType: proofCategory === 'standard' ? proofType : zkProofType,
+                    proofCategory: proofCategory, // Add the category (standard or zk)
+                    wallets: selectedWallets.map(id => {
+                        const wallet = connectedWallets.find(w => w.id === id);
+                        return {
+                            id: wallet.id,
+                            address: wallet.fullAddress,
+                            chain: wallet.chain,
+                            type: wallet.type
+                        };
+                    }),
+                    assets: assetSummary ? assetSummary.totalAssets : [],
+                    totalValue: showUSDValues && assetSummary ?
+                        assetSummary.totalUSDValue :
+                        (assetSummary && assetSummary.totalAssets.length > 0 ?
+                            assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
+                    currency: amountInputType === 'usd' ? "USD" : "tokens",
+                    tokenDetails: tokenDetails,
+                    signatures: walletSignatures,
+                    thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
+                    maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
+                    isThresholdProof: proofType === 'threshold',
+                    isMaximumProof: proofType === 'maximum',
+                    // Include ZK-specific properties if available
+                    zkProof: zkProofData ? zkProofData.proof : null,
+                    zkPublicSignals: zkProofData ? zkProofData.publicSignals : null,
+                    tempWallet: tempWallet ? {
+                        address: tempWallet.address,
+                        path: tempWallet.path
+                    } : null
                 };
-            }),
-            assets: assetSummary ? assetSummary.totalAssets : [],
-            totalValue: showUSDValues && assetSummary ?
-                assetSummary.totalUSDValue :
-                (assetSummary && assetSummary.totalAssets.length > 0 ?
-                    assetSummary.totalAssets.reduce((sum, asset) => sum + asset.balance, 0) : 0),
-            currency: amountInputType === 'usd' ? "USD" : "tokens",
-            tokenDetails: tokenDetails,
-            signatures: walletSignatures,
-            thresholdAmount: proofType === 'threshold' ? parseFloat(finalAmount) : null,
-            maximumAmount: proofType === 'maximum' ? parseFloat(finalAmount) : null,
-            isThresholdProof: proofType === 'threshold',
-            isMaximumProof: proofType === 'maximum',
-            // Include ZK-specific properties if available
-            zkProof: zkProofData ? zkProofData.proof : null,
-            zkPublicSignals: zkProofData ? zkProofData.publicSignals : null,
-            tempWallet: tempWallet ? {
-                address: tempWallet.address,
-                path: tempWallet.path
-            } : null
-        };
 
-        // Update state with the proof data
-        setProofData(proofDataObj);
-        setReadyToSubmit(true);
+                // Update state with the proof data
+                setProofData(proofDataObj);
+                setReadyToSubmit(true);
 
-        // Move to the next stage
-        setProofStage('ready');
+                // Move to the next stage
+                setProofStage('ready');
 
-        console.log('Proof data prepared and ready for submission:', proofDataObj);
-        console.log('Current proofStage after preparation:', proofStage);
+                console.log('Proof data prepared and ready for submission:', proofDataObj);
+                console.log('Current proofStage after preparation:', proofStage);
 
-        // Force a delay to make sure states have updated before proceeding
-        setTimeout(() => {
-            console.log('Delayed check - proofStage:', proofStage);
-            console.log('Delayed check - proofData exists:', !!proofData);
-            
-            // Resolve the promise with the proof data
-            resolve(proofData);
-        }, 500);
+                // Force a delay to make sure states have updated before proceeding
+                setTimeout(() => {
+                    console.log('Delayed check - proofStage:', proofStage);
+                    console.log('Delayed check - proofData exists:', !!proofData);
+
+                    // Resolve the promise with the proof data
+                    resolve(proofData);
+                }, 500);
             } catch (error) {
                 console.error("Error in prepareProofSubmission:", error);
                 reject(error);
@@ -1031,58 +1031,58 @@ export default function CreatePage() {
     const handleZKProofSubmission = async () => {
         try {
             console.log("Executing ZK proof submission flow");
-            
+
             // First ensure we have valid ZK proof data
             if (!proofData || !proofData.zkProof || !proofData.zkPublicSignals) {
                 throw new Error("ZK proof data is missing or incomplete");
             }
-            
+
             // Dynamically import ethers
             const { getEthers } = await import('../lib/ethersUtils');
             const { ethers } = await getEthers();
-            
+
             // Get the primary wallet data
             const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
             if (!primaryWallet) {
                 throw new Error('Primary wallet not found');
             }
-            
+
             // Get expiry time
             const expiryTime = getExpiryTimestamp(expiryDays);
-            
+
             // Get the signature
             const walletSignature = walletSignatures[primaryWallet.id]?.signature;
             if (!walletSignature) {
                 throw new Error('Wallet signature not found. Please sign with your wallet.');
             }
-            
+
             // Determine the ZK proof type enum value
             let zkProofTypeValue;
             if (zkProofType === 'standard') zkProofTypeValue = ZK_PROOF_TYPES.STANDARD;
             else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
             else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
-            
+
             console.log("ZK proof type:", zkProofType, "enum value:", zkProofTypeValue);
-            
+
             // Create mock proof and public signals for testing
             // In production, we would use the actual ZK proof data
             const mockProof = ethers.utils.defaultAbiCoder.encode(
                 ['uint256[]'],
                 [[1, 2, 3, 4, 5, 6, 7, 8]]
             );
-            
+
             const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
                 ['uint256[]'],
                 [[ethers.utils.parseEther(amount).toString()]]
             );
-            
+
             console.log("ZK contract call preparation:", {
                 proofType: zkProofTypeValue,
                 expiryTime,
                 signatureMessage,
                 hasSignature: !!walletSignature
             });
-            
+
             // Check if the writeZKProof function is available
             if (typeof writeZKProof === 'function') {
                 try {
@@ -1113,7 +1113,7 @@ export default function CreatePage() {
             setIsSubmitting(false);
         }
     };
-    
+
     /**
      * Creates a simulated successful ZK proof transaction
      * Used for development and testing when contract is not available
@@ -1127,7 +1127,7 @@ export default function CreatePage() {
         setIsSubmitting(false);
         alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
     };
-    
+
     /**
      * Submits the finalized proof to the blockchain
      * Creates and submits the transaction when all signatures are collected
@@ -1418,7 +1418,7 @@ export default function CreatePage() {
             try {
                 // Call async function and await its completion
                 await prepareProofSubmission();
-                
+
                 // Now we know proofData should be set
                 // The timeout ensures state has updated before proceeding
                 setTimeout(() => {
@@ -1654,7 +1654,7 @@ export default function CreatePage() {
                                     gasLimit: BigInt(500000)
                                 });
                                 console.log("writeZKProof called");
-                                
+
                                 // Even if the contract call appears to succeed, we'll use a simulated tx
                                 // for consistent testing until the contract is fully deployed
                                 const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -2434,7 +2434,7 @@ export default function CreatePage() {
                                 <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
                                     {zkProofType === 'standard' && (
                                         <p>
-                                            <strong>ZK Standard Proof:</strong> This proof privately verifies that your wallet contains exactly the specified amount, 
+                                            <strong>ZK Standard Proof:</strong> This proof privately verifies that your wallet contains exactly the specified amount,
                                             without revealing the actual balance on the blockchain.
                                         </p>
                                     )}
@@ -3189,21 +3189,21 @@ export default function CreatePage() {
             if (!proofData.zkProof || !proofData.zkPublicSignals || !proofData.tempWallet) {
                 throw new Error('Missing required ZK proof data');
             }
-            
+
             // Prepare ZK proof submission
             console.log('Preparing ZK proof submission');
-            
+
             // In production, we would:
             // 1. Fund the temporary wallet with a small amount of MATIC
             // 2. Create a transaction to the ZK verifier contract
             // 3. Sign and broadcast the transaction
-            
+
             // For now, we'll simulate a successful transaction
             console.log('Simulating ZK proof submission (production implementation pending)');
-            
+
             // Wait a moment to simulate transaction processing
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             // Set success state
             setSuccess(true);
             setTxHash('0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join(''));
@@ -3213,7 +3213,7 @@ export default function CreatePage() {
                 `${proofData.tempWallet.address}\n\n` +
                 `The ZK proof would be verified on-chain without revealing your actual balance.`
             );
-            
+
             return true;
         } catch (error) {
             console.error('Error submitting ZK proof:', error);

@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
-import { verifyZKProof } from '../lib/zk/zkUtils';
+import { verifyZKProof } from '../lib/zk/src/zkUtils';
 
 // Browser-friendly RPC URLs that support CORS
 const RPC_OPTIONS = [
@@ -519,10 +519,10 @@ export default function VerifyPage() {
             // Determine the proof type from the proof data
             let proofTypeEnum;
             let proofTypeStr;
-            
+
             // Check if this is a ZK proof from transaction data
             // First ensure receipt exists to avoid undefined error
-            const isZKProof = receipt && receipt.logs && receipt.logs.some(log => 
+            const isZKProof = receipt && receipt.logs && receipt.logs.some(log =>
                 log.address.toLowerCase() === ZK_VERIFIER_ADDRESS.toLowerCase()
             );
 
@@ -530,7 +530,7 @@ export default function VerifyPage() {
                 // Set proof category to ZK
                 setProofCategory('zk');
                 console.log('Detected ZK proof transaction');
-                
+
                 // Still determine the proof type
                 if (proofData.proofType === 0) {
                     proofTypeStr = 'standard';
@@ -573,7 +573,7 @@ export default function VerifyPage() {
                 // Perform ZK proof verification
                 try {
                     console.log('Attempting to verify ZK proof');
-                    
+
                     // In a real implementation, we would extract proof data from the logs
                     // For now, we'll simulate ZK verification with mock data
                     verified = await verifyZKProof({
@@ -585,7 +585,7 @@ export default function VerifyPage() {
                         publicSignals: JSON.stringify([proofData.user, '1000000000000000000']),
                         proofType: ZK_PROOF_TYPES[proofTypeStr.toUpperCase()]
                     });
-                    
+
                     console.log('ZK verification result:', verified);
                     // In development mode, the verification will always return true
                 } catch (zkError) {
@@ -759,9 +759,9 @@ export default function VerifyPage() {
                                             <p className="font-medium">Proof Type:</p>
                                             <p className="text-gray-700 capitalize">
                                                 {proofCategory === 'zk' ? 'Zero-Knowledge ' : ''}
-                                                {proofDetails.proofType === 0 ? 'Standard' : 
-                                                 proofDetails.proofType === 1 ? 'Threshold (At Least)' : 
-                                                 'Maximum (At Most)'}
+                                                {proofDetails.proofType === 0 ? 'Standard' :
+                                                    proofDetails.proofType === 1 ? 'Threshold (At Least)' :
+                                                        'Maximum (At Most)'}
                                             </p>
                                         </div>
                                         {proofDetails.timestamp && (

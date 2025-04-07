@@ -16,9 +16,9 @@
  * - Simplified signature verification for constraint reduction
  */
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/comparators.circom";
+include "../patched-circomlib/circuits/bitify.circom";
 
 // Optimized less than or equal comparison for maximum proof
 // This uses fewer constraints than the standard library version

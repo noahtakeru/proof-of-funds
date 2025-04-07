@@ -1,14 +1,24 @@
 /*
- * Clean version of the circuit file for compilation
+ * Threshold Proof Circuit (version 1.0.0)
+ * Proves that balance is at least the threshold amount
+ * 
+ * Input:
+ * - address: Public input, the wallet address
+ * - threshold: Public input, the minimum amount
+ * - actualBalance: Private input, the actual balance amount
+ * - nonce: Private input, random value to prevent correlation
+ * - signature: Private input, signature proving ownership of wallet
+ *
+ * Optimization goals:
+ * - Constraint count target: <15,000 constraints
+ * - Uses Poseidon hash for efficient ZK operations
+ * - Optimized comparison operations
+ * - Reduced constraint complexity for signature verification
  */
 
-pragma circom 2.0.0;
-
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
-
-
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/comparators.circom";
+include "../patched-circomlib/circuits/bitify.circom";
 
 // Optimized greater than or equal comparison for threshold proof
 // This uses fewer constraints than the standard library version
@@ -34,7 +44,6 @@ template OptimizedGreaterEqThan(n) {
     // Result is 1 if MSB is 0 (non-negative)
     out <== 1 - msb;
 }
-
 // Main Threshold Proof template
 template ThresholdProof() {
     // Public inputs
@@ -83,4 +92,3 @@ template ThresholdProof() {
 }
 
 component main = ThresholdProof();
-

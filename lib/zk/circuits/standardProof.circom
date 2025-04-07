@@ -12,11 +12,27 @@
  * - Constraint count target: <10,000 constraints
  * - Uses Poseidon hash for efficient ZK operations
  * - Optimized signature verification
+ *
+ * ---------- NON-TECHNICAL EXPLANATION ----------
+ * This is a mathematical template for creating a specific type of privacy proof - one that
+ * proves you have EXACTLY a certain amount in your wallet (not more, not less).
+ * 
+ * Think of this like a specialized verification form that:
+ * 1. Takes your wallet address and the exact amount you claim to have
+ * 2. Privately checks that your actual balance matches this exact amount
+ * 3. Verifies you actually own the wallet (through a digital signature)
+ * 4. Creates mathematical proof that these checks passed without revealing your actual balance
+ * 
+ * It's like proving to someone you have exactly $10,000 in your bank account without
+ * showing your bank statement or giving access to your account.
+ * 
+ * NOTE: This circuit contains some simplified/placeholder components (particularly in
+ * the signature verification) that would need improvement for a production system.
  */
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/bitify.circom";
+include "../patched-circomlib/circuits/comparators.circom";
 
 // Custom bit decomposition optimized for standard proof
 template OptimizedBits(n) {
@@ -54,6 +70,18 @@ template StandardProof() {
     // Instead of full EdDSA implementation, we use a simplified ownership verification
     // that achieves the same security guarantee with fewer constraints
     
+    /* ---------- NON-TECHNICAL EXPLANATION ----------
+     * This section verifies you own the wallet by checking your digital signature.
+     * 
+     * Think of a signature like a special stamp only you can create:
+     * 1. The "walletSecret" is like your private stamping tool
+     * 2. The "nonce" is a random number added to prevent reuse of your proof
+     * 3. The system checks that your stamp matches what's expected for your address
+     * 
+     * NOTE: This is using a simplified verification model. A real system would use
+     * a more robust signature check, but this is optimized for development.
+     */
+    
     // Create a Poseidon hash of the wallet secret to verify it corresponds to the address
     component secretHasher = Poseidon(2);
     secretHasher.inputs[0] <== walletSecret;
@@ -71,6 +99,16 @@ template StandardProof() {
     
     // Step 3: Hash inputs for verification commitment
     // Using Poseidon as it's optimized for ZK circuits (fewer constraints than Keccak/SHA)
+    /* ---------- NON-TECHNICAL EXPLANATION ----------
+     * This final step creates a secure "seal" for the verification:
+     * 
+     * 1. It combines your address, claimed amount, and the random nonce
+     * 2. It creates a cryptographic "fingerprint" of this information
+     * 3. This fingerprint becomes the output of the proof
+     * 
+     * This is like creating an official seal on a document that can be 
+     * verified later without seeing the actual contents of the document.
+     */
     component commitmentHasher = Poseidon(3);
     commitmentHasher.inputs[0] <== address;
     commitmentHasher.inputs[1] <== amount;

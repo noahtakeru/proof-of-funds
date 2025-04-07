@@ -1,18 +1,27 @@
+
 pragma circom 2.0.0;
 
+// Minimal StandardProof circuit for testing
 template StandardProof() {
+    // Public inputs
     signal input address;
     signal input amount;
     
-    signal input actualBalance;
+    // Private inputs
     signal input nonce;
+    signal input actualBalance;
+    signal input signature[2];
+    signal input walletSecret;
     
-    // Main constraint
+    // The primary constraint: actualBalance must equal amount
     actualBalance === amount;
     
-    // Output
+    // Simple hash calculation
+    var hashValue = address + amount + nonce;
+    
+    // Output hash
     signal output hash_result;
-    hash_result <== nonce;
+    hash_result <== hashValue;
 }
 
-component main {public [address, amount]} = StandardProof();
+component main = StandardProof();

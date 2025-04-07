@@ -5,10 +5,10 @@
  * input validation, rate limiting, and security measures.
  */
 
-import { snarkjsLoader } from '../../../lib/zk/snarkjsLoader';
-import { telemetry } from '../../../lib/zk/telemetry';
+import { snarkjsLoader } from '../../../lib/zk/src/snarkjsLoader';
+import { telemetry } from '../../../lib/zk/src/telemetry';
 import { performance } from 'perf_hooks';
-import { RateLimiter } from '../../../lib/zk/zkProxyClient';
+import { RateLimiter } from '../../../lib/zk/src/zkProxyClient';
 
 // Create rate limiter for API - verification has higher limits than proof generation
 const rateLimiter = new RateLimiter();
@@ -18,7 +18,7 @@ rateLimiter.defaultRateLimit.maxRequestsPerHour = 300;
 // API key verification - same as in fullProve.js
 const API_KEYS = {
   // In a real system, these would be stored in a database or environment variables
-  'dev-test-key': { 
+  'dev-test-key': {
     maxRequestsPerMinute: 60,
     maxRequestsPerHour: 1000,
     user: 'developer'
@@ -28,67 +28,67 @@ const API_KEYS = {
 // Validate verification parameters
 function validateVerificationInput(params) {
   const { verificationKey, publicSignals, proof } = params;
-  
+
   // Check for required fields
   if (!verificationKey) {
     return { valid: false, error: 'Missing verification key' };
   }
-  
+
   if (!publicSignals) {
     return { valid: false, error: 'Missing public signals' };
   }
-  
+
   if (!proof) {
     return { valid: false, error: 'Missing proof' };
   }
-  
+
   // Basic structural validation for proof
   if (!proof.pi_a || !proof.pi_b || !proof.pi_c) {
     return { valid: false, error: 'Invalid proof format' };
   }
-  
+
   // The verificationKey should have specific structure
   if (!verificationKey.protocol) {
     return { valid: false, error: 'Invalid verification key format' };
   }
-  
+
   return { valid: true };
 }
 
 // Get user ID from request - same as in fullProve.js
 function getUserId(req) {
-  const userId = 
-    req.headers['x-user-id'] || 
-    req.query.userId || 
-    req.cookies?.userId || 
-    req.headers['x-forwarded-for'] || 
-    req.socket.remoteAddress || 
+  const userId =
+    req.headers['x-user-id'] ||
+    req.query.userId ||
+    req.cookies?.userId ||
+    req.headers['x-forwarded-for'] ||
+    req.socket.remoteAddress ||
     'anonymous';
-    
+
   return userId;
 }
 
 // Verify API key - same as in fullProve.js
 function verifyApiKey(req) {
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
-  
+
   if (!apiKey) {
-    return { 
-      valid: false, 
-      error: 'No API key provided' 
+    return {
+      valid: false,
+      error: 'No API key provided'
     };
   }
-  
+
   const keyInfo = API_KEYS[apiKey];
   if (!keyInfo) {
-    return { 
-      valid: false, 
-      error: 'Invalid API key' 
+    return {
+      valid: false,
+      error: 'Invalid API key'
     };
   }
-  
-  return { 
-    valid: true, 
+
+  return {
+    valid: true,
     userId: keyInfo.user,
     limits: {
       maxRequestsPerMinute: keyInfo.maxRequestsPerMinute,
@@ -107,17 +107,17 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ 
+    return res.status(405).json({
       error: 'Method not allowed',
-      allowedMethods: ['POST'] 
+      allowedMethods: ['POST']
     });
   }
 
   // Record the request start time for performance tracking
   const startTime = performance.now();
-  
+
   // Generate operation ID if not provided
   const operationId = req.headers['x-operation-id'] || `verify_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
@@ -127,35 +127,35 @@ export default async function handler(req, res) {
 
     // Validate required parameters
     if (!verificationKey || !publicSignals || !proof) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Missing required parameters',
         requiredParams: ['verificationKey', 'publicSignals', 'proof']
       });
     }
-    
+
     // Get user ID for rate limiting
     const userId = getUserId(req);
-    
+
     // Check API key if enabled (disabled for development)
-    const apiKeyResult = process.env.REQUIRE_API_KEY === 'true' 
-      ? verifyApiKey(req) 
+    const apiKeyResult = process.env.REQUIRE_API_KEY === 'true'
+      ? verifyApiKey(req)
       : { valid: true, userId };
-      
+
     if (!apiKeyResult.valid) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Unauthorized',
         message: apiKeyResult.error
       });
     }
-    
+
     // Set custom rate limits for API key user if available
     if (apiKeyResult.limits) {
       rateLimiter.setUserLimits(apiKeyResult.userId || userId, apiKeyResult.limits);
     }
-    
+
     // Check rate limits
     const rateLimit = rateLimiter.checkRateLimit(apiKeyResult.userId || userId);
-    
+
     if (!rateLimit.allowed) {
       return res.status(429).json({
         error: 'Too many requests',
@@ -164,7 +164,7 @@ export default async function handler(req, res) {
         limits: rateLimit
       });
     }
-    
+
     // Validate verification input
     const validationResult = validateVerificationInput({ verificationKey, publicSignals, proof });
     if (!validationResult.valid) {
@@ -176,18 +176,18 @@ export default async function handler(req, res) {
 
     // Initialize snarkjs if not already initialized
     if (!snarkjsLoader.isInitialized()) {
-      const initialized = await snarkjsLoader.initialize({ 
-        serverSide: true, 
-        maxRetries: 3 
+      const initialized = await snarkjsLoader.initialize({
+        serverSide: true,
+        maxRetries: 3
       });
-      
+
       if (!initialized) {
         telemetry.recordError('verify-api', 'Failed to initialize snarkjs');
-        
+
         // Release rate limit slot on error
         rateLimiter.releaseRequest(apiKeyResult.userId || userId);
-        
-        return res.status(500).json({ 
+
+        return res.status(500).json({
           error: 'Failed to initialize verification environment',
           operationId
         });
@@ -217,10 +217,10 @@ export default async function handler(req, res) {
 
     const endTime = performance.now();
     const processingTime = endTime - startTime;
-    
+
     // Release rate limit slot on success
     rateLimiter.releaseRequest(apiKeyResult.userId || userId);
-    
+
     telemetry.recordOperation({
       operation: 'verify',
       executionTimeMs: processingTime,
@@ -243,7 +243,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Unexpected error in verify API:', error);
     telemetry.recordError('verify-api', error.message || 'Unknown error during verification');
-    
+
     return res.status(500).json({
       error: 'Verification failed',
       message: error.message || 'Unknown error during verification',

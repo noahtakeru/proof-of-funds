@@ -16,9 +16,9 @@
  * - Reduced constraint complexity for signature verification
  */
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/comparators.circom";
+include "../patched-circomlib/circuits/bitify.circom";
 
 // Optimized greater than or equal comparison for threshold proof
 // This uses fewer constraints than the standard library version

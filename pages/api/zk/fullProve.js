@@ -12,10 +12,10 @@
  * - Authentication checks
  */
 
-import { snarkjsLoader } from '../../../lib/zk/snarkjsLoader';
-import { telemetry } from '../../../lib/zk/telemetry';
+import { snarkjsLoader } from '../../../lib/zk/src/snarkjsLoader';
+import { telemetry } from '../../../lib/zk/src/telemetry';
 import { performance } from 'perf_hooks';
-import { RateLimiter } from '../../../lib/zk/zkProxyClient';
+import { RateLimiter } from '../../../lib/zk/src/zkProxyClient';
 
 // Create rate limiter for API
 const rateLimiter = new RateLimiter();
@@ -23,7 +23,7 @@ const rateLimiter = new RateLimiter();
 // API key verification
 const API_KEYS = {
   // In a real system, these would be stored in a database or environment variables
-  'dev-test-key': { 
+  'dev-test-key': {
     maxRequestsPerMinute: 30,
     maxRequestsPerHour: 500,
     user: 'developer'
@@ -42,67 +42,67 @@ function validateProofInput(input, proofType) {
   if (proofType === undefined || !Number.isInteger(proofType) || proofType < 0 || proofType > 2) {
     return { valid: false, error: 'Invalid proof type, must be 0, 1, or 2' };
   }
-  
+
   // Get required fields for this proof type
   const requiredFields = PROOF_TYPE_SCHEMAS[proofType];
   if (!requiredFields) {
     return { valid: false, error: `Unknown proof type: ${proofType}` };
   }
-  
+
   // Check for required fields
   for (const field of requiredFields) {
     if (input[field] === undefined) {
       return { valid: false, error: `Missing required field: ${field}` };
     }
   }
-  
+
   // Validate wallet address format (basic check)
   if (!/^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(input.walletAddress)) {
     return { valid: false, error: 'Invalid wallet address format' };
   }
-  
+
   // Validate amount (basic check, more complex validation would depend on the chain)
   if (isNaN(input.amount) && !/^\d+$/.test(input.amount)) {
     return { valid: false, error: 'Amount must be a number or numeric string' };
   }
-  
+
   return { valid: true };
 }
 
 // Get user ID from request
 function getUserId(req) {
-  const userId = 
-    req.headers['x-user-id'] || 
-    req.query.userId || 
-    req.cookies?.userId || 
-    req.headers['x-forwarded-for'] || 
-    req.socket.remoteAddress || 
+  const userId =
+    req.headers['x-user-id'] ||
+    req.query.userId ||
+    req.cookies?.userId ||
+    req.headers['x-forwarded-for'] ||
+    req.socket.remoteAddress ||
     'anonymous';
-    
+
   return userId;
 }
 
 // Verify API key
 function verifyApiKey(req) {
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
-  
+
   if (!apiKey) {
-    return { 
-      valid: false, 
-      error: 'No API key provided' 
+    return {
+      valid: false,
+      error: 'No API key provided'
     };
   }
-  
+
   const keyInfo = API_KEYS[apiKey];
   if (!keyInfo) {
-    return { 
-      valid: false, 
-      error: 'Invalid API key' 
+    return {
+      valid: false,
+      error: 'Invalid API key'
     };
   }
-  
-  return { 
-    valid: true, 
+
+  return {
+    valid: true,
     userId: keyInfo.user,
     limits: {
       maxRequestsPerMinute: keyInfo.maxRequestsPerMinute,
@@ -121,62 +121,62 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
   // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ 
+    return res.status(405).json({
       error: 'Method not allowed',
-      allowedMethods: ['POST'] 
+      allowedMethods: ['POST']
     });
   }
-  
+
   // Record the request start time for performance tracking
   const startTime = performance.now();
-  
+
   // Generate operation ID if not provided
   const operationId = req.headers['x-operation-id'] || `op_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  
+
   try {
     // Extract request parameters
-    const { 
-      input, 
-      circuitWasmPath, 
-      zkeyPath, 
+    const {
+      input,
+      circuitWasmPath,
+      zkeyPath,
       options = {},
       clientInfo = {}
     } = req.body;
-    
+
     // Validate required parameters
     if (!input || !circuitWasmPath || !zkeyPath) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Missing required parameters',
         requiredParams: ['input', 'circuitWasmPath', 'zkeyPath']
       });
     }
-    
+
     // Get user ID for rate limiting
     const userId = getUserId(req);
-    
+
     // Check API key if enabled (disabled for development)
-    const apiKeyResult = process.env.REQUIRE_API_KEY === 'true' 
-      ? verifyApiKey(req) 
+    const apiKeyResult = process.env.REQUIRE_API_KEY === 'true'
+      ? verifyApiKey(req)
       : { valid: true, userId };
-      
+
     if (!apiKeyResult.valid) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Unauthorized',
         message: apiKeyResult.error
       });
     }
-    
+
     // Set custom rate limits for API key user if available
     if (apiKeyResult.limits) {
       rateLimiter.setUserLimits(apiKeyResult.userId || userId, apiKeyResult.limits);
     }
-    
+
     // Check rate limits
     const rateLimit = rateLimiter.checkRateLimit(apiKeyResult.userId || userId);
-    
+
     if (!rateLimit.allowed) {
       return res.status(429).json({
         error: 'Too many requests',
@@ -185,7 +185,7 @@ export default async function handler(req, res) {
         limits: rateLimit
       });
     }
-    
+
     // Validate proof input
     const validationResult = validateProofInput(input, input.proofType);
     if (!validationResult.valid) {
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         message: validationResult.error
       });
     }
-    
+
     // Log client information for telemetry if provided
     if (clientInfo.userAgent) {
       console.log(`Server-side fullProve request from:`, {
@@ -204,14 +204,14 @@ export default async function handler(req, res) {
         operationId
       });
     }
-    
+
     // Initialize snarkjs if not already initialized
     if (!snarkjsLoader.isInitialized()) {
-      const initialized = await snarkjsLoader.initialize({ 
-        serverSide: true, 
-        maxRetries: 3 
+      const initialized = await snarkjsLoader.initialize({
+        serverSide: true,
+        maxRetries: 3
       });
-      
+
       if (!initialized) {
         telemetry.recordError('fullProve-api', 'Failed to initialize snarkjs');
         return res.status(500).json({ error: 'Failed to initialize proof generation environment' });
@@ -220,54 +220,54 @@ export default async function handler(req, res) {
 
     // Get the snarkjs instance
     const snarkjs = snarkjsLoader.getSnarkjs();
-    
+
     // Generate the proof
     let proof, publicSignals;
-    
+
     try {
       // In production, this would use the actual files
       // For now, we'll use a mock implementation if we can't access the files
       try {
         const result = await snarkjs.groth16.fullProve(
-          input, 
-          circuitWasmPath, 
+          input,
+          circuitWasmPath,
           zkeyPath,
           options
         );
-        
+
         proof = result.proof;
         publicSignals = result.publicSignals;
       } catch (proofError) {
         console.warn('Using mock proof due to error:', proofError.message);
         telemetry.recordError('fullProve-api', `Error generating real proof: ${proofError.message}`);
-        
+
         // Use mock data as fallback
         proof = {
           pi_a: ['1', '2', '3'],
           pi_b: [['4', '5'], ['6', '7'], ['8', '9']],
           pi_c: ['10', '11', '12']
         };
-        
+
         publicSignals = ['13', '14', '15'];
       }
     } catch (proofGenError) {
       telemetry.recordError('fullProve-api', `Proof generation failed: ${proofGenError.message}`);
-      
+
       // Release rate limit slot on error
       rateLimiter.releaseRequest(apiKeyResult.userId || userId);
-      
-      return res.status(500).json({ 
+
+      return res.status(500).json({
         error: 'Proof generation failed',
-        message: proofGenError.message 
+        message: proofGenError.message
       });
     }
-    
+
     const endTime = performance.now();
     const processingTime = endTime - startTime;
-    
+
     // Release rate limit slot on success
     rateLimiter.releaseRequest(apiKeyResult.userId || userId);
-    
+
     telemetry.recordOperation({
       operation: 'fullProve',
       executionTimeMs: processingTime,
@@ -278,7 +278,7 @@ export default async function handler(req, res) {
         proofType: input.proofType
       }
     });
-    
+
     // Return the proof and public signals
     return res.status(200).json({
       proof,
@@ -292,7 +292,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Unexpected error in fullProve API:', error);
     telemetry.recordError('fullProve-api', error.message || 'Unknown error during proof generation');
-    
+
     return res.status(500).json({
       error: 'Proof generation failed',
       message: error.message || 'Unknown error during proof generation',
