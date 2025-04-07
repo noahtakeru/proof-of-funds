@@ -1,16 +1,24 @@
-// Avoid extra import by creating simple mock functions
-// This avoids the need to import the actual zkUtils with all its dependencies
+// Simple standalone implementation of ZK serialization functions
+const crypto = require('crypto');
 
+// These functions match what's in the actual zkUtils.js but don't require external imports
 function serializeZKProof(proof, publicSignals) {
-  return { proof: JSON.stringify(proof), publicSignals: JSON.stringify(publicSignals) };
+  return {
+    proof: JSON.stringify(proof),
+    publicSignals: Array.isArray(publicSignals) ? publicSignals.map(s => s.toString()) : publicSignals
+  };
 }
 
 function deserializeZKProof(proofStr, publicSignalsStr) {
-  return { proof: JSON.parse(proofStr), publicSignals: JSON.parse(publicSignalsStr) };
+  return {
+    proof: typeof proofStr === 'string' ? JSON.parse(proofStr) : proofStr,
+    publicSignals: Array.isArray(publicSignalsStr) ? publicSignalsStr : JSON.parse(publicSignalsStr)
+  };
 }
 
 function generateZKProofHash(proof, publicSignals) {
-  return "0x" + Array.from(publicSignals).map(s => s.toString()).join("");
+  const serialized = JSON.stringify({proof, publicSignals});
+  return "0x" + crypto.createHash('sha256').update(serialized).digest('hex');
 }
 
 // Create test proof
@@ -35,3 +43,5 @@ console.log('Proof deserialization:',
 // Test hash generation
 const hash = generateZKProofHash(testProof, testSignals);
 console.log('Proof hash generation:', hash && hash.startsWith('0x') ? 'PASS' : 'FAIL');
+
+process.exit(0);

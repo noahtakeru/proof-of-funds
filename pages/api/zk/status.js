@@ -5,8 +5,8 @@
  * current service status, rate limits, and processing times.
  */
 
-import { snarkjsLoader } from '../../../lib/zk/snarkjsLoader';
-import { telemetry } from '../../../lib/zk/telemetry';
+import { snarkjsLoader } from '../../../lib/zk/src/snarkjsLoader';
+import { telemetry } from '../../../lib/zk/src/telemetry';
 import { performance } from 'perf_hooks';
 import os from 'os';
 
@@ -20,11 +20,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
   if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).json({ 
+    return res.status(405).json({
       error: 'Method not allowed',
-      allowedMethods: ['GET', 'POST', 'OPTIONS'] 
+      allowedMethods: ['GET', 'POST', 'OPTIONS']
     });
   }
 
@@ -34,11 +34,11 @@ export default async function handler(req, res) {
     // Initialize snarkjs if not already initialized
     let snarkInitialized = false;
     if (!snarkjsLoader.isInitialized()) {
-      const initialized = await snarkjsLoader.initialize({ 
-        serverSide: true, 
-        maxRetries: 2 
+      const initialized = await snarkjsLoader.initialize({
+        serverSide: true,
+        maxRetries: 2
       });
-      
+
       snarkInitialized = initialized;
       if (!initialized) {
         telemetry.recordError('status-api', 'Failed to initialize snarkjs');
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
 
     // Get telemetry stats
     const stats = telemetry.getOperationsStats();
-    
+
     // Calculate typical processing times based on telemetry or use defaults
     const processingTimes = {
       "groth16.fullProve": {
@@ -73,17 +73,17 @@ export default async function handler(req, res) {
         maximum: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 2.0) : 1400
       }
     };
-    
+
     // List available features
     const features = [
       'groth16.fullProve',
       'groth16.verify'
     ];
-    
+
     // Check if server is under heavy load
     const cpuLoad = os.loadavg()[0] / os.cpus().length; // Normalized CPU load
     const highLoad = cpuLoad > 0.7;
-    
+
     // Get server capabilities
     const capabilities = {
       cpu: {
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
       arch: os.arch(),
       uptime: Math.round(os.uptime() / 3600) + ' hours'
     };
-    
+
     // Service status info
     const serviceStatus = {
       healthy: snarkInitialized && !highLoad,
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
       maintenance: false, // Set to true during maintenance periods
       version: process.env.SERVICE_VERSION || '1.0.0'
     };
-    
+
     // Rate limit information
     const rateLimits = {
       standard: {
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
 
     const response = {
       available: serviceStatus.healthy,
-      version: snarkjsLoader.getVersion() || '0.7.5', 
+      version: snarkjsLoader.getVersion() || '0.7.5',
       features,
       processingTimes,
       serverTiming: {
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
     };
 
     const endTime = performance.now();
-    
+
     telemetry.recordOperation({
       operation: 'status-check',
       executionTimeMs: endTime - startTime,
@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     return res.status(200).json(response);
   } catch (error) {
     telemetry.recordError('status-api', error.message || 'Unknown error during status check');
-    
+
     return res.status(500).json({
       error: 'Failed to retrieve status',
       message: error.message || 'Unknown error during status check'
