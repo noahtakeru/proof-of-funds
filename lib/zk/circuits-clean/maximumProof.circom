@@ -1,14 +1,24 @@
 /*
- * Clean version of the circuit file for compilation
+ * Maximum Proof Circuit (version 1.0.0)
+ * Proves that balance is at most the maximum amount
+ * 
+ * Input:
+ * - address: Public input, the wallet address
+ * - maximum: Public input, the maximum amount
+ * - actualBalance: Private input, the actual balance amount
+ * - nonce: Private input, random value to prevent correlation
+ * - signature: Private input, signature proving ownership of wallet
+ *
+ * Optimization goals:
+ * - Constraint count target: <15,000 constraints
+ * - Uses Poseidon hash for efficient ZK operations
+ * - Optimized less-than-or-equal comparison
+ * - Simplified signature verification for constraint reduction
  */
 
-pragma circom 2.0.0;
-
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
-
-
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/comparators.circom";
+include "../patched-circomlib/circuits/bitify.circom";
 
 // Optimized less than or equal comparison for maximum proof
 // This uses fewer constraints than the standard library version
@@ -26,7 +36,6 @@ template OptimizedLessEqThan(n) {
     // The output directly tells us if in[0] <= in[1]
     out <== geCheck.out;
 }
-
 // Main Maximum Proof template
 template MaximumProof() {
     // Public inputs
@@ -80,4 +89,3 @@ template MaximumProof() {
 }
 
 component main = MaximumProof();
-

@@ -1,14 +1,22 @@
 /*
- * Clean version of the circuit file for compilation
+ * Standard Proof Circuit (version 1.0.0)
+ * Proves exact balance amount for a given address
+ * 
+ * Input:
+ * - address: Public input, the wallet address
+ * - amount: Public input, the exact amount to prove
+ * - nonce: Private input, random value to prevent correlation
+ * - signature: Private input, signature proving ownership of wallet
+ *
+ * Optimization goals:
+ * - Constraint count target: <10,000 constraints
+ * - Uses Poseidon hash for efficient ZK operations
+ * - Optimized signature verification
  */
 
-pragma circom 2.0.0;
-
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-
-
+include "../patched-circomlib/circuits/poseidon.circom";
+include "../patched-circomlib/circuits/bitify.circom";
+include "../patched-circomlib/circuits/comparators.circom";
 
 // Custom bit decomposition optimized for standard proof
 template OptimizedBits(n) {
@@ -21,11 +29,9 @@ template OptimizedBits(n) {
         bits[i] * (bits[i] - 1) === 0; // Constraint: must be binary
         lc += (1 << i) * bits[i];
     }
-    
-    // Single constraint instead of multiple equality constraints
+// Single constraint instead of multiple equality constraints
     lc === in;
 }
-
 // Efficient standard proof template with optimized constraints
 template StandardProof() {
     // Public inputs
@@ -72,7 +78,5 @@ template StandardProof() {
     signal output hash_result;
     hash_result <== commitmentHasher.out;
 }
-
 // Define the main component with address and amount as public inputs
 component main = StandardProof();
-

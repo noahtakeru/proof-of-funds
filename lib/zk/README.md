@@ -2,31 +2,55 @@
 
 This module provides a robust zero-knowledge proof system for the Proof of Funds application. It enables users to prove they control funds without revealing exact amounts or complete wallet details.
 
+## Directory Structure
+
+The infrastructure has been reorganized for better maintainability:
+
+- `src/` - Main source code files (core components, circuit handling, proof generation)
+- `config/` - Configuration files for the ZK system
+- `build/` - Compiled circuit files and build artifacts
+- `circuits/` - Source circuit files in Circom format
+- `scripts/` - Shell scripts for building and testing
+- `tests/` - Test files organized by category
+  - `tests/unit/` - Unit tests
+  - `tests/benchmarks/` - Benchmark test files
+  - `tests/regression/` - Regression test files
+  - `tests/docs/` - Test documentation
+- `docs/` - Documentation files
+  - `docs/reports/` - Progress and status reports
+  - `docs/guides/` - Usage and implementation guides
+  - `docs/implementation/` - Implementation plans and specifications
+  - `docs/general/` - General documentation
+- `html/` - HTML test files
+- `docker/` - Docker configuration files
+
+For a complete documentation index, see [DOCUMENTATION.md](DOCUMENTATION.md).
+
 ## Architecture Overview
 
 The ZK infrastructure consists of:
 
 1. **Core Components**
-   - TypeScript type definitions (`types.ts`)
-   - WebAssembly loading and detection (`wasmLoader.ts`)
-   - snarkjs integration (`snarkjsLoader.ts`)
-   - Circuit versioning registry (`circuitVersions.ts`)
+   - TypeScript type definitions (`src/types.ts`)
+   - WebAssembly loading and detection (`src/wasmLoader.ts`)
+   - snarkjs integration (`src/snarkjsLoader.ts`)
+   - Circuit versioning registry (`src/circuitVersions.ts`)
 
 2. **Circuit Management**
-   - Circuit build pipeline (`circuitBuilder.ts`) 
+   - Circuit build pipeline (`src/circuitBuilder.ts`) 
    - Circuit implementations (`circuits/`)
-   - Circuit input handling (`zkCircuitInputs.js`)
+   - Circuit input handling (`src/zkCircuitInputs.js`)
 
 3. **Proof Generation & Verification**
-   - Proof generation (`zkProofGenerator.js`)
-   - Proof verification (`zkVerifier.js`)
-   - Utilities for ZK operations (`zkUtils.js`)
+   - Proof generation (`src/zkProofGenerator.js`)
+   - Proof verification (`src/zkVerifier.js`)
+   - Utilities for ZK operations (`src/zkUtils.js`)
 
 4. **Testing & Development**
-   - Test utilities (`testUtils.ts`)
-   - Progress tracking (`progressTracker.ts`)
-   - Integration examples (`zkIntegrationExample.js`)
-   - Test suite (`__tests__/`)
+   - Test utilities (`src/testUtils.ts`)
+   - Progress tracking (`src/progressTracker.ts`)
+   - Integration examples (`src/zkIntegrationExample.js`)
+   - Test suite (`tests/`)
 
 ## Proof Types
 
