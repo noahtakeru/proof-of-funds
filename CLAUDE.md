@@ -20,3 +20,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **File Structure**: Components in `/components`, pages in `/pages`, smart contracts in `/smart-contracts/contracts`.
 - **Imports**: Group imports by external libraries first, followed by internal imports.
 - Always maintain existing UI/UX when adding functionality. Ask before making any design changes.
+- Don't rely too heavily on mock code and placeholders. We need to make sure we do real implementations or at least plan ahead for future real implementations.
+- Do not make changes to the UI -- I like how it looks at the moment -- unless I tell you to

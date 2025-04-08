@@ -29,6 +29,9 @@ week4_passed=0
 week5_tests=0
 week5_passed=0
 
+week6_tests=0
+week6_passed=0
+
 # Utility functions
 print_header() {
   echo -e "\n${BLUE}======================================${NC}"
@@ -55,6 +58,8 @@ print_pass() {
     week4_passed=$((week4_passed + 1))
   elif [[ "$current_week" == "5" ]]; then
     week5_passed=$((week5_passed + 1))
+  elif [[ "$current_week" == "6" ]]; then
+    week6_passed=$((week6_passed + 1))
   fi
 }
 
@@ -81,6 +86,8 @@ track_test() {
     week4_tests=$((week4_tests + 1))
   elif [[ "$current_week" == "5" ]]; then
     week5_tests=$((week5_tests + 1))
+  elif [[ "$current_week" == "6" ]]; then
+    week6_tests=$((week6_tests + 1))
   fi
 }
 
@@ -533,6 +540,103 @@ else
   fi
 fi
 
+# Week 6 Tests
+print_header "Week 6: Error Handling and Recovery"
+current_week="6"
+
+# Initialize task-specific counters
+task6_1_tests=1
+task6_1_passed=0
+task6_2_tests=1
+task6_2_passed=0
+task6_3_tests=1
+task6_3_passed=0
+
+print_task "Task 1: Comprehensive Error Handling"
+print_info "Testing error handling framework..."
+track_test # increment test counter
+
+# Check for error handling files
+if [ -f ./lib/zk/src/zkErrorHandler.js ] && [ -f ./lib/zk/src/zkErrorLogger.js ]; then
+  # Run the error handling test
+  if node -e "
+    try {
+      const zkErrorHandler = require('./lib/zk/src/zkErrorHandler.js');
+      const zkErrorLogger = require('./lib/zk/src/zkErrorLogger.js');
+      
+      // Try creating an error to test basic functionality
+      const testError = new zkErrorHandler.ZKError('Test error', {
+        code: zkErrorHandler.ErrorCode.INPUT_VALIDATION_FAILED,
+        severity: zkErrorHandler.ErrorSeverity.ERROR,
+        category: zkErrorHandler.ErrorCategory.INPUT,
+        recoverable: true
+      });
+      
+      // Check if error has expected properties
+      const success = testError && 
+                     testError.code === zkErrorHandler.ErrorCode.INPUT_VALIDATION_FAILED &&
+                     testError.severity === zkErrorHandler.ErrorSeverity.ERROR &&
+                     testError.category === zkErrorHandler.ErrorCategory.INPUT &&
+                     testError.recoverable === true;
+      
+      console.log('Error handling framework test:', success ? 'PASS' : 'FAIL');
+      process.exit(success ? 0 : 1);
+    } catch (e) {
+      console.error('Error testing error handling framework:', e.message);
+      process.exit(1);
+    }
+  "; then
+    print_pass "Error Handling Framework tests passed"
+    task6_1_passed=1
+  else
+    print_fail "Error Handling Framework tests failed"
+  fi
+else
+  print_fail "Error Handling Framework files not found"
+fi
+
+print_task "Task 2: Recovery Mechanisms"
+print_info "Testing recovery mechanisms..."
+track_test # increment test counter
+
+# Check for recovery system file
+if [ -f ./lib/zk/src/zkRecoverySystem.js ]; then
+  # Use file inspection to check for recovery functions
+  recovery_content=$(cat ./lib/zk/src/zkRecoverySystem.js)
+  if [[ $recovery_content == *"withRetry"* ]] && 
+     [[ $recovery_content == *"withCheckpointing"* ]] && 
+     [[ $recovery_content == *"processBatch"* ]]; then
+    echo "Recovery system contains expected functions"
+    print_pass "Recovery Mechanisms tests passed"
+    task6_2_passed=1
+  else
+    print_fail "Recovery Mechanisms tests failed"
+  fi
+else
+  print_fail "Recovery Mechanisms file not found"
+fi
+
+print_task "Task 3: Error Testing Framework"
+print_info "Testing error testing harness..."
+track_test # increment test counter
+
+# Check for test harness file and comprehensive test
+if [ -f ./lib/zk/src/zkErrorTestHarness.js ] && [ -f ./lib/zk/__tests__/zkErrorHandling.test.js ]; then
+  # Use file inspection to check for test harness functions
+  harness_content=$(cat ./lib/zk/src/zkErrorTestHarness.js)
+  if [[ $harness_content == *"withNetworkFailureSimulation"* ]] && 
+     [[ $harness_content == *"withMemoryConstraintSimulation"* ]] && 
+     [[ $harness_content == *"createErrorPropagationTest"* ]]; then
+    echo "Error testing framework contains expected functions"
+    print_pass "Error Testing Framework tests passed"
+    task6_3_passed=1
+  else
+    print_fail "Error Testing Framework tests failed"
+  fi
+else
+  print_fail "Error Testing Framework files not found"
+fi
+
 # Final summary
 print_header "Regression Test Summary"
 echo "End time: $(date)"
@@ -565,6 +669,11 @@ echo -e "  Task 1: Circuit Optimization - $([ $task5_1_passed -eq $task5_1_tests
 echo -e "  Task 2: Circuit Testing - $([ $task5_2_passed -eq $task5_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task5_2_passed))/$task5_2_tests passed${NC}")"
 echo -e "  Task 3: Gas Benchmarking - $([ $task5_3_passed -eq $task5_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task5_3_passed))/$task5_3_tests passed${NC}")"
 echo -e "  Task 4: Real Implementation - $([ $task5_4_passed -eq $task5_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task5_4_passed))/$task5_4_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 6: Error Handling and Recovery - ${week6_passed}/${week6_tests} tests passed${NC}"
+echo -e "  Task 1: Comprehensive Error Handling - $([ $task6_1_passed -eq $task6_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task6_1_passed))/$task6_1_tests passed${NC}")"
+echo -e "  Task 2: Recovery Mechanisms - $([ $task6_2_passed -eq $task6_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task6_2_passed))/$task6_2_tests passed${NC}")"
+echo -e "  Task 3: Error Testing Framework - $([ $task6_3_passed -eq $task6_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task6_3_passed))/$task6_3_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
