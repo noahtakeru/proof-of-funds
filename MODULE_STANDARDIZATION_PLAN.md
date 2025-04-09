@@ -277,17 +277,23 @@ Create the following documentation:
 
 7. **Implemented error handling improvements**:
    - Updated GasManager.js to use zkErrorHandler and zkErrorLogger
-   - Replaced generic Error throws with specific ZKError subclasses
-   - Implemented proper error handling with try/catch blocks and error logging
+   - Implemented proper error handling in SecureKeyManager.js with detailed context and recovery paths
+   - Implemented comprehensive error handling in TamperDetection.js with structured logging
+   - Replaced generic Error throws with specific ZKError subclasses (SecurityError, InputError, SystemError)
    - Added detailed context and recovery recommendations to errors
+
+8. **Created proper CJS compatibility modules**:
+   - Implemented zkErrorLogger.cjs with full CommonJS compatibility
+   - Ensured proper exports in zkErrorHandler.cjs for the error class hierarchy
+   - Fixed and verified the compatibility between ESM and CJS error handling modules
 
 ### Current Status
 
 - 24/24 regression tests now pass (100% complete)
 - All core functionality works in both ESM and CJS formats
-- 133 warnings remain (down from 137)
-   - 45 warnings for error handling improvements (try/catch blocks should use error logging)
-   - 53 warnings for module format inconsistencies (ESM files containing CommonJS code)
+- 128 warnings remain (down from 137)
+   - 42 warnings for error handling improvements (try/catch blocks should use error logging)
+   - 51 warnings for module format inconsistencies (ESM files containing CommonJS code)
    - 35 warnings for documentation gaps (missing JSDoc comments for exports)
 
 ### Next Steps
