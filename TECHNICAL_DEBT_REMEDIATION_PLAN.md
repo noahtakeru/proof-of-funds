@@ -32,6 +32,99 @@ This document outlines the comprehensive plan to address all technical debt in t
 4. **Documentation as code** - Documentation should be treated with the same importance as code
 5. **Consistent patterns** - Apply the same patterns across the entire codebase
 
+## Task Dependencies and Prerequisites
+
+Understanding the dependencies between tasks is crucial for implementing fixes in the right order. The following diagram shows the main task dependencies:
+
+```
+ZKErrorFactory (6.1) ─────┐
+                          ├─── Module-specific Error Handling
+ZKError Types (6.1) ───────┘
+
+AutoRecoveryManager (6.2) ────┐
+                              ├─── Module-specific Recovery Features
+Recovery Utilities (6.2) ──────┘
+
+Module Format Standards ───┬─── Fix ESM/CommonJS Issues
+                          │
+Package.json Exports ──────┘
+```
+
+### Key Dependencies
+
+1. **Error Handling Dependencies**
+   - `ZKErrorFactory` and error type hierarchy must be implemented before updating any module's error handling
+   - Error logging system must be in place before updating try/catch blocks
+   - Error code constants must be defined before using specific error types
+
+2. **Recovery System Dependencies**
+   - `AutoRecoveryManager` must be implemented before module-specific recovery features
+   - State management utilities must be in place before implementing transaction rollback
+   - Recovery strategy determination logic must be implemented before fallback paths
+
+3. **Module Format Dependencies**
+   - Module format standards must be defined before converting any modules
+   - Package.json exports field must be updated when renaming files
+   - Module mapping system must be in place before converting interdependent modules
+
+### Implementation Order Prerequisites
+
+| Task | Prerequisites |
+|------|--------------|
+| Update module error handling | `ZKErrorFactory`, error types, error logger |
+| Implement module recovery | `AutoRecoveryManager`, recovery utilities |
+| Convert ESM modules | Module format standards, import/export utilities |
+| Create CJS modules | ESM modules, build process configuration |
+| Add JSDoc comments | Documentation templates, module API documentation |
+
+## Progress Measurement Metrics
+
+Each phase of the implementation should achieve measurable progress in reducing warnings and resolving failed tests:
+
+1. **Phase 1: Week 6 Tasks**
+   - Week 6 tests should change from 1/3 passing to 3/3 passing
+   - Recovery-related warnings should decrease from ~10 to 0
+
+2. **Phase 2: Module Format Fixes**
+   - Module format warnings should decrease from 53 to 0
+   - Module system tests should show 100% compatibility
+
+3. **Phase 3: Error Handling Fixes**
+   - Error handling warnings should decrease from 45 to 0
+   - All error tests should pass
+
+4. **Phase 4: Documentation Fixes**
+   - Documentation warnings should decrease from 32 to 0
+   - JSDoc coverage should increase to 100%
+
+## Validation Checkpoints
+
+Regular validation ensures that each change works correctly and doesn't break existing functionality:
+
+### Checkpoint 1: After ZKErrorFactory Implementation
+```bash
+node test/unit/error-handling/zkErrorFactory.test.js
+```
+Expected result: All tests pass, confirming error creation, context preservation, and severity levels
+
+### Checkpoint 2: After AutoRecoveryManager Implementation
+```bash
+node test/unit/recovery/autoRecoveryManager.test.js
+```
+Expected result: All tests pass, confirming recovery strategy determination and state restoration
+
+### Checkpoint 3: After Converting 25% of ESM Modules
+```bash
+node test/unit/module-system/compatibility.test.js --subset=core
+```
+Expected result: Core module tests pass, warning count reduced by ~13
+
+### Checkpoint 4: After Fixing 25% of Error Handling
+```bash
+node test/unit/error-handling/logging.test.js
+```
+Expected result: Error logging tests pass, warning count reduced by ~12
+
 ## Detailed Implementation Plan
 
 ### Phase 1: Implement Missing Week 6 Components
@@ -61,6 +154,220 @@ This document outlines the comprehensive plan to address all technical debt in t
      - User action tracking
      - Device/environment information
 
+   **Concrete Implementation Example for ZKErrorFactory**:
+   ```javascript
+   // src/zkErrorHandler.mjs
+   import { ErrorSeverity } from './constants.mjs';
+
+   /**
+    * Base error class for all ZK-related errors
+    * @class ZKError
+    * @extends Error
+    */
+   export class ZKError extends Error {
+     /**
+      * Create a new ZKError
+      * @param {string} code - Error code identifier (e.g., 'CRYPTO-001')
+      * @param {string} message - Human-readable error message
+      * @param {Object} options - Additional error options
+      * @param {ErrorSeverity} options.severity - Error severity level
+      * @param {Object} options.details - Additional error details
+      * @param {boolean} options.recoverable - Whether error is recoverable
+      * @param {boolean} options.userFixable - Whether user can fix the error
+      */
+     constructor(code, message, options = {}) {
+       super(message);
+       this.name = 'ZKError';
+       this.code = code;
+       this.severity = options.severity || ErrorSeverity.ERROR;
+       this.details = options.details || {};
+       this.recoverable = options.recoverable ?? false;
+       this.userFixable = options.userFixable ?? false;
+       this.timestamp = new Date();
+       this.originalStack = this.stack;
+     }
+   }
+
+   /**
+    * Factory for creating domain-specific ZK errors
+    */
+   export class ZKErrorFactory {
+     /**
+      * Create an error with proper formatting and context
+      * @param {string} code - Error code
+      * @param {string} message - Error message
+      * @param {Object} options - Additional options
+      * @returns {ZKError} The created error object
+      */
+     static createError(code, message, options = {}) {
+       // Determine error type from code prefix
+       const errorType = this._getErrorTypeFromCode(code);
+       return new errorType(code, message, options);
+     }
+
+     /**
+      * Get specific error class based on error code prefix
+      * @private
+      * @param {string} code - Error code
+      * @returns {typeof ZKError} Error class to instantiate
+      */
+     static _getErrorTypeFromCode(code) {
+       const prefix = code.split('-')[0];
+       switch (prefix) {
+         case 'CRYPTO': return ZKCryptoError;
+         case 'CIRCUIT': return ZKCircuitError;
+         case 'PARAM': return ZKParameterError;
+         case 'SYS': return ZKSystemError;
+         case 'NET': return ZKNetworkError;
+         case 'RECOVERY': return ZKRecoveryError;
+         case 'SEC': return ZKSecurityError;
+         default: return ZKError;
+       }
+     }
+   }
+
+   // Domain-specific error classes
+   export class ZKCryptoError extends ZKError {
+     constructor(code, message, options = {}) {
+       super(code, message, options);
+       this.name = 'ZKCryptoError';
+     }
+   }
+
+   // Additional domain-specific error classes would be defined here...
+
+   /**
+    * Error logging system for ZK errors
+    */
+   export class ZKErrorLogger {
+     /**
+      * Log an error with context
+      * @param {ZKError} error - The error to log
+      * @param {Object} context - Additional context information
+      */
+     static logError(error, context = {}) {
+       // Ensure it's a ZKError
+       if (!(error instanceof ZKError)) {
+         error = ZKErrorFactory.createError(
+           'SYS-GENERIC-001',
+           error.message,
+           { details: { originalError: error } }
+         );
+       }
+
+       // Add context to error
+       error.logContext = context;
+       
+       // Log to console in development
+       console.error(`[${error.code}] ${error.name}: ${error.message}`, {
+         severity: error.severity,
+         details: error.details,
+         context: context,
+         timestamp: error.timestamp
+       });
+       
+       // In production, would send to error tracking system
+       this._sendToErrorTrackingSystem(error, context);
+       
+       // Alert developers if critical
+       if (error.severity === ErrorSeverity.CRITICAL) {
+         this._alertDevelopers(error, context);
+       }
+       
+       return error;
+     }
+
+     /**
+      * Send error to tracking system
+      * @private
+      */
+     static _sendToErrorTrackingSystem(error, context) {
+       // Implementation would integrate with a real error tracking system
+       // Example: Sentry, LogRocket, etc.
+     }
+
+     /**
+      * Alert developers about critical errors
+      * @private
+      */
+     static _alertDevelopers(error, context) {
+       // Implementation would send alerts through appropriate channels
+       // Example: Slack, email, etc.
+     }
+   }
+
+   // Convenience function for creating errors
+   export function createZKError(code, message, options = {}) {
+     return ZKErrorFactory.createError(code, message, options);
+   }
+
+   // Export a singleton logger instance
+   export const zkErrorLogger = ZKErrorLogger;
+   ```
+
+   **Acceptance Criteria for Error Handling Framework**:
+   1. Error creation works with all required parameters
+   2. Error hierarchy correctly inherits from base classes
+   3. Factory pattern successfully creates appropriate error types
+   4. Error logging records errors with full context
+   5. Unit tests for all error types pass
+   6. Error tracking integrates with monitoring systems
+   7. Developer alerts trigger for critical errors
+
+   **Test Case Example**:
+   ```javascript
+   // test/unit/error-handling/zkErrorFactory.test.js
+   import { 
+     ZKErrorFactory, 
+     createZKError, 
+     zkErrorLogger, 
+     ZKCryptoError 
+   } from '../../../src/zkErrorHandler.mjs';
+   import { ErrorSeverity } from '../../../src/constants.mjs';
+   
+   describe('ZKErrorFactory', () => {
+     test('creates correct error type based on code prefix', () => {
+       const error = ZKErrorFactory.createError('CRYPTO-001', 'Test message');
+       expect(error).toBeInstanceOf(ZKCryptoError);
+       expect(error.code).toBe('CRYPTO-001');
+       expect(error.message).toBe('Test message');
+     });
+     
+     test('handles custom options properly', () => {
+       const details = { operation: 'sign', input: 'data' };
+       const error = createZKError('CRYPTO-001', 'Test message', {
+         severity: ErrorSeverity.CRITICAL,
+         details,
+         recoverable: true,
+         userFixable: true
+       });
+       
+       expect(error.severity).toBe(ErrorSeverity.CRITICAL);
+       expect(error.details).toEqual(details);
+       expect(error.recoverable).toBe(true);
+       expect(error.userFixable).toBe(true);
+       expect(error.timestamp).toBeInstanceOf(Date);
+     });
+   });
+   
+   describe('ZKErrorLogger', () => {
+     test('logs errors with context', () => {
+       // Mock console.error for testing
+       const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
+       
+       const error = createZKError('CRYPTO-001', 'Test message');
+       const context = { operation: 'signing', data: 'test' };
+       
+       zkErrorLogger.logError(error, context);
+       
+       expect(mockConsoleError).toHaveBeenCalled();
+       expect(error.logContext).toEqual(context);
+       
+       mockConsoleError.mockRestore();
+     });
+   });
+   ```
+
 2. **Task 6.2: Recovery Mechanisms**
    - Implement `AutoRecoveryManager` class with:
      - Recovery strategy determination
@@ -87,6 +394,443 @@ This document outlines the comprehensive plan to address all technical debt in t
      - Deterministic rollback procedures
      - Audit logs for rollback operations
      - User notification system
+
+   **Concrete Implementation Example for AutoRecoveryManager**:
+   ```javascript
+   // src/zkRecoverySystem.mjs
+   import { createZKError, zkErrorLogger } from './zkErrorHandler.mjs';
+   import { ErrorSeverity } from './constants.mjs';
+
+   /**
+    * Manages automatic recovery from errors in ZK operations
+    * @class AutoRecoveryManager
+    */
+   export class AutoRecoveryManager {
+     /**
+      * Create a new recovery manager instance
+      * @param {Object} options - Configuration options
+      * @param {number} options.maxRetries - Maximum number of retry attempts
+      * @param {number} options.backoffFactor - Exponential backoff factor
+      * @param {boolean} options.useServerFallback - Whether to use server fallback
+      */
+     constructor(options = {}) {
+       this.maxRetries = options.maxRetries || 3;
+       this.backoffFactor = options.backoffFactor || 1.5;
+       this.useServerFallback = options.useServerFallback ?? true;
+       this.checkpoints = new Map();
+       this.operations = new Map();
+     }
+
+     /**
+      * Determine the best recovery strategy for an error
+      * @param {ZKError} error - The error to recover from
+      * @param {Object} context - Operation context
+      * @returns {RecoveryStrategy} The determined strategy
+      */
+     determineStrategy(error, context) {
+       // If error is not recoverable, don't attempt
+       if (!error.recoverable) {
+         return {
+           type: 'none',
+           reason: 'Error is not recoverable'
+         };
+       }
+
+       // Choose strategy based on error type and context
+       switch (error.code.split('-')[0]) {
+         case 'CRYPTO':
+           return { type: 'retry', maxAttempts: this.maxRetries };
+         case 'CIRCUIT':
+           return { type: 'fallback', mode: 'alternative-circuit' };
+         case 'NET':
+           return { type: 'retry', maxAttempts: this.maxRetries, withBackoff: true };
+         case 'SYS':
+           if (this.useServerFallback) {
+             return { type: 'fallback', mode: 'server-side' };
+           }
+           return { type: 'step-down', securityLevel: 'medium' };
+         default:
+           return { type: 'checkpoint', restoreTo: this._getLatestCheckpoint(context) };
+       }
+     }
+
+     /**
+      * Execute a recovery strategy
+      * @param {RecoveryStrategy} strategy - The strategy to execute
+      * @param {Object} context - Operation context
+      * @returns {Promise<Object>} The recovery result
+      */
+     async executeStrategy(strategy, context) {
+       try {
+         switch (strategy.type) {
+           case 'none':
+             return { success: false, reason: strategy.reason };
+           case 'retry':
+             return await this._executeRetryStrategy(strategy, context);
+           case 'fallback':
+             return await this._executeFallbackStrategy(strategy, context);
+           case 'checkpoint':
+             return await this._executeCheckpointStrategy(strategy, context);
+           case 'step-down':
+             return await this._executeStepDownStrategy(strategy, context);
+           default:
+             throw createZKError(
+               'RECOVERY-001',
+               `Unknown recovery strategy type: ${strategy.type}`,
+               { severity: ErrorSeverity.ERROR }
+             );
+         }
+       } catch (error) {
+         zkErrorLogger.logError(
+           createZKError(
+             'RECOVERY-002',
+             `Recovery strategy execution failed: ${error.message}`,
+             { 
+               severity: ErrorSeverity.ERROR,
+               details: { originalError: error, strategy, context }
+             }
+           )
+         );
+         return { success: false, reason: 'Recovery execution failed' };
+       }
+     }
+
+     /**
+      * Create a checkpoint for potential rollback
+      * @param {string} operationId - Unique operation identifier
+      * @param {Object} state - The state to checkpoint
+      */
+     createCheckpoint(operationId, state) {
+       if (!this.checkpoints.has(operationId)) {
+         this.checkpoints.set(operationId, []);
+       }
+       
+       const checkpoint = {
+         timestamp: new Date(),
+         state: this._deepCopy(state),
+         index: this.checkpoints.get(operationId).length
+       };
+       
+       this.checkpoints.get(operationId).push(checkpoint);
+       return checkpoint;
+     }
+
+     /**
+      * Roll back to a specific checkpoint
+      * @param {string} operationId - Operation identifier
+      * @param {number} [index] - Checkpoint index, defaults to latest
+      * @returns {Object} The restored state
+      */
+     rollbackToCheckpoint(operationId, index) {
+       const checkpoints = this.checkpoints.get(operationId);
+       if (!checkpoints || checkpoints.length === 0) {
+         throw createZKError(
+           'RECOVERY-003',
+           `No checkpoints found for operation: ${operationId}`,
+           { severity: ErrorSeverity.ERROR }
+         );
+       }
+
+       // Default to latest checkpoint if index not specified
+       const targetIndex = index ?? checkpoints.length - 1;
+       if (targetIndex < 0 || targetIndex >= checkpoints.length) {
+         throw createZKError(
+           'RECOVERY-004',
+           `Invalid checkpoint index: ${targetIndex}`,
+           { severity: ErrorSeverity.ERROR }
+         );
+       }
+
+       return this._deepCopy(checkpoints[targetIndex].state);
+     }
+
+     /**
+      * Track an operation for recovery purposes
+      * @param {string} operationId - Operation identifier
+      * @param {Object} metadata - Operation metadata
+      */
+     trackOperation(operationId, metadata) {
+       this.operations.set(operationId, {
+         ...metadata,
+         startTime: new Date(),
+         status: 'in_progress',
+         retryCount: 0
+       });
+     }
+
+     /**
+      * Update operation status
+      * @param {string} operationId - Operation identifier
+      * @param {string} status - New status
+      * @param {Object} [additionalData] - Additional data to update
+      */
+     updateOperationStatus(operationId, status, additionalData = {}) {
+       if (!this.operations.has(operationId)) {
+         throw createZKError(
+           'RECOVERY-005',
+           `Operation not found: ${operationId}`,
+           { severity: ErrorSeverity.ERROR }
+         );
+       }
+
+       const operation = this.operations.get(operationId);
+       this.operations.set(operationId, {
+         ...operation,
+         ...additionalData,
+         status,
+         lastUpdated: new Date()
+       });
+     }
+
+     // Private implementation methods
+     _getLatestCheckpoint(context) {
+       // Implementation to get the most recent checkpoint for the context
+     }
+
+     async _executeRetryStrategy(strategy, context) {
+       // Implementation of retry with backoff
+     }
+
+     async _executeFallbackStrategy(strategy, context) {
+       // Implementation of fallback mechanisms
+     }
+
+     async _executeCheckpointStrategy(strategy, context) {
+       // Implementation of checkpoint restoration
+     }
+
+     async _executeStepDownStrategy(strategy, context) {
+       // Implementation of security level step-down
+     }
+
+     _deepCopy(obj) {
+       return JSON.parse(JSON.stringify(obj));
+     }
+   }
+
+   /**
+    * Utility functions for data recovery
+    */
+   export const RecoveryUtils = {
+     /**
+      * Recover partial proof data when full proof generation fails
+      * @param {Object} partialData - The partial proof data
+      * @param {Object} options - Recovery options
+      * @returns {Object} Recovered data or null if not recoverable
+      */
+     recoverPartialProof(partialData, options = {}) {
+       // Implementation for partial proof recovery
+     },
+
+     /**
+      * Reconstruct state from available fragments
+      * @param {Array<Object>} fragments - State fragments
+      * @returns {Object} Reconstructed state
+      */
+     reconstructState(fragments) {
+       // Implementation for state reconstruction
+     }
+   };
+
+   /**
+    * Manager for transactions that need atomic guarantees
+    */
+   export class TransactionManager {
+     /**
+      * Create a new transaction for a series of operations
+      * @param {string} id - Transaction identifier
+      * @returns {Transaction} The created transaction
+      */
+     static createTransaction(id) {
+       return new Transaction(id);
+     }
+   }
+
+   /**
+    * Represents an atomic transaction with rollback capability
+    */
+   class Transaction {
+     constructor(id) {
+       this.id = id;
+       this.operations = [];
+       this.state = 'initialized';
+       this.startTime = new Date();
+     }
+
+     /**
+      * Add an operation to the transaction
+      * @param {Function} operation - Operation function
+      * @param {Function} rollback - Rollback function
+      */
+     addOperation(operation, rollback) {
+       this.operations.push({ operation, rollback, status: 'pending' });
+     }
+
+     /**
+      * Execute the transaction
+      * @returns {Promise<Object>} Transaction result
+      */
+     async execute() {
+       this.state = 'executing';
+       const results = [];
+       
+       try {
+         for (let i = 0; i < this.operations.length; i++) {
+           const op = this.operations[i];
+           const result = await op.operation();
+           op.status = 'completed';
+           op.result = result;
+           results.push(result);
+         }
+         
+         this.state = 'completed';
+         return { success: true, results };
+       } catch (error) {
+         // Failure - roll back completed operations in reverse order
+         this.state = 'rolling_back';
+         
+         for (let i = this.operations.length - 1; i >= 0; i--) {
+           const op = this.operations[i];
+           if (op.status === 'completed') {
+             try {
+               await op.rollback(op.result);
+               op.status = 'rolled_back';
+             } catch (rollbackError) {
+               op.status = 'rollback_failed';
+               op.rollbackError = rollbackError;
+             }
+           }
+         }
+         
+         this.state = 'rolled_back';
+         return { 
+           success: false, 
+           error, 
+           rollbackComplete: !this.operations.some(op => op.status === 'rollback_failed') 
+         };
+       }
+     }
+   }
+
+   // Export the main recovery components
+   export const zkRecoveryManager = new AutoRecoveryManager();
+   export const zkTransactionManager = TransactionManager;
+   ```
+
+   **Acceptance Criteria for Recovery Mechanisms**:
+   1. AutoRecoveryManager correctly determines recovery strategies
+   2. Checkpoint system properly stores and restores state
+   3. Transaction system provides atomic operations with rollback
+   4. Retry mechanism implements exponential backoff
+   5. Fallback mechanisms work for different error scenarios
+   6. Recovery utilities successfully handle partial data
+   7. Step-down security modes maintain essential functionality
+
+   **Test Case Example**:
+   ```javascript
+   // test/unit/recovery/zkRecoverySystem.test.js
+   import { 
+     AutoRecoveryManager, 
+     RecoveryUtils, 
+     zkTransactionManager 
+   } from '../../../src/zkRecoverySystem.mjs';
+   import { createZKError } from '../../../src/zkErrorHandler.mjs';
+   
+   describe('AutoRecoveryManager', () => {
+     let recoveryManager;
+     
+     beforeEach(() => {
+       recoveryManager = new AutoRecoveryManager();
+     });
+     
+     test('determines correct strategy for different error types', () => {
+       const cryptoError = createZKError('CRYPTO-001', 'Test error', { recoverable: true });
+       const strategy = recoveryManager.determineStrategy(cryptoError, {});
+       
+       expect(strategy.type).toBe('retry');
+       expect(strategy.maxAttempts).toBe(3);
+     });
+     
+     test('creates and restores checkpoints', () => {
+       const operationId = 'test-op-1';
+       const state = { step: 1, data: { value: 42 } };
+       
+       recoveryManager.createCheckpoint(operationId, state);
+       
+       // Modify the original state
+       state.data.value = 99;
+       
+       // Restore from checkpoint
+       const restored = recoveryManager.rollbackToCheckpoint(operationId);
+       
+       expect(restored.data.value).toBe(42);
+       expect(restored).not.toBe(state); // Should be a deep copy
+     });
+   });
+   
+   describe('TransactionManager', () => {
+     test('executes operations in sequence', async () => {
+       const transaction = zkTransactionManager.createTransaction('test-tx-1');
+       const results = [];
+       
+       transaction.addOperation(
+         async () => {
+           results.push(1);
+           return 'op1-result';
+         },
+         async (result) => {
+           results.push('rollback-1');
+         }
+       );
+       
+       transaction.addOperation(
+         async () => {
+           results.push(2);
+           return 'op2-result';
+         },
+         async (result) => {
+           results.push('rollback-2');
+         }
+       );
+       
+       await transaction.execute();
+       
+       expect(results).toEqual([1, 2]);
+       expect(transaction.state).toBe('completed');
+     });
+     
+     test('rolls back on failure', async () => {
+       const transaction = zkTransactionManager.createTransaction('test-tx-2');
+       const results = [];
+       
+       transaction.addOperation(
+         async () => {
+           results.push(1);
+           return 'op1-result';
+         },
+         async (result) => {
+           results.push('rollback-1');
+         }
+       );
+       
+       transaction.addOperation(
+         async () => {
+           throw new Error('Operation 2 failed');
+         },
+         async (result) => {
+           // This shouldn't execute since the operation failed
+           results.push('rollback-2');
+         }
+       );
+       
+       const result = await transaction.execute();
+       
+       expect(results).toEqual([1, 'rollback-1']);
+       expect(result.success).toBe(false);
+       expect(transaction.state).toBe('rolled_back');
+     });
+   });
+   ```
 
 ### Phase 2: Fix Module Format Inconsistencies
 
@@ -141,6 +885,120 @@ This document outlines the comprehensive plan to address all technical debt in t
    module.exports = { bar };
    ```
 
+   **Concrete Example: Converting realZkUtils.js**
+   
+   Before:
+   ```javascript
+   // src/realZkUtils.js - ESM file with CommonJS patterns
+   const crypto = require('crypto');
+   import { zkSecureHash } from './zkUtils.mjs';
+
+   function generateRandomSeed() {
+     return crypto.randomBytes(32).toString('hex');
+   }
+
+   function deriveSecretKey(seed, purpose) {
+     const hmac = crypto.createHmac('sha256', seed);
+     hmac.update(purpose);
+     return hmac.digest('hex');
+   }
+
+   module.exports = {
+     generateRandomSeed,
+     deriveSecretKey
+   };
+   ```
+
+   After (ESM Version):
+   ```javascript
+   // src/realZkUtils.mjs - Proper ESM format
+   import crypto from 'crypto';
+   import { zkSecureHash } from './zkUtils.mjs';
+
+   export function generateRandomSeed() {
+     return crypto.randomBytes(32).toString('hex');
+   }
+
+   export function deriveSecretKey(seed, purpose) {
+     const hmac = crypto.createHmac('sha256', seed);
+     hmac.update(purpose);
+     return hmac.digest('hex');
+   }
+
+   export default {
+     generateRandomSeed,
+     deriveSecretKey
+   };
+   ```
+
+   After (CommonJS Version - for dual compatibility):
+   ```javascript
+   // src/realZkUtils.cjs - Proper CommonJS format
+   const crypto = require('crypto');
+   const { zkSecureHash } = require('./zkUtils.cjs');
+
+   function generateRandomSeed() {
+     return crypto.randomBytes(32).toString('hex');
+   }
+
+   function deriveSecretKey(seed, purpose) {
+     const hmac = crypto.createHmac('sha256', seed);
+     hmac.update(purpose);
+     return hmac.digest('hex');
+   }
+
+   module.exports = {
+     generateRandomSeed,
+     deriveSecretKey
+   };
+   ```
+
+   **Validation Test for Module Conversion**:
+   ```javascript
+   // test/unit/module-system/realZkUtils.test.js
+   
+   // Test ESM version
+   import * as esmUtils from '../../../src/realZkUtils.mjs';
+   import esmDefault from '../../../src/realZkUtils.mjs';
+   
+   // Test CommonJS version
+   const cjsUtils = require('../../../src/realZkUtils.cjs');
+   
+   describe('Module Format Tests - realZkUtils', () => {
+     test('ESM named exports work correctly', () => {
+       expect(typeof esmUtils.generateRandomSeed).toBe('function');
+       expect(typeof esmUtils.deriveSecretKey).toBe('function');
+       
+       const seed = esmUtils.generateRandomSeed();
+       expect(seed.length).toBe(64); // 32 bytes as hex
+     });
+     
+     test('ESM default export works correctly', () => {
+       expect(typeof esmDefault.generateRandomSeed).toBe('function');
+       expect(typeof esmDefault.deriveSecretKey).toBe('function');
+     });
+     
+     test('CommonJS exports work correctly', () => {
+       expect(typeof cjsUtils.generateRandomSeed).toBe('function');
+       expect(typeof cjsUtils.deriveSecretKey).toBe('function');
+       
+       const seed = cjsUtils.generateRandomSeed();
+       expect(seed.length).toBe(64);
+     });
+     
+     test('ESM and CommonJS versions have consistent behavior', () => {
+       // Use a fixed seed for deterministic results
+       const seed = 'abcdef1234567890';
+       const purpose = 'test';
+       
+       const esmResult = esmUtils.deriveSecretKey(seed, purpose);
+       const cjsResult = cjsUtils.deriveSecretKey(seed, purpose);
+       
+       expect(esmResult).toBe(cjsResult);
+     });
+   });
+   ```
+
 2. **Create Dual-Format Support System**
 
    **Implementation Approach**:
@@ -160,6 +1018,144 @@ This document outlines the comprehensive plan to address all technical debt in t
    ```
    3. Ensure all imports use correct file extensions (.mjs/.cjs)
    4. Create module mapping system for dynamic imports
+
+   **Concrete Example: Package.json Exports Configuration**
+   ```json
+   {
+     "name": "zk-module",
+     "version": "1.0.0",
+     "type": "module",
+     "exports": {
+       ".": {
+         "import": "./index.mjs",
+         "require": "./index.cjs"
+       },
+       "./error-handling": {
+         "import": "./src/zkErrorHandler.mjs",
+         "require": "./src/zkErrorHandler.cjs"
+       },
+       "./recovery": {
+         "import": "./src/zkRecoverySystem.mjs",
+         "require": "./src/zkRecoverySystem.cjs"
+       },
+       "./utils": {
+         "import": "./src/realZkUtils.mjs",
+         "require": "./src/realZkUtils.cjs"
+       },
+       "./circuit-params": {
+         "import": "./src/zkCircuitParameterDerivation.mjs",
+         "require": "./src/zkCircuitParameterDerivation.cjs"
+       },
+       "./circuit-registry": {
+         "import": "./src/zkCircuitRegistry.mjs",
+         "require": "./src/zkCircuitRegistry.cjs"
+       },
+       "./secure-inputs": {
+         "import": "./src/zkSecureInputs.mjs",
+         "require": "./src/zkSecureInputs.cjs"
+       },
+       "./browser-compat": {
+         "import": "./src/browserCompatibility.mjs",
+         "require": "./src/browserCompatibility.cjs"
+       },
+       "./device-caps": {
+         "import": "./src/deviceCapabilities.mjs",
+         "require": "./src/deviceCapabilities.cjs"
+       }
+     },
+     "scripts": {
+       "build:cjs": "rollup -c",
+       "test": "jest",
+       "validate-modules": "node tests/unit/module-system-test.cjs"
+     }
+   }
+   ```
+
+   **Concrete Example: Rollup Configuration**
+   ```javascript
+   // rollup.config.js
+   import { readdirSync } from 'fs';
+   import { join } from 'path';
+
+   // Get all .mjs files from src directory
+   const srcDir = join(process.cwd(), 'src');
+   const mjs_files = readdirSync(srcDir)
+     .filter(file => file.endsWith('.mjs'))
+     .map(file => join(srcDir, file));
+
+   export default mjs_files.map(file => {
+     const filename = file.split('/').pop();
+     const name = filename.replace('.mjs', '');
+     
+     return {
+       input: file,
+       output: {
+         file: join(srcDir, `${name}.cjs`),
+         format: 'cjs',
+         exports: 'named'
+       },
+       external: [
+         'crypto', 
+         'fs', 
+         'path',
+         // Add other native Node.js modules
+       ]
+     };
+   });
+   ```
+
+   **Validation Test for Dual-Format Support**:
+   ```javascript
+   // test/unit/module-system/compatibility.test.js
+   const assert = require('assert');
+   
+   describe('Dual-Format Module Compatibility', () => {
+     test('Package can be imported in CommonJS', () => {
+       // Dynamic require to test at runtime
+       let zkModule;
+       expect(() => {
+         zkModule = require('../../../index.cjs');
+       }).not.toThrow();
+       
+       expect(zkModule).toBeDefined();
+     });
+     
+     test('Individual modules can be imported in CommonJS', () => {
+       const errorHandling = require('../../../src/zkErrorHandler.cjs');
+       const recovery = require('../../../src/zkRecoverySystem.cjs');
+       
+       expect(errorHandling.createZKError).toBeDefined();
+       expect(recovery.AutoRecoveryManager).toBeDefined();
+     });
+     
+     test('ESM imports work through dynamic import', async () => {
+       // Jest doesn't directly support ESM imports in CommonJS tests,
+       // so we test with dynamic import
+       const zkModule = await import('../../../index.mjs');
+       expect(zkModule.default).toBeDefined();
+     });
+   });
+   ```
+
+   **Incremental Validation: After Converting 5 Modules**
+   
+   Run the following commands to verify that the first 5 converted modules work correctly:
+   
+   ```bash
+   # Test individual ESM module in isolation
+   node --input-type=module -e "import { generateRandomSeed } from './src/realZkUtils.mjs'; console.log(generateRandomSeed());"
+   
+   # Test individual CommonJS module in isolation
+   node -e "const utils = require('./src/realZkUtils.cjs'); console.log(utils.generateRandomSeed());"
+   
+   # Run module-specific tests
+   npm test -- --testPathPattern=realZkUtils
+   
+   # Check warning count reduction
+   node tests/unit/module-system-test.cjs --check-warnings
+   ```
+   
+   Expected result: Warning count should decrease by 5-10 warnings (depending on which modules were converted)
 
 ### Phase 3: Fix Error Handling
 
@@ -431,18 +1427,60 @@ This document outlines the comprehensive plan to address all technical debt in t
 ### Phase 1: Week 6 Tasks (Critical Functionality)
 - [ ] **Task 6.1: Comprehensive Error Handling Framework**
   - [ ] Create ZKErrorFactory class
+    - Acceptance Criteria:
+      - Factory creates different error types based on error code
+      - Error hierachy maintains proper prototype chain
+      - All errors include severity, details, and recovery hints
+      - Unit tests pass for all error creation scenarios
+    - Fallback Approach: If the inheritance-based approach proves problematic, implement a composition-based approach using a base error with type field
   - [ ] Implement error type hierarchy with inheritance
+    - Acceptance Criteria:
+      - All domain-specific errors inherit from ZKError base class
+      - Each error type adds appropriate domain-specific properties
+      - Error stack traces preserved correctly
+    - Fallback Approach: Use error wrapping pattern if inheritance causes issues with stack trace preservation
   - [ ] Build error telemetry system
+    - Acceptance Criteria:
+      - Error frequency tracking works across instances
+      - User impact assessment captures affected operations
+      - Error correlations identified for related issues
+    - Fallback Approach: Implement simplified telemetry if full system is too complex
   - [ ] Implement global error notification system
+    - Acceptance Criteria:
+      - Critical errors trigger developer alerts
+      - Rate limiting prevents alert storms
+      - Context included in notification
+    - Fallback Approach: Use console logging with distinctive formatting if integration proves difficult
   - [ ] Add context tracking capabilities
+    - Acceptance Criteria:
+      - Operation context preserved with error
+      - System state at time of error captured
+      - Error path trackable for debugging
+    - Fallback Approach: Store minimal context if full state capture impacts performance
   - [ ] Create error aggregation and analysis tools
   - [ ] Implement localization for user-facing error messages
   - [ ] Add documentation for error codes and recovery paths
 
 - [ ] **Task 6.2: Recovery Mechanisms**
   - [ ] Create AutoRecoveryManager class
+    - Acceptance Criteria:
+      - Recovery strategy determined based on error type
+      - Multiple recovery strategies supported
+      - Recovery attempts tracked and limited
+      - Success/failure metrics collected
+    - Fallback Approach: Implement operation-specific recovery without the general manager if complexity is too high
   - [ ] Implement strategy determination logic
+    - Acceptance Criteria:
+      - Strategies chosen based on error code, severity, and context
+      - Strategy includes all necessary parameters for execution
+      - Non-recoverable errors properly identified
+    - Fallback Approach: Use simplified strategy mapping table if complex logic causes issues
   - [ ] Build resource cleanup procedures
+    - Acceptance Criteria:
+      - All resources properly released
+      - Resources tracked throughout operation
+      - Cleanup order respects dependencies
+    - Fallback Approach: Focus on critical resources only if comprehensive tracking is too complex
   - [ ] Create state restoration utilities
   - [ ] Implement fallback execution paths
   - [ ] Add circuit fallback mechanisms
@@ -459,8 +1497,24 @@ This document outlines the comprehensive plan to address all technical debt in t
 ### Phase 2: Module Format Fixes
 - [ ] **Fix ESM Modules with CommonJS Patterns**
   - [ ] Analyze module dependencies
+    - Acceptance Criteria:
+      - All module dependencies mapped
+      - Circular dependencies identified
+      - High-risk modules flagged for special handling
+    - Validation Command: `node tools/analyze-dependencies.js`
   - [ ] Create module transformation plan
+    - Acceptance Criteria:
+      - Each module assigned to ESM or CommonJS based on usage
+      - Order of transformation respects dependencies
+      - Plan includes validation points
+    - Validation Method: Review dependencies graph to ensure logical ordering
   - [ ] Fix src/complete-fix.js
+    - Acceptance Criteria:
+      - All CommonJS patterns replaced with ESM equivalents
+      - Imports use correct file extensions
+      - Module loads correctly in isolation
+      - Unit tests pass
+    - Validation Command: `node --input-type=module -e "import {default as mod} from './src/complete-fix.mjs'; console.log(mod);"`
   - [ ] Fix src/constants.js
   - [ ] Fix src/deviceCapabilities.js
   - [ ] Fix src/direct-fix.js
@@ -477,7 +1531,17 @@ This document outlines the comprehensive plan to address all technical debt in t
 
 - [ ] **Create Dual-Format Support System**
   - [ ] Set up Rollup configuration
+    - Acceptance Criteria:
+      - Config generates CJS from ESM
+      - External dependencies properly handled
+      - Output files match expected formats
+    - Fallback Approach: Use Babel if Rollup causes compatibility issues
   - [ ] Create build process for generating .cjs versions
+    - Acceptance Criteria:
+      - Build process adds to CI pipeline
+      - CJS outputs updated when ESM changes
+      - Source maps generated for debugging
+    - Validation Command: `npm run build:cjs && npm test`
   - [ ] Update package.json exports field
   - [ ] Create module mapping system
   - [ ] Implement dynamic import resolver
@@ -485,7 +1549,18 @@ This document outlines the comprehensive plan to address all technical debt in t
 ### Phase 3: Error Handling Fixes
 - [ ] **Add zkErrorLogger to All Try/Catch Blocks**
   - [ ] Identify all try/catch blocks without proper error logging
+    - Acceptance Criteria:
+      - All try/catch blocks identified across codebase
+      - Each mapped to appropriate error type
+      - High-risk blocks flagged for special handling
+    - Validation Command: `node tools/find-try-catch.js`
   - [ ] Update GasManager.js error handling
+    - Acceptance Criteria:
+      - All generic errors replaced with ZKError types
+      - Context provided to error logger
+      - Recovery hints added where appropriate
+      - Unit tests pass
+    - Validation Method: Run dedicated error handling tests
   - [ ] Update ParameterValidator.js error handling
   - [ ] Update SecureKeyManager.js error handling
   - [ ] Update TamperDetection.js error handling
@@ -503,6 +1578,11 @@ This document outlines the comprehensive plan to address all technical debt in t
 
 - [ ] **Replace Generic Errors with ZKError Types**
   - [ ] Create error type mapping for all modules
+    - Acceptance Criteria:
+      - All existing error cases mapped to specific ZKError types
+      - Error codes assigned systematically
+      - Error severities assigned appropriately
+    - Validation Method: Review mapping table for completeness and consistency
   - [ ] Update all files to use specific ZKError types
   - [ ] Add error code constants
   - [ ] Add recovery hints to errors
@@ -511,6 +1591,12 @@ This document outlines the comprehensive plan to address all technical debt in t
 ### Phase 4: Documentation Fixes
 - [ ] **Add JSDoc Comments to All Exports**
   - [ ] Fix GasManager.js documentation (3/5 exports)
+    - Acceptance Criteria:
+      - All exports have JSDoc comments
+      - Parameters and return types documented
+      - Examples added for complex functions
+      - Special cases and errors documented
+    - Validation Command: `npm run doc-coverage -- --file=src/GasManager.js`
   - [ ] Fix browserCompatibility.mjs documentation (6/9 exports)
   - [ ] Fix deviceCapabilities.mjs documentation (4/6 exports)
   - [ ] Fix fix-all-modules.js documentation (0/3 exports)
@@ -522,9 +1608,49 @@ This document outlines the comprehensive plan to address all technical debt in t
 
 - [ ] **Add Module-Level Documentation**
   - [ ] Create module documentation template
+    - Acceptance Criteria:
+      - Template includes purpose, usage, and examples
+      - Template works for both ESM and CommonJS modules
+      - Template compatible with documentation generators
+    - Validation Method: Generate documentation and review output
   - [ ] Add module-level JSDoc to all files
   - [ ] Add architectural diagrams for complex modules
   - [ ] Create cross-reference documentation
+
+## Code Review Guidelines
+
+When implementing these fixes, the AI should self-review each implementation against these criteria:
+
+1. **Functionality**
+   - Does the implementation pass all specified tests?
+   - Does it fix the specific warning/error it targets?
+   - Does it introduce any new warnings or errors?
+
+2. **Compatibility**
+   - Is backward compatibility maintained?
+   - Do dual-format modules work in both ESM and CommonJS contexts?
+   - Are dependencies handled correctly?
+
+3. **Style and Consistency**
+   - Does the implementation follow project coding conventions?
+   - Is error handling consistent with the framework?
+   - Is naming consistent with existing patterns?
+
+4. **Documentation**
+   - Are all exports documented?
+   - Are all parameters and return types documented?
+   - Are examples provided for complex functions?
+   - Are errors and edge cases documented?
+
+5. **Testing**
+   - Are unit tests implemented for new functionality?
+   - Are edge cases and error paths tested?
+   - Is recovery functionality tested with failure scenarios?
+
+6. **Performance**
+   - Does the implementation add significant overhead?
+   - Are there any memory leaks or resource issues?
+   - Is error handling efficient for hot paths?
 
 ## Completion Criteria
 
@@ -542,13 +1668,36 @@ This document outlines the comprehensive plan to address all technical debt in t
 ## Verification Checklist
 
 - [ ] Run regression tests and verify 0 warnings
+  - Command: `./lib/zk/tests/regression/run-regression-tests.sh`
+  - Expected: All tests pass with 0 warnings
+
 - [ ] Run Week 6 tests and verify all passing
+  - Command: `node lib/zk/tests/unit/week6/test-suite.js`
+  - Expected: All Week 6 tests pass
+
 - [ ] Verify module system tests pass with no warnings
+  - Command: `node tests/unit/module-system-test.cjs`
+  - Expected: All module tests pass with 0 warnings
+
 - [ ] Check all files have proper extensions
+  - Command: `node tools/verify-extensions.js`
+  - Expected: All files have appropriate extensions
+
 - [ ] Confirm all exports are properly documented
+  - Command: `npm run doc-coverage`
+  - Expected: 100% documentation coverage
+
 - [ ] Verify error handling is consistent across codebase
+  - Command: `node tools/verify-error-handling.js`
+  - Expected: All error handling follows standards
+
 - [ ] Test recovery mechanisms with simulated failures
+  - Command: `node tests/unit/recovery/simulation-tests.js`
+  - Expected: All recovery tests pass
+
 - [ ] Confirm dual-format modules work in both ESM and CommonJS contexts
+  - Command: `node tests/unit/compat/dual-format-test.js`
+  - Expected: All modules work in both contexts
 
 Last test result prior to execution:
 ```
