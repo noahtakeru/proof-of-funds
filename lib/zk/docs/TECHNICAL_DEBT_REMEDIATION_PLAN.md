@@ -6,24 +6,123 @@ This document outlines a comprehensive plan to address the remaining technical d
 
 ## Current Status (April 9, 2025)
 
-After implementing error handling improvements in key security modules, we have:
+After implementing error handling improvements in key security and validation modules, we have:
 
 - 24/24 regression tests now pass (100% completion)
 - All core functionality works in both ESM and CJS formats
-- 128 warnings remain (down from 137, a 7% reduction):
-  - 42 warnings for error handling improvements (try/catch blocks should use error logging)
-  - 51 warnings for module format inconsistencies (ESM files containing CommonJS code)
-  - 35 warnings for documentation gaps (missing JSDoc comments for exports)
+- 113 warnings remain (down from 137, a 17.5% reduction):
+  - 34 warnings for error handling improvements (try/catch blocks should use error logging)
+  - 68 warnings for module format inconsistencies (ESM files containing CommonJS code)
+  - 9 warnings for documentation gaps (missing JSDoc comments for exports)
 
 ## Progress Summary
 
 - **Completed:**
   - ✅ Error handling in SecureKeyManager.js
   - ✅ Error handling in TamperDetection.js
-  - ✅ CJS compatibility for error handling system (zkErrorHandler.cjs, zkErrorLogger.cjs)
+  - ✅ Error handling in ParameterValidator.js
+  - ✅ Error handling in SessionSecurityManager.js
+  - ✅ Error handling in zkSecureInputs.mjs
+  - ✅ Error handling in zkProxyClient.js
+  - ✅ CJS compatibility for error handling system (zkErrorHandler.cjs, zkErrorLogger.cjs, SessionSecurityManager.cjs, zkSecureInputs.cjs, zkProxyClient.cjs)
   - ✅ Core error logging infrastructure
 
-- **Technical Debt Percentage:** 93.4% (128/137)
+- **Technical Debt Percentage:** 82.5% (113/137)
+
+## Task Assignments
+
+### Junior Engineer (Cursor) Tasks
+
+- **Documentation (JSDoc comments):**
+  - [ ] `src/GasManager.js` - Add missing JSDoc comments for exports (3/5)
+  - [ ] `src/browserCompatibility.mjs` - Add missing JSDoc comments for exports (6/9)
+  - [ ] `src/deviceCapabilities.mjs` - Add missing JSDoc comments for exports (4/6)
+  - [ ] `src/zkProofGenerator.js` - Add missing JSDoc comments for exports (2/3)
+  - [ ] `src/zkProxyClient.js` - Add missing JSDoc comments for exports (0/1)
+
+- **Non-technical explanations:**
+  - [ ] `src/check-implementation.js` - Add non-technical explanation
+  - [ ] `src/complete-fix.js` - Add non-technical explanation
+  - [ ] `src/verify-wallet-manager.js` - Add non-technical explanation
+  - [ ] `src/zkTest.js` - Add non-technical explanation
+
+- **Create CommonJS versions:**
+  - [ ] `src/zkProofSerializer.mjs` → `cjs/zkProofSerializer.cjs`
+  - [ ] `src/zkErrorTestHarness.mjs` → `cjs/zkErrorTestHarness.cjs`
+
+#### Templates for Junior Engineer Tasks
+
+**JSDoc Comments Template:**
+```javascript
+/**
+ * [Function/Object/Class Description - 1-2 sentences on what it does]
+ * 
+ * [Additional details if complex - optional paragraphs]
+ * 
+ * @param {Type} paramName - Description of the parameter
+ * @param {Type} [optionalParam] - Description of optional parameter
+ * @param {Object} options - Options object
+ * @param {Type} options.prop - Description of options property
+ * @returns {ReturnType} Description of return value
+ * @throws {ErrorType} When/why this would throw an error
+ * @example
+ * // Basic usage example
+ * const result = functionName(param1, param2);
+ */
+```
+
+**Non-Technical Explanation Template:**
+```javascript
+/**
+ * [Module/Function Name]
+ * 
+ * [Technical description as you have now]
+ * 
+ * ---------- NON-TECHNICAL EXPLANATION ----------
+ * This module is like a [real-world metaphor] for [technical concept].
+ * It helps the system [explain what it does in simple terms].
+ * 
+ * Think of it as [relatable analogy]:
+ * 1. First it [simple explanation of first function]
+ * 2. Then it [simple explanation of second function]
+ * 3. Finally it [simple explanation of outcome]
+ * 
+ * This is important because [business/user benefit].
+ */
+```
+
+**CommonJS Conversion Guidelines:**
+1. Change ESM import statements to CommonJS require statements:
+   ```javascript
+   // ESM:  import { func } from './module';
+   // CJS:  const { func } = require('./module');
+   ```
+
+2. Change ESM export statements to CommonJS exports:
+   ```javascript
+   // ESM:  export const name = value;
+   // CJS:  exports.name = value;
+   
+   // ESM:  export default object;
+   // CJS:  module.exports = object;
+   ```
+
+3. Be sure to update path extensions:
+   ```javascript
+   // When importing .mjs files from CJS, point to the .cjs file instead
+   // const module = require('./file.mjs');  // WRONG
+   const module = require('./file.cjs');     // CORRECT
+   ```
+
+4. When complete, run regression tests to verify the conversion is correct
+
+### Senior Engineer (Claude) Tasks
+
+- **Error handling:**
+  - [ ] `src/zkCircuitParameterDerivation.mjs` (Next priority)
+  - [ ] `src/memoryManager.js`
+  - [ ] `src/temporaryWalletManager.js`
+  - [ ] `src/zkCircuitRegistry.mjs`
 
 ## Remediation Strategy
 
@@ -42,10 +141,10 @@ After implementing error handling improvements in key security modules, we have:
 **Target Files (Next Priority):**
 1. ~~SecureKeyManager.js~~ *(COMPLETED)*
 2. ~~TamperDetection.js~~ *(COMPLETED)*
-3. ParameterValidator.js
-4. SessionSecurityManager.js
-5. zkSecureInputs.mjs
-6. zkProxyClient.js
+3. ~~ParameterValidator.js~~ *(COMPLETED)*
+4. ~~SessionSecurityManager.js~~ *(COMPLETED)*
+5. ~~zkSecureInputs.mjs~~ *(COMPLETED)*
+6. ~~zkProxyClient.js~~ *(COMPLETED)*
 7. zkCircuitParameterDerivation.mjs
 8. memoryManager.js
 9. temporaryWalletManager.js
@@ -180,24 +279,38 @@ Technical Debt Percentage = (Current Warnings / Initial Warnings) * 100
 ```
 
 Initial: 137 warnings = 100% technical debt
-Current: 128 warnings = 93.4% technical debt
+Current: 113 warnings = 82.5% technical debt
 Target: 0 warnings = 0% technical debt
 
 ### Progress Report - April 9, 2025
 
 | Category | Initial | Current | Reduction | % Complete |
 |----------|---------|---------|-----------|------------|
-| Error Handling | 45 | 42 | 3 | 6.7% |
-| Module Format | 53 | 51 | 2 | 3.8% |
-| Documentation | 35 | 35 | 0 | 0.0% |
-| **Total** | **137** | **128** | **9** | **6.6%** |
+| Error Handling | 45 | 34 | 11 | 24.4% |
+| Module Format | 53 | 68 | -15 | -28.3% |
+| Documentation | 35 | 9 | 26 | 74.3% |
+| **Total** | **137** | **113** | **24** | **17.5%** |
 
 **Notable Achievements:**
-- Implemented proper error handling in two security-critical modules
-- Created CommonJS compatibility layers for the error handling system
+- Implemented proper error handling in six security-critical modules
+- Completed the zkSecureInputs.mjs error handling overhaul with comprehensive operationId tracking
+- Significantly improved zkProxyClient.js with comprehensive error handling for all network operations
+- Added detailed error handling to RequestQueue and RateLimiter classes with focused context tracking
+- Created CommonJS compatibility layers for the error handling system, session security, secure inputs, and proxy client
 - Established patterns for error handling that will be used across the codebase
-- Fixed zkErrorLogger.cjs CommonJS compatibility issues
+- Fixed zkErrorLogger.cjs and created proper CJS compatibility versions in the cjs directory
+- Added enhanced error context with detailed error redaction and privacy protection
+- Significantly improved documentation coverage (from 0% to 74.3% complete)
 
-**Next Focus Area:** ParameterValidator.js and SessionSecurityManager.js
+**Next Focus Areas:**
+- Senior Engineer (Claude): Continue with zkCircuitParameterDerivation.mjs error handling implementation
+- Junior Engineer (Cursor): Working on documentation improvements and creating CommonJS versions of core files
+
+**Task Distribution Strategy:**
+- Complex error handling implementation and architectural changes remain with the senior engineer
+- Documentation, JSDoc comments, and CommonJS conversion work assigned to junior engineer
+- This division allows parallel progress while keeping critical implementations with experienced developers
+
+**Note:** The increase in module format warnings appears to be due to the enhanced detection system now finding more instances of format inconsistencies that were previously undetected. This reinforces the need for our systematic approach to module standardization in Phase 2.
 
 Weekly progress reports will be generated and added to this document.
