@@ -22,3 +22,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always maintain existing UI/UX when adding functionality. Ask before making any design changes.
 - Don't rely too heavily on mock code and placeholders. We need to make sure we do real implementations or at least plan ahead for future real implementations.
 - Do not make changes to the UI -- I like how it looks at the moment -- unless I tell you to
+- remember no placeholder or mock implementations, only real implementations
+- address all technical debt and make sure the regression sh test file has no more warnings or failed tests and do so by actually addressing the technical debt, not with any filler or placeholder mock code/data.
+- if you run the regression test sh file and there is a warning or a failure, know that your work is not done
