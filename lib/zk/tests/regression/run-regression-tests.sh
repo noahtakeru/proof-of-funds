@@ -426,6 +426,57 @@ task4_2_passed=0
 task4_3_tests=1
 task4_3_passed=0
 
+print_task "Task 1: Trusted Setup Process"
+print_info "Running full ceremony test (this may take a moment)..."
+track_test # increment test counter
+if node ./lib/zk/tests/unit/ceremony-test.cjs; then
+  print_pass "Trusted Setup Process tests passed"
+  task4_1_passed=1
+else
+  print_fail "Trusted Setup Process tests failed"
+fi
+
+print_task "Task 2: Browser Compatibility System"
+print_info "Testing browser compatibility detection in Node.js..."
+track_test # increment test counter
+if node ./lib/zk/tests/unit/browser-compat-test.cjs; then
+  print_pass "Browser Compatibility System tests passed"
+  task4_2_passed=1
+else
+  print_fail "Browser Compatibility System tests failed"
+fi
+
+print_info "NOTE: To test in a browser environment, open lib/zk/html/browser-compatibility-matrix.html in a web browser"
+
+print_task "Task 3: Server-Side Fallbacks"
+print_info "Testing client/server fallback system..."
+track_test # increment test counter
+
+if [ -f ./lib/zk/tests/unit/check-implementation.cjs ]; then
+  # Use our dedicated check script if it exists
+  if node ./lib/zk/tests/unit/check-implementation.cjs; then
+    print_pass "Server-Side Fallbacks implementation check passed"
+    task4_3_passed=1
+  else
+    print_fail "Server-Side Fallbacks implementation check failed"
+  fi
+else
+  # Fallback to a simple file existence check
+  if [ -f ./lib/zk/src/zkProxyClient.js ] && [ -f ./lib/zk/docs/reports/SERVER_FALLBACKS.md ]; then
+    # Check for basic patterns in the file
+    if grep -q "class RateLimiter" ./lib/zk/src/zkProxyClient.js && 
+       grep -q "class RequestQueue" ./lib/zk/src/zkProxyClient.js &&
+       grep -q "EXECUTION_MODES" ./lib/zk/src/zkProxyClient.js; then
+      print_pass "Server-Side Fallbacks tests passed (basic check)"
+      task4_3_passed=1
+    else
+      print_fail "Server-Side Fallbacks implementation is incomplete"
+    fi
+  else
+    print_fail "Server-Side Fallbacks implementation files not found"
+  fi
+fi
+
 # Week 5 Tests
 print_header "Week 5: Circuit Optimization"
 current_week="5"
@@ -496,57 +547,6 @@ fi
 
 # Clean up the temporary file
 rm -f ./temp_test_dual_format.mjs
-
-print_task "Task 1: Trusted Setup Process"
-print_info "Running full ceremony test (this may take a moment)..."
-track_test # increment test counter
-if node ./lib/zk/tests/unit/ceremony-test.cjs; then
-  print_pass "Trusted Setup Process tests passed"
-  task4_1_passed=1
-else
-  print_fail "Trusted Setup Process tests failed"
-fi
-
-print_task "Task 2: Browser Compatibility System"
-print_info "Testing browser compatibility detection in Node.js..."
-track_test # increment test counter
-if node ./lib/zk/tests/unit/browser-compat-test.cjs; then
-  print_pass "Browser Compatibility System tests passed"
-  task4_2_passed=1
-else
-  print_fail "Browser Compatibility System tests failed"
-fi
-
-print_info "NOTE: To test in a browser environment, open lib/zk/html/browser-compatibility-matrix.html in a web browser"
-
-print_task "Task 3: Server-Side Fallbacks"
-print_info "Testing client/server fallback system..."
-track_test # increment test counter
-
-if [ -f ./lib/zk/tests/unit/check-implementation.cjs ]; then
-  # Use our dedicated check script if it exists
-  if node ./lib/zk/tests/unit/check-implementation.cjs; then
-    print_pass "Server-Side Fallbacks implementation check passed"
-    task4_3_passed=1
-  else
-    print_fail "Server-Side Fallbacks implementation check failed"
-  fi
-else
-  # Fallback to a simple file existence check
-  if [ -f ./lib/zk/src/zkProxyClient.js ] && [ -f ./lib/zk/docs/reports/SERVER_FALLBACKS.md ]; then
-    # Check for basic patterns in the file
-    if grep -q "class RateLimiter" ./lib/zk/src/zkProxyClient.js && 
-       grep -q "class RequestQueue" ./lib/zk/src/zkProxyClient.js &&
-       grep -q "EXECUTION_MODES" ./lib/zk/src/zkProxyClient.js; then
-      print_pass "Server-Side Fallbacks tests passed (basic check)"
-      task4_3_passed=1
-    else
-      print_fail "Server-Side Fallbacks implementation is incomplete"
-    fi
-  else
-    print_fail "Server-Side Fallbacks implementation files not found"
-  fi
-fi
 
 # Week 6 Tests
 print_header "Week 6: Error Handling and Recovery"

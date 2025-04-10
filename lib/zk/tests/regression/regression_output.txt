@@ -1,0 +1,355 @@
+-e 
+[0;34m======================================[0m
+-e [0;34mZero-Knowledge Infrastructure Regression Tests[0m
+-e [0;34m======================================[0m
+Running tests from: /Users/karpel/Documents/GitHub/proof-of-funds
+Start time: Thu Apr 10 00:55:14 PDT 2025
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 1: ZK System Architecture[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: ZK System Architecture ---[0m
+SecureKeyManager.js found
+TamperDetection.js found
+zkUtils.js found
+System Architecture test: PASS
+-e [0;32m✓ System Architecture tests passed[0m
+-e 
+[0;33m--- Task 2: Client-Side Security ---[0m
+SecureKeyManager.js contains expected encryption methods
+TamperDetection.js contains expected tamper detection methods
+Client-Side Security test: PASS
+-e [0;32m✓ Client-Side Security tests passed[0m
+-e 
+[0;33m--- Task 3: Serialization & ZK Integration ---[0m
+Proof serialization: PASS
+Proof deserialization: PASS
+Proof hash generation: PASS
+-e [0;32m✓ Serialization & Integration tests passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 2: Circuit Systems[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: zkCircuitParameterDerivation ---[0m
+zkCircuitParameterDerivation.js not found, skipping test
+-e [0;32m✓ Circuit Parameter Derivation file check passed[0m
+-e 
+[0;33m--- Task 2: zkCircuitRegistry ---[0m
+File exists: PASS
+Circuit registry module contains expected functions
+-e [0;32m✓ Circuit Registry file check passed[0m
+-e 
+[0;33m--- Task 3: zkSecureInputs ---[0m
+zkSecureInputs.js not found, skipping test
+-e [0;32m✓ Secure Inputs file check passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 3: Circuit Building and WASM Loading[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: CircuitBuilder and CircuitVersions ---[0m
+CircuitBuilder exists: PASS
+CircuitVersions exists: PASS
+TypeScript compilation check skipped, ts-node may not be available
+-e [0;32m✓ CircuitBuilder and CircuitVersions tests passed[0m
+-e 
+[0;33m--- Task 2: WASM Loader ---[0m
+WASM Loader TS exists: PASS
+WASM Loader JS exists: FAIL
+WASM Loader module found
+-e [0;32m✓ WASM Loader file check passed[0m
+-e 
+[0;33m--- Task 3: TrustedSetupManager (Basic) ---[0m
+TrustedSetupManager exists: PASS
+TrustedSetupManager file found - basic check passed
+-e [0;32m✓ TrustedSetupManager basic check passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 4: Trusted Setup Process[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: Trusted Setup Process ---[0m
+-e Running full ceremony test (this may take a moment)...
+TrustedSetupManager.js found
+TrustedSetupManager.js contains expected ceremony methods
+Keys directory found
+Trusted Setup Ceremony test: PASS
+-e [0;32m✓ Trusted Setup Process tests passed[0m
+-e 
+[0;33m--- Task 2: Browser Compatibility System ---[0m
+-e Testing browser compatibility detection in Node.js...
+=== Browser Compatibility System Test ===
+browserCompatibility.js found
+File content loaded, size: 6493 bytes
+Detected exports:
+ - export function detectBrowserFeatures
+ - export function isBrowserCompatible
+Has detection methods: true
+Has compatibility checks: true
+browserCompatibility.js contains expected detection methods
+Browser compatibility matrix found
+Browser Compatibility test: PASS
+-e [0;32m✓ Browser Compatibility System tests passed[0m
+-e NOTE: To test in a browser environment, open lib/zk/html/browser-compatibility-matrix.html in a web browser
+-e 
+[0;33m--- Task 3: Server-Side Fallbacks ---[0m
+-e Testing client/server fallback system...
+
+ZK Proxy Client Implementation Check:
+Rate limiting implementation: ✓
+Request queuing implementation: ✓
+Execution modes: ✓
+Proof generation: ✓
+Proof verification: ✓
+Hybrid execution mode: ✓
+
+Implementation completeness: 100%
+===================================
+Documentation: ✓ Found
+
+File Structure Check:
+zkProxyClient.js: ✓
+SERVER_FALLBACKS.md: ✓
+Integration tests: ✓
+
+✅ Implementation complete!
+-e [0;32m✓ Server-Side Fallbacks implementation check passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 5: Circuit Optimization[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: Circuit Optimization ---[0m
+-e Testing optimized circuits...
+-e [0;32m✓ Circuit Optimization tests passed[0m
+-e 
+[0;33m--- Task 2: Circuit Testing ---[0m
+-e Testing circuit test infrastructure...
+-e [0;32m✓ Circuit Testing infrastructure tests passed[0m
+-e 
+[0;33m--- Task 3: Gas Benchmarking ---[0m
+-e Testing gas benchmarking infrastructure...
+-e [0;32m✓ Gas Benchmarking tests passed[0m
+-e 
+[0;33m--- Task 4: Real Implementation ---[0m
+-e Testing real ZK implementation...
+-e Real implementation files found, checking dual-format module system...
+-e [0;32m✓ Real Implementation tests passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 6: Error Handling and Recovery[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: Comprehensive Error Handling ---[0m
+-e Testing error handling framework...
+-e [0;32m✓ Error Handling Framework tests passed[0m
+-e 
+[0;33m--- Task 2: Recovery Mechanisms ---[0m
+-e Testing recovery mechanisms...
+Recovery system contains expected functions
+-e [0;32m✓ Recovery Mechanisms tests passed[0m
+-e 
+[0;33m--- Task 3: Error Testing Framework ---[0m
+-e Testing error testing harness...
+Error testing framework contains expected functions
+-e [0;32m✓ Error Testing Framework tests passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mWeek 6.5: Technical Debt Remediation[0m
+-e [0;34m======================================[0m
+-e 
+[0;33m--- Task 1: Real Circuit Implementations ---[0m
+-e Testing circuit implementation files for placeholder code removal...
+Circuit files contain real signature verification
+-e [0;32m✓ Real Circuit Implementation tests passed[0m
+-e 
+[0;33m--- Task 2: CoinGecko API Integration ---[0m
+-e Testing CoinGecko integration in GasManager...
+GasManager integrates with CoinGecko API
+-e [0;32m✓ CoinGecko API Integration tests passed[0m
+-e 
+[0;33m--- Task 3: Module System Standardization ---[0m
+-e Testing module system standardization...
+-e Package exports configuration found, running module system tests...
+=== Module System Standardization Tests (Fixed) ===
+Testing CommonJS imports...
+Testing ESM imports (dynamically)...
+✅ Simulating ESM main package import successful
+Testing dual-format compatibility...
+✅ API keys match between ESM and CJS modules
+Testing functional compatibility...
+✅ Function outputs match between ESM and CJS
+
+=== Test Results ===
+CommonJS imports: ✅ PASS
+ESM imports: ✅ PASS
+Dual-format compatibility: ✅ PASS
+Functional compatibility: ✅ PASS
+Overall: ✅ PASS
+-e [0;32m✓ Module System Standardization tests passed[0m
+-e 
+[0;33m--- Task 4: Comprehensive Type Definitions ---[0m
+-e Testing type definitions enhancement...
+-e [0;32m✓ Comprehensive Type Definitions tests passed[0m
+-e 
+[0;33m--- Task 5: Enhanced Regression Testing ---[0m
+-e Testing enhanced regression test infrastructure...
+-e [0;32m✓ Enhanced Regression Testing infrastructure tests passed[0m
+-e Running enhanced regression tests...
+[34mStarting Enhanced Regression Tests[0m
+[34mProject root: /Users/karpel/Documents/GitHub/proof-of-funds/lib/zk[0m
+[34mTime: 2025-04-10T07:55:15.090Z[0m
+[36m
+Running test: Required Files Validation[0m
+[34m
+=== Testing Required Files ===[0m
+[32m✓ PASS: Required Files Validation[0m
+[33m! WARNING: cjs/zkErrorHandler.cjs: Try/catch blocks should use the error logging system[0m
+[36m
+Running test: Module System Consistency[0m
+[34m
+=== Testing Module System Consistency ===[0m
+[32m✓ PASS: Module System Consistency[0m
+[33m! WARNING: src/browserCompatibility.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/browserCompatibility.js: Missing JSDoc comments for exports (0/2)[0m
+[33m! WARNING: src/complete-fix.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/constants.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/direct-fix.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/direct-fix.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/final-fix.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/fix-all-modules.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/fix-module-formats.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/fix-module-formats.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/memoryProfiler.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/memoryProfiler.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/moduleLoader.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/moduleLoader.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/progressTracker.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/quick-fix.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/quick-fix.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/real-zk-config.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/realZkUtils.mjs: Missing JSDoc comments for exports (12/13)[0m
+[33m! WARNING: src/secureStorage.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/verify-wallet-manager.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/verify-wallet-manager.js: Generic errors should be replaced with specific error classes[0m
+[33m! WARNING: src/zkCircuits.js: Generic errors should be replaced with specific error classes[0m
+[33m! WARNING: src/zkErrorHandler.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/zkErrorLogger.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/zkErrorTestHarness.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/zkErrorTestHarness.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/zkIntegrationExample.js: Try/catch blocks should use the error logging system[0m
+[33m! WARNING: src/zkRecoverySystem.js: ESM file contains CommonJS exports[0m
+[33m! WARNING: src/zkRecoverySystem.js: ESM file contains CommonJS requires[0m
+[33m! WARNING: src/zkTest.js: Try/catch blocks should use the error logging system[0m
+[36m
+Running test: Error Handling Consistency[0m
+[34m
+=== Testing Error Handling Consistency ===[0m
+[32m✓ PASS: Error Handling Consistency[0m
+[33m! WARNING: src/direct-fix.js: Try/catch without error logging[0m
+[33m! WARNING: src/fix-module-formats.js: Try/catch without error logging[0m
+[33m! WARNING: src/memoryProfiler.js: Try/catch without error logging[0m
+[33m! WARNING: src/moduleLoader.js: Try/catch without error logging[0m
+[33m! WARNING: src/progressTracker.js: Try/catch without error logging[0m
+[33m! WARNING: src/quick-fix.js: Try/catch without error logging[0m
+[33m! WARNING: src/verify-wallet-manager.js: Try/catch without error logging[0m
+[33m! WARNING: src/verify-wallet-manager.js: Generic errors used instead of custom error classes[0m
+[33m! WARNING: src/zkCircuits.js: Generic errors used instead of custom error classes[0m
+[33m! WARNING: src/zkIntegrationExample.js: Try/catch without error logging[0m
+[33m! WARNING: src/zkTest.js: Try/catch without error logging[0m
+[36m
+Running test: Documentation Coverage[0m
+[34m
+=== Testing Documentation Coverage ===[0m
+[32m✓ PASS: Documentation Coverage[0m
+[33m! WARNING: src/browserCompatibility.js: Undocumented exports (0/2)[0m
+[33m! WARNING: src/realZkUtils.mjs: Undocumented exports (12/13)[0m
+[36m
+Running test: Circuit Implementation[0m
+[34m
+=== Testing Circuit Implementation ===[0m
+[32m✓ PASS: Circuit Implementation[0m
+[34m
+=== Regression Test Report ===[0m
+[37mExecution time: 0.04 seconds[0m
+[37mStart: 2025-04-10T07:55:15.088Z[0m
+[37mEnd: 2025-04-10T07:55:15.128Z[0m
+[34m
+Overall Results:[0m
+[37mTotal: 5[0m
+[32mPassed: 5[0m
+[37mFailed: 0[0m
+[33mWarnings: 45[0m
+[34m
+Results by Category:[0m
+[32mmodule_system: 1/1 (100%)[0m
+[32merror_handling: 1/1 (100%)[0m
+[32mapi_consistency: 2/2 (100%)[0m
+[32mdocumentation: 1/1 (100%)[0m
+[34m
+Detailed report saved to: /Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/reports/regression-report-2025-04-10T07-55-15-088Z.json[0m
+[32m✅ Regression tests passed[0m
+-e 
+[0;34m======================================[0m
+-e [0;34mRegression Test Summary[0m
+-e [0;34m======================================[0m
+End time: Thu Apr 10 00:55:15 PDT 2025
+-e 
+[0;34mWeek 1: ZK System Architecture - 3/3 tests passed[0m
+-e   Task 1: System Architecture - [0;32mAll tests passed[0m
+-e   Task 2: Client-Side Security - [0;32mAll tests passed[0m
+-e   Task 3: Serialization & Integration - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 2: Circuit Systems - 3/3 tests passed[0m
+-e   Task 1: zkCircuitParameterDerivation - [0;32mAll tests passed[0m
+-e   Task 2: zkCircuitRegistry - [0;32mAll tests passed[0m
+-e   Task 3: zkSecureInputs - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 3: Circuit Building and WASM Loading - 3/3 tests passed[0m
+-e   Task 1: CircuitBuilder and CircuitVersions - [0;32mAll tests passed[0m
+-e   Task 2: WASM Loader - [0;32mAll tests passed[0m
+-e   Task 3: TrustedSetupManager (Basic) - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 4: Trusted Setup Process - 3/3 tests passed[0m
+-e   Task 1: Trusted Setup Process - [0;32mAll tests passed[0m
+-e   Task 2: Browser Compatibility System - [0;32mAll tests passed[0m
+-e   Task 3: Server-Side Fallbacks - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 5: Circuit Optimization & Real Implementation - 4/4 tests passed[0m
+-e   Task 1: Circuit Optimization - [0;32mAll tests passed[0m
+-e   Task 2: Circuit Testing - [0;32mAll tests passed[0m
+-e   Task 3: Gas Benchmarking - [0;32mAll tests passed[0m
+-e   Task 4: Real Implementation - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 6: Error Handling and Recovery - 3/3 tests passed[0m
+-e   Task 1: Comprehensive Error Handling - [0;32mAll tests passed[0m
+-e   Task 2: Recovery Mechanisms - [0;32mAll tests passed[0m
+-e   Task 3: Error Testing Framework - [0;32mAll tests passed[0m
+-e 
+[0;34mWeek 6.5: Technical Debt Remediation - 5/5 tests passed[0m
+-e   Task 1: Real Circuit Implementations - [0;32mAll tests passed[0m
+-e   Task 2: CoinGecko API Integration - [0;32mAll tests passed[0m
+-e   Task 3: Module System Standardization - [0;32mAll tests passed[0m
+-e   Task 4: Comprehensive Type Definitions - [0;32mAll tests passed[0m
+-e   Task 5: Enhanced Regression Testing - [0;32mAll tests passed[0m
+-e 
+[0;34mOverall: 24/24 tests passed (100%)[0m
+-e 
+If all tests passed, the ZK infrastructure is working correctly.
+For any failures, check the specific task documentation and error messages.
+-e 
+[0;34m======================================[0m
+-e [0;34mImplementation Check Instructions[0m
+-e [0;34m======================================[0m
+-e To run the simplified check for Server-Side Fallbacks implementation:
+-e   cd /Users/karpel/Documents/GitHub/proof-of-funds
+-e   node lib/zk/tests/unit/check-implementation.cjs
+
+-e This will check if your implementation has all required components.
+-e 
+To run these regression tests again, use the following commands:
+
+  cd /Users/karpel/Documents/GitHub/proof-of-funds
+  ./lib/zk/tests/regression/run-regression-tests.sh
