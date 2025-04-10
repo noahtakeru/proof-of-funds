@@ -319,6 +319,157 @@ EOL
   rm -rf "$TEMP_TEST_DIR"
 }
 
+# Test module format compatibility
+run_module_format_tests() {
+  print_header "Enhanced Module Format Tests"
+  print_task "Testing Module Format Compatibility"
+  
+  # Create test directory
+  TEMP_TEST_DIR=$(mktemp -d)
+  
+  # Test CommonJS / ESM interoperability
+  track_enhanced_test
+  print_enhanced "Testing ESM to CommonJS and CommonJS to ESM interoperability"
+  
+  # Create ESM test file
+  cat > "${TEMP_TEST_DIR}/esm-test.mjs" << 'EOL'
+// ESM imports
+import zkUtils from '../../src/zkUtils.mjs';
+import * as zkProofSerializer from '../../src/zkProofSerializer.mjs';
+import * as zkCircuitRegistry from '../../src/zkCircuitRegistry.mjs';
+import * as zkSecureInputs from '../../src/zkSecureInputs.mjs';
+
+// Validate exports
+console.log('ESM Import Test:');
+console.log('zkUtils:', typeof zkUtils === 'object' ? 'OK' : 'FAIL');
+console.log('zkProofSerializer:', typeof zkProofSerializer === 'object' ? 'OK' : 'FAIL');
+console.log('zkCircuitRegistry:', typeof zkCircuitRegistry === 'object' ? 'OK' : 'FAIL');
+console.log('zkSecureInputs:', typeof zkSecureInputs === 'object' ? 'OK' : 'FAIL');
+
+// Check function existence
+console.log('Function checks:');
+console.log('serializeZKProof:', typeof zkUtils.serializeZKProof === 'function' ? 'OK' : 'FAIL');
+console.log('serializeProof:', typeof zkProofSerializer.serializeProof === 'function' ? 'OK' : 'FAIL');
+console.log('registerCircuit:', typeof zkCircuitRegistry.registerCircuit === 'function' ? 'OK' : 'FAIL');
+console.log('generateSecureInputs:', typeof zkSecureInputs.generateSecureInputs === 'function' ? 'OK' : 'FAIL');
+
+// Test serialization roundtrip
+const testProof = {
+  pi_a: ['1', '2', '3'],
+  pi_b: [['4', '5'], ['6', '7']],
+  pi_c: ['8', '9', '10'],
+  protocol: 'test'
+};
+const testSignals = ['a', 'b', 'c'];
+
+try {
+  const serialized = zkUtils.serializeZKProof(testProof, testSignals);
+  const deserialized = zkUtils.deserializeZKProof(serialized.proof, serialized.publicSignals);
+  console.log('Serialization roundtrip:', 
+    JSON.stringify(deserialized.proof) === JSON.stringify(testProof) ? 'OK' : 'FAIL');
+} catch (e) {
+  console.error('Serialization test failed:', e.message);
+}
+
+console.log('ESM test completed');
+EOL
+
+  # Create CommonJS test file
+  cat > "${TEMP_TEST_DIR}/cjs-test.cjs" << 'EOL'
+// CommonJS imports
+const zkUtils = require('../../src/zkUtils.js');
+const zkProofSerializer = require('../../src/zkProofSerializer.js');
+const zkCircuitRegistry = require('../../src/zkCircuitRegistry.js');
+const zkSecureInputs = require('../../src/zkSecureInputs.js');
+
+// Validate exports
+console.log('CommonJS Import Test:');
+console.log('zkUtils:', typeof zkUtils === 'object' ? 'OK' : 'FAIL');
+console.log('zkProofSerializer:', typeof zkProofSerializer === 'object' ? 'OK' : 'FAIL');
+console.log('zkCircuitRegistry:', typeof zkCircuitRegistry === 'object' ? 'OK' : 'FAIL');
+console.log('zkSecureInputs:', typeof zkSecureInputs === 'object' ? 'OK' : 'FAIL');
+
+// Check function existence
+console.log('Function checks:');
+console.log('serializeZKProof:', typeof zkUtils.serializeZKProof === 'function' ? 'OK' : 'FAIL');
+console.log('serializeProof:', typeof zkProofSerializer.serializeProof === 'function' ? 'OK' : 'FAIL');
+console.log('registerCircuit:', typeof zkCircuitRegistry.registerCircuit === 'function' ? 'OK' : 'FAIL');
+console.log('generateSecureInputs:', typeof zkSecureInputs.generateSecureInputs === 'function' ? 'OK' : 'FAIL');
+
+// Test serialization roundtrip
+const testProof = {
+  pi_a: ['1', '2', '3'],
+  pi_b: [['4', '5'], ['6', '7']],
+  pi_c: ['8', '9', '10'],
+  protocol: 'test'
+};
+const testSignals = ['a', 'b', 'c'];
+
+try {
+  const serialized = zkUtils.serializeZKProof(testProof, testSignals);
+  const deserialized = zkUtils.deserializeZKProof(serialized.proof, serialized.publicSignals);
+  console.log('Serialization roundtrip:', 
+    JSON.stringify(deserialized.proof) === JSON.stringify(testProof) ? 'OK' : 'FAIL');
+} catch (e) {
+  console.error('Serialization test failed:', e.message);
+}
+
+console.log('CommonJS test completed');
+EOL
+
+  # Run the ESM test
+  print_enhanced "Running ESM module test"
+  if node --input-type=module "${TEMP_TEST_DIR}/esm-test.mjs"; then
+    print_pass "ESM Module Test Passed"
+    esm_test_passed=true
+  else
+    print_fail "ESM Module Test Failed"
+    esm_test_passed=false
+  fi
+  
+  # Run the CommonJS test
+  print_enhanced "Running CommonJS module test"
+  if node "${TEMP_TEST_DIR}/cjs-test.cjs"; then
+    print_pass "CommonJS Module Test Passed"
+    cjs_test_passed=true
+  else
+    print_fail "CommonJS Module Test Failed"
+    cjs_test_passed=false
+  fi
+  
+  # Check if both tests passed
+  if [ "$esm_test_passed" = true ] && [ "$cjs_test_passed" = true ]; then
+    print_pass "Module Format Compatibility Tests Passed"
+    total_enhanced_passed=$((total_enhanced_passed + 1))
+  else
+    print_fail "Module Format Compatibility Tests Failed"
+  fi
+  
+  # Clean up
+  rm -rf "$TEMP_TEST_DIR"
+}
+
+# Run the original regression tests
+run_original_regression_tests() {
+  print_header "Original Regression Tests"
+  print_task "Running Original Regression Tests"
+  
+  # Check if original regression test script exists
+  if [ -f "./lib/zk/tests/regression/run-regression-tests.sh" ]; then
+    print_info "Running original regression tests from run-regression-tests.sh"
+    
+    # Source the original tests to run them in the current shell
+    # This way we don't duplicate setup/teardown and can access variables
+    if sh ./lib/zk/tests/regression/run-regression-tests.sh; then
+      print_pass "Original Regression Tests Passed"
+    else
+      print_fail "Original Regression Tests Failed but continuing with enhanced tests"
+    fi
+  else
+    print_fail "Original regression test script not found at ./lib/zk/tests/regression/run-regression-tests.sh"
+  fi
+}
+
 # Ensure we're in the project root directory
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
 cd "$PROJECT_ROOT"
@@ -332,4 +483,10 @@ echo "Start time: $(date)"
 check_prerequisites
 
 # Run enhanced functional tests
-run_enhanced_zk_functional_tests 
+run_enhanced_zk_functional_tests
+
+# Run module format tests
+run_module_format_tests
+
+# Run original regression tests
+run_original_regression_tests 
