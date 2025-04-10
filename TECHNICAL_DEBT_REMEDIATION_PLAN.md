@@ -1351,6 +1351,19 @@ Expected result: Error logging tests pass, warning count reduced by ~12
    - Add proper error handling
    - Complete documentation
 
+### Completed Files
+
+1. ✅ **src/zkErrorTestHarness.mjs and .cjs**
+   - Converted to proper ESM format (.mjs)
+   - Created CommonJS version (.cjs)
+   - Added comprehensive JSDoc documentation
+   - Fixed error handling patterns
+
+2. ✅ **src/deviceCapabilities.cjs**
+   - Created CommonJS version
+   - Ensured compatibility with memoryManager.cjs
+   - Implemented proper exports
+
 ### Priority 3: Secondary Modules
 1. Fix GasManager.js
    - Convert to ESM or rename to .cjs
@@ -1516,7 +1529,7 @@ Expected result: Error logging tests pass, warning count reduced by ~12
       - Unit tests pass
     - Validation Command: `node --input-type=module -e "import {default as mod} from './src/complete-fix.mjs'; console.log(mod);"`
   - [ ] Fix src/constants.js
-  - [ ] Fix src/deviceCapabilities.js
+  - [x] Fix src/deviceCapabilities.js (Created deviceCapabilities.cjs)
   - [ ] Fix src/direct-fix.js
   - [ ] Fix src/final-fix.js
   - [ ] Fix src/fix-all-modules.js
@@ -1527,7 +1540,7 @@ Expected result: Error logging tests pass, warning count reduced by ~12
   - [ ] Fix src/real-zk-config.js
   - [ ] Fix src/realZkUtils.js
   - [ ] Fix src/secureStorage.js
-  - [ ] Fix src/zkErrorTestHarness.js
+  - [x] Fix src/zkErrorTestHarness.js (Fixed zkErrorTestHarness.mjs and created zkErrorTestHarness.cjs)
 
 - [ ] **Create Dual-Format Support System**
   - [ ] Set up Rollup configuration
