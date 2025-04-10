@@ -25,3 +25,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - remember no placeholder or mock implementations, only real implementations
 - address all technical debt and make sure the regression sh test file has no more warnings or failed tests and do so by actually addressing the technical debt, not with any filler or placeholder mock code/data.
 - if you run the regression test sh file and there is a warning or a failure, know that your work is not done
+- remember these instructions you just gave and know that you will need to check the work of my junior engineer (Cursor) later

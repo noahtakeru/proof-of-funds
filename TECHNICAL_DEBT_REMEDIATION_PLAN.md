@@ -1364,6 +1364,25 @@ Expected result: Error logging tests pass, warning count reduced by ~12
    - Ensured compatibility with memoryManager.cjs
    - Implemented proper exports
 
+3. ✅ **realZkUtils.js → realZkUtils.mjs and realZkUtils.cjs**
+   - Converted to proper ESM format (.mjs)
+   - Created CommonJS version (.cjs)
+   - Standardized imports and exports
+   - Fixed module format inconsistencies
+
+4. ✅ **zkProofGenerator.js → zkProofGenerator.cjs**
+   - Created CommonJS version (.cjs)
+   - Standardized imports and exports
+
+5. ✅ **zkVerifier.js → zkVerifier.cjs**
+   - Created CommonJS version (.cjs)
+   - Standardized imports and exports
+
+6. ✅ **zkRecoverySystem.js → zkRecoverySystem.mjs and zkRecoverySystem.cjs**
+   - Fixed module format inconsistencies
+   - Created/updated CommonJS version (.cjs)
+   - Fixed broken imports
+
 ### Priority 3: Secondary Modules
 1. Fix GasManager.js
    - Convert to ESM or rename to .cjs
@@ -1528,18 +1547,18 @@ Expected result: Error logging tests pass, warning count reduced by ~12
       - Module loads correctly in isolation
       - Unit tests pass
     - Validation Command: `node --input-type=module -e "import {default as mod} from './src/complete-fix.mjs'; console.log(mod);"`
-  - [ ] Fix src/constants.js
+  - [ ] Fix src/constants.js (HIGH PRIORITY - Core dependency)
   - [x] Fix src/deviceCapabilities.js (Created deviceCapabilities.cjs)
   - [ ] Fix src/direct-fix.js
   - [ ] Fix src/final-fix.js
   - [ ] Fix src/fix-all-modules.js
   - [ ] Fix src/fix-module-formats.js
   - [ ] Fix src/memoryProfiler.js
-  - [ ] Fix src/moduleLoader.js
+  - [ ] Fix src/moduleLoader.js (HIGH PRIORITY - Core dependency)
   - [ ] Fix src/quick-fix.js
   - [ ] Fix src/real-zk-config.js
-  - [ ] Fix src/realZkUtils.js
-  - [ ] Fix src/secureStorage.js
+  - [x] Fix src/realZkUtils.js (Converted to realZkUtils.mjs and created realZkUtils.cjs)
+  - [ ] Fix src/secureStorage.js (MEDIUM PRIORITY - Used by memory manager)
   - [x] Fix src/zkErrorTestHarness.js (Fixed zkErrorTestHarness.mjs and created zkErrorTestHarness.cjs)
 
 - [ ] **Create Dual-Format Support System**
