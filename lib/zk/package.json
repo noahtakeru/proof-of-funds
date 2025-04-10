@@ -13,6 +13,10 @@
       "import": "./src/zkUtils.mjs",
       "require": "./cjs/zkUtils.cjs"
     },
+    "./real-utils": {
+      "import": "./src/realZkUtils.mjs",
+      "require": "./cjs/realZkUtils.cjs"
+    },
     "./error": {
       "import": "./src/zkErrorHandler.mjs",
       "require": "./cjs/zkErrorHandler.cjs"
