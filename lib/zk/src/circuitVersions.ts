@@ -97,24 +97,24 @@ export function getProofTypeName(proofType: number): string {
  * @returns The circuit configuration for the requested proof type and version
  */
 export function getCompatibleCircuitVersion(
-  proofType: string | number, 
+  proofType: string | number,
   proofVersion: string = '1.0.0'
 ): CircuitVersionConfig {
   // Convert proofType to string if it's a number
-  const proofTypeName = typeof proofType === 'number' 
+  const proofTypeName = typeof proofType === 'number'
     ? getProofTypeName(proofType)
     : proofType;
-  
+
   const circuitVersions = CIRCUIT_VERSIONS[proofTypeName];
   if (!circuitVersions) {
     throw new Error(`Unknown proof type: ${proofTypeName}`);
   }
-  
+
   // First check for exact match
   if (circuitVersions[proofVersion]) {
     return circuitVersions[proofVersion];
   }
-  
+
   // Then look for compatible version
   for (const [version, config] of Object.entries(circuitVersions)) {
     if (config.compatibleWith.includes(proofVersion) && !config.deprecated) {
@@ -122,7 +122,7 @@ export function getCompatibleCircuitVersion(
       return config;
     }
   }
-  
+
   throw new Error(`No compatible circuit version found for ${proofTypeName} proof version ${proofVersion}`);
 }
 
@@ -133,37 +133,37 @@ export function getCompatibleCircuitVersion(
  */
 export function getLatestCircuitVersion(proofType: string | number): CircuitVersionConfig {
   // Convert proofType to string if it's a number
-  const proofTypeName = typeof proofType === 'number' 
+  const proofTypeName = typeof proofType === 'number'
     ? getProofTypeName(proofType)
     : proofType;
-  
+
   const circuitVersions = CIRCUIT_VERSIONS[proofTypeName];
   if (!circuitVersions) {
     throw new Error(`Unknown proof type: ${proofTypeName}`);
   }
-  
+
   // Get all versions that are not deprecated
   const activeVersions = Object.entries(circuitVersions)
     .filter(([_, config]) => !config.deprecated)
-    .map(([version, config]) => ({ 
-      version, 
-      config 
+    .map(([version, config]) => ({
+      version,
+      config
     }));
-  
+
   if (activeVersions.length === 0) {
     throw new Error(`No active versions found for proof type: ${proofTypeName}`);
   }
-  
+
   // Sort versions from newest to oldest using semver-like comparison
   activeVersions.sort((a, b) => {
     const [aMajor, aMinor, aPatch] = a.version.split('.').map(Number);
     const [bMajor, bMinor, bPatch] = b.version.split('.').map(Number);
-    
+
     if (aMajor !== bMajor) return bMajor - aMajor;
     if (aMinor !== bMinor) return bMinor - aMinor;
     return bPatch - aPatch;
   });
-  
+
   // Return the newest version
   return activeVersions[0].config;
 }
@@ -180,26 +180,26 @@ export function validateProofVersion(
 ): boolean {
   // Split versions into major, minor, patch
   const [proofMajor, proofMinor] = proofVersion.split('.').map(Number);
-  
+
   // If circuit version is provided, check compatibility directly
   if (circuitVersion) {
     const [circuitMajor, circuitMinor] = circuitVersion.split('.').map(Number);
-    
+
     // Major versions must match, minor version of proof must be <= circuit's
     if (proofMajor !== circuitMajor || (proofMinor > circuitMinor)) {
       console.warn(`Proof version ${proofVersion} may be incompatible with circuit version ${circuitVersion}`);
       return false;
     }
-    
+
     return true;
   }
-  
+
   // If no circuit version provided, check against current package version
   if (proofMajor !== CURRENT_MAJOR_VERSION) {
     console.warn(`Proof version ${proofVersion} may be incompatible with current system version ${PACKAGE_VERSION}`);
     return false;
   }
-  
+
   return true;
 }
 
@@ -215,10 +215,10 @@ export function getCircuitFilePath(
   fileType: 'wasm' | 'zkey' | 'vkey',
   version?: string
 ): string {
-  const circuitConfig = version 
+  const circuitConfig = version
     ? getCompatibleCircuitVersion(proofType, version)
     : getLatestCircuitVersion(proofType);
-  
+
   switch (fileType) {
     case 'wasm':
       return circuitConfig.wasmPath;
@@ -238,15 +238,15 @@ export function getCircuitFilePath(
  */
 export function getAvailableVersions(proofType: string | number): string[] {
   // Convert proofType to string if it's a number
-  const proofTypeName = typeof proofType === 'number' 
+  const proofTypeName = typeof proofType === 'number'
     ? getProofTypeName(proofType)
     : proofType;
-  
+
   const circuitVersions = CIRCUIT_VERSIONS[proofTypeName];
   if (!circuitVersions) {
     throw new Error(`Unknown proof type: ${proofTypeName}`);
   }
-  
+
   return Object.keys(circuitVersions);
 }
 
@@ -260,16 +260,16 @@ export function getCircuitByType(circuitType: CircuitType): CircuitDefinition | 
   if (!circuitVersions) {
     return undefined;
   }
-  
+
   // Get the latest version
   const latestConfig = getLatestCircuitVersion(circuitType);
-  
+
   // Find the version key for this config
   const version = Object.entries(circuitVersions)
     .find(([_, config]) => config === latestConfig)?.[0];
-  
+
   if (!version) return undefined;
-  
+
   return {
     circuitType,
     version,
@@ -304,7 +304,7 @@ export function getCircuitByVersion(version: CircuitVersion): CircuitDefinition 
       };
     }
   }
-  
+
   return undefined;
 }
 

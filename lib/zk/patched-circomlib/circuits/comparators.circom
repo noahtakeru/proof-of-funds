@@ -44,4 +44,12 @@ template LessEqThan(n) {
     gt.in[1] <== in[1];
     out <== 1 - gt.out;
 }
-          
+
+template IsEqual() {
+    signal input in[2];
+    signal output out;
+    
+    signal diff <== in[0] - in[1];
+    signal isZero <== diff == 0 ? 1 : 0;
+    out <== isZero;
+}

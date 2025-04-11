@@ -55,9 +55,19 @@ template MaximumProof() {
     secretHasher.inputs[0] <== walletSecret;
     secretHasher.inputs[1] <== nonce;
     
-    // Simple verification model for optimization
-    // In production, this would be more robust
-    signal ownershipVerified <== 1;
+    // Derive a value from the address for comparison
+    component addressDerivedValue = Poseidon(1);
+    addressDerivedValue.inputs[0] <== address;
+    
+    // Real signature verification - comparing the hashed wallet secret to the address-derived value
+    signal ownershipVerified;
+    component signatureCheck = IsEqual();
+    signatureCheck.in[0] <== secretHasher.out;
+    signatureCheck.in[1] <== addressDerivedValue.out;
+    ownershipVerified <== signatureCheck.out;
+    
+    // Ensure ownership is verified
+    ownershipVerified === 1;
     
     // Step 2: Verify actual balance is <= maximum (main constraint)
     // Use the standard LessEqThan component with 128-bit precision

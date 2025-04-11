@@ -1,0 +1,985 @@
+{
+  "startTime": "2025-04-08T06:51:45.270Z",
+  "endTime": "2025-04-08T06:51:45.300Z",
+  "summary": {
+    "total": 5,
+    "passed": 2,
+    "failed": 3,
+    "warnings": 123
+  },
+  "categories": {
+    "module_system": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "warnings": 63
+    },
+    "error_handling": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "warnings": 47
+    },
+    "security": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "warnings": 0
+    },
+    "performance": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "warnings": 0
+    },
+    "api_consistency": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1,
+      "warnings": 5
+    },
+    "documentation": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "warnings": 8
+    }
+  },
+  "fileResults": [
+    {
+      "path": "src/index.js",
+      "exists": true,
+      "size": 7230,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: utils",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (1/8)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkErrorHandler.js",
+      "exists": true,
+      "size": 16169,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkUtils.js",
+      "exists": true,
+      "size": 33654,
+      "issues": [
+        {
+          "type": "pattern_not_found",
+          "description": "Required pattern not found: /export\\s+(?:const|let|var|function|class|default|{)/",
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "path": "src/zkProofSerializer.js",
+      "exists": true,
+      "size": 13850,
+      "issues": [
+        {
+          "type": "pattern_not_found",
+          "description": "Required pattern not found: /export\\s+(?:const|let|var|function|class)\\s+(\\w+)/g",
+          "severity": "error"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "docs/MODULE_SYSTEM.md",
+      "exists": true,
+      "size": 6083,
+      "issues": []
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "exists": true,
+      "size": 13671,
+      "issues": []
+    },
+    {
+      "path": "src/GasManager.js",
+      "exists": true,
+      "size": 24210,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: GAS_TARGETS, BASE_GAS_COSTS, GasManager, calculateGasSavings",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (3/5)",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/ParameterValidator.js",
+      "exists": true,
+      "size": 29800,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/SecureKeyManager.js",
+      "exists": true,
+      "size": 13499,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/SecurityAuditLogger.js",
+      "exists": true,
+      "size": 18448,
+      "issues": []
+    },
+    {
+      "path": "src/SessionSecurityManager.js",
+      "exists": true,
+      "size": 25688,
+      "issues": [
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/TamperDetection.js",
+      "exists": true,
+      "size": 20468,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/TrustedSetupManager.js",
+      "exists": true,
+      "size": 48068,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/browserCompatibility.js",
+      "exists": true,
+      "size": 31552,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/check-implementation.js",
+      "exists": true,
+      "size": 2201,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/complete-fix.js",
+      "exists": true,
+      "size": 7956,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/deviceCapabilities.js",
+      "exists": true,
+      "size": 15564,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/direct-fix.js",
+      "exists": true,
+      "size": 8138,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/final-fix.js",
+      "exists": true,
+      "size": 7635,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/fix-all-modules.js",
+      "exists": true,
+      "size": 6757,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (0/2)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/fix-module-formats.js",
+      "exists": true,
+      "size": 3089,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (0/1)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/index.js",
+      "exists": true,
+      "size": 7230,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: utils",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (1/8)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/jest.config.js",
+      "exists": true,
+      "size": 946,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/jest.setup.js",
+      "exists": true,
+      "size": 1158,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/memoryManager.js",
+      "exists": true,
+      "size": 16762,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: suggestGarbageCollection, secureMemoryWipe, getMemoryUsage, checkMemoryAvailability, startMemoryMonitoring, stopMemoryMonitoring",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/memoryProfiler.js",
+      "exists": true,
+      "size": 17731,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/progressTracker.js",
+      "exists": true,
+      "size": 18073,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/quick-fix.js",
+      "exists": true,
+      "size": 6799,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/real-zk-config.js",
+      "exists": true,
+      "size": 929,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/realZkUtils.js",
+      "exists": true,
+      "size": 13320,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/secureStorage.js",
+      "exists": true,
+      "size": 13467,
+      "issues": [
+        {
+          "type": "mixed_export_formats",
+          "description": "Mixed ESM and CommonJS export formats without dual format markers",
+          "severity": "error"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/temporaryWalletManager.js",
+      "exists": true,
+      "size": 18978,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: createTemporaryWallet, destroyWallet, hasWallet, getWalletInfo, extendWalletLifetime, withWalletPrivateKey",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/verify-wallet-manager.js",
+      "exists": true,
+      "size": 6456,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkCircuitInputs.js",
+      "exists": true,
+      "size": 18816,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: addressToBytes, validateInputs, prepareCircuitInputs, normalizeBalance, createProofDescription",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkCircuitParameterDerivation.js",
+      "exists": true,
+      "size": 21203,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (0/1)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkCircuitRegistry.js",
+      "exists": true,
+      "size": 9407,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkCircuits.js",
+      "exists": true,
+      "size": 7015,
+      "issues": [
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkErrorHandler.js",
+      "exists": true,
+      "size": 16169,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkErrorLogger.js",
+      "exists": true,
+      "size": 17631,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkErrorTestHarness.js",
+      "exists": true,
+      "size": 26014,
+      "issues": [
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkIntegrationExample.js",
+      "exists": true,
+      "size": 6896,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkProofGenerator.js",
+      "exists": true,
+      "size": 7912,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: ZK_PROOF_TYPES, generateZKProof",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (2/3)",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkProofSerializer.js",
+      "exists": true,
+      "size": 13850,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkProxyClient.js",
+      "exists": true,
+      "size": 34258,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (0/1)",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkRecoverySystem.js",
+      "exists": true,
+      "size": 30612,
+      "issues": [
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkSecureInputs.js",
+      "exists": true,
+      "size": 15684,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkTest.js",
+      "exists": true,
+      "size": 4491,
+      "issues": [
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_non_technical",
+          "description": "Missing non-technical explanation for complex file",
+          "severity": "info"
+        }
+      ]
+    },
+    {
+      "path": "src/zkUtils.js",
+      "exists": true,
+      "size": 33654,
+      "issues": []
+    },
+    {
+      "path": "src/zkUtils.mjs",
+      "exists": true,
+      "size": 16395,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: zkUtils",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_jsdoc",
+          "description": "Missing JSDoc comments for exports (12/13)",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "path": "src/zkVerifier.js",
+      "exists": true,
+      "size": 7906,
+      "issues": [
+        {
+          "type": "inconsistent_default_export",
+          "description": "Default export includes some but not all named exports: verifyZKProof",
+          "severity": "warning"
+        },
+        {
+          "type": "missing_error_logging",
+          "description": "Try/catch blocks should use the error logging system",
+          "severity": "warning"
+        },
+        {
+          "type": "generic_error_throw",
+          "description": "Generic errors should be replaced with specific error classes",
+          "severity": "warning"
+        }
+      ]
+    }
+  ],
+  "issuesFound": [
+    {
+      "test": "Required Files Validation",
+      "category": "api_consistency",
+      "reason": "Some required files are missing or invalid",
+      "details": [
+        "src/zkUtils.js: Required pattern not found: /export\\s+(?:const|let|var|function|class|default|{)/",
+        "src/zkProofSerializer.js: Required pattern not found: /export\\s+(?:const|let|var|function|class)\\s+(\\w+)/g"
+      ]
+    },
+    {
+      "test": "Module System Consistency",
+      "category": "module_system",
+      "reason": "Mixed module formats detected",
+      "details": {
+        "issues": [
+          "src/SecureKeyManager.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/TamperDetection.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/TrustedSetupManager.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/fix-all-modules.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/fix-module-formats.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/quick-fix.js: Mixed ESM and CommonJS export formats without dual format markers",
+          "src/secureStorage.js: Mixed ESM and CommonJS export formats without dual format markers"
+        ],
+        "stats": {
+          "totalFiles": 44,
+          "esmExportCount": 31,
+          "cjsExportCount": 14,
+          "mixedFormatCount": 7,
+          "dualFormatCount": 0
+        }
+      }
+    },
+    {
+      "test": "Documentation Coverage",
+      "category": "documentation",
+      "reason": "Documentation issues found: Missing docs",
+      "details": {
+        "missingDocs": [
+          "TESTING_STRATEGY.md"
+        ],
+        "jsdocCoverage": "88.06%",
+        "totalExports": 67,
+        "documentedExports": 59,
+        "undocumentedFiles": [
+          {
+            "file": "src/GasManager.js",
+            "exported": 5,
+            "documented": 3
+          },
+          {
+            "file": "src/fix-all-modules.js",
+            "exported": 2,
+            "documented": 0
+          },
+          {
+            "file": "src/fix-module-formats.js",
+            "exported": 1,
+            "documented": 0
+          },
+          {
+            "file": "src/index.js",
+            "exported": 8,
+            "documented": 1
+          },
+          {
+            "file": "src/zkCircuitParameterDerivation.js",
+            "exported": 1,
+            "documented": 0
+          },
+          {
+            "file": "src/zkProofGenerator.js",
+            "exported": 3,
+            "documented": 2
+          },
+          {
+            "file": "src/zkProxyClient.js",
+            "exported": 1,
+            "documented": 0
+          },
+          {
+            "file": "src/zkUtils.mjs",
+            "exported": 13,
+            "documented": 12
+          }
+        ]
+      }
+    }
+  ]
+}

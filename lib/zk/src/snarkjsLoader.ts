@@ -74,21 +74,21 @@ function recordTelemetry(telemetry: Partial<SnarkjsTelemetry>) {
       wasmSupported: wasmLoader.isWasmSupported(),
       inWorker: typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope,
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-      deviceMemory: typeof navigator !== 'undefined' && 'deviceMemory' in navigator ? 
+      deviceMemory: typeof navigator !== 'undefined' && 'deviceMemory' in navigator ?
         (navigator as any).deviceMemory : undefined,
       hardwareConcurrency: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined
     },
     ...telemetry
   };
-  
+
   // Store the telemetry
   telemetryData.push(entry);
-  
+
   // If the operation has completed, calculate duration
   if (entry.endTime) {
     entry.duration = entry.endTime - entry.startTime;
   }
-  
+
   // If enabled, send telemetry to server (in production)
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_TELEMETRY === 'true') {
     try {
@@ -100,7 +100,7 @@ function recordTelemetry(telemetry: Partial<SnarkjsTelemetry>) {
       console.error('Failed to send telemetry:', error);
     }
   }
-  
+
   return entry.operationId;
 }
 
@@ -121,17 +121,17 @@ async function safeImportSnarkjs(): Promise<any> {
     operation: 'import-snarkjs',
     startTime: Date.now()
   });
-  
+
   try {
     // Performance mark for import start
     const importStartTime = Date.now();
-    
+
     // Dynamic import of snarkjs
     const module = await import('snarkjs');
-    
+
     // Performance mark for import end
     const importEndTime = Date.now();
-    
+
     // Update telemetry with success
     const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
     if (telemetryIndex >= 0) {
@@ -141,7 +141,7 @@ async function safeImportSnarkjs(): Promise<any> {
         importDuration: importEndTime - importStartTime
       };
     }
-    
+
     // Try to get version info
     try {
       if (module.getVersion) {
@@ -152,7 +152,7 @@ async function safeImportSnarkjs(): Promise<any> {
     } catch (e) {
       console.warn('Could not determine snarkjs version:', e);
     }
-    
+
     return module;
   } catch (error) {
     // Update telemetry with failure
@@ -160,10 +160,10 @@ async function safeImportSnarkjs(): Promise<any> {
     if (telemetryIndex >= 0) {
       telemetryData[telemetryIndex].success = false;
       telemetryData[telemetryIndex].endTime = Date.now();
-      telemetryData[telemetryIndex].errorMessage = error instanceof Error ? 
+      telemetryData[telemetryIndex].errorMessage = error instanceof Error ?
         error.message : String(error);
     }
-    
+
     console.error('Failed to import snarkjs:', error);
     throw new Error(`Failed to import snarkjs: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -174,100 +174,100 @@ async function safeImportSnarkjs(): Promise<any> {
  * Handles runtime availability and provides appropriate fallbacks
  * @returns The initialized snarkjs instance
  */
-export async function initializeSnarkJS(options: { 
+export async function initializeSnarkJS(options: {
   forceReInit?: boolean,
   timeout?: number,
   useMock?: boolean,
   onProgress?: (progress: number, status: string) => void,
   retryAttempts?: number
 } = {}): Promise<any> {
-  const { 
-    forceReInit = false, 
+  const {
+    forceReInit = false,
     timeout = 10000,
     useMock = false,
     onProgress,
     retryAttempts = 3
   } = options;
-  
+
   // Create a progress reporter
   const progress = createProgressReporter('snarkjs-initialization');
-  
+
   // Helper to report progress
   const reportProgress = (percent: number, message: string) => {
     progress.reportProgress('initialization', percent, message);
     onProgress?.(percent, message);
   };
-  
+
   // Start telemetry for initialization
   const operationId = recordTelemetry({
     operation: 'initialize-snarkjs',
     startTime: Date.now()
   });
-  
+
   // Return the cached instance if available and not forcing reinit
   if (snarkjsInstance && !forceReInit) {
     console.log('Using cached snarkjs instance');
     reportProgress(100, 'Using cached snarkjs instance');
-    
+
     // Update telemetry
     const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
     if (telemetryIndex >= 0) {
       telemetryData[telemetryIndex].success = true;
       telemetryData[telemetryIndex].endTime = Date.now();
     }
-    
+
     return snarkjsInstance;
   }
-  
+
   // Use mock implementation if requested
   if (useMock) {
     console.log('Using mock snarkjs implementation as requested');
     reportProgress(100, 'Using mock snarkjs implementation');
     snarkjsInstance = createMockSnarkjs();
     initializationStatus = 'success';
-    
+
     // Update telemetry
     const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
     if (telemetryIndex >= 0) {
       telemetryData[telemetryIndex].success = true;
       telemetryData[telemetryIndex].endTime = Date.now();
     }
-    
+
     return snarkjsInstance;
   }
-  
+
   // If initialization is already in progress, wait for it to complete
   if (initializationStatus === 'in-progress') {
     console.log('snarkjs initialization already in progress, waiting...');
     reportProgress(10, 'Waiting for existing initialization to complete');
-    
+
     return new Promise((resolve, reject) => {
       let checkCount = 0;
       const maxChecks = timeout / 100; // Check every 100ms
-      
+
       const checkInterval = setInterval(() => {
         checkCount++;
         const progressPercent = Math.min(10 + Math.floor((checkCount / maxChecks) * 80), 90);
         reportProgress(progressPercent, 'Waiting for initialization to complete');
-        
+
         if (initializationStatus === 'success' && snarkjsInstance) {
           clearInterval(checkInterval);
           clearTimeout(timeoutId);
           reportProgress(100, 'Initialization completed');
-          
+
           // Update telemetry
           const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
           if (telemetryIndex >= 0) {
             telemetryData[telemetryIndex].success = true;
             telemetryData[telemetryIndex].endTime = Date.now();
           }
-          
+
           resolve(snarkjsInstance);
         } else if (initializationStatus === 'failed') {
           clearInterval(checkInterval);
           clearTimeout(timeoutId);
           reportProgress(100, 'Initialization failed, using fallback');
-          
+
           // Update telemetry
           const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
           if (telemetryIndex >= 0) {
@@ -275,16 +275,16 @@ export async function initializeSnarkJS(options: {
             telemetryData[telemetryIndex].endTime = Date.now();
             telemetryData[telemetryIndex].errorMessage = initializationError?.message || 'Unknown error';
           }
-          
+
           reject(initializationError || new Error('snarkjs initialization failed'));
         }
       }, 100);
-      
+
       // Set timeout to avoid waiting indefinitely
       const timeoutId = setTimeout(() => {
         clearInterval(checkInterval);
         reportProgress(100, 'Initialization timed out, using fallback');
-        
+
         // Update telemetry
         const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
         if (telemetryIndex >= 0) {
@@ -292,23 +292,23 @@ export async function initializeSnarkJS(options: {
           telemetryData[telemetryIndex].endTime = Date.now();
           telemetryData[telemetryIndex].errorMessage = `Initialization timed out after ${timeout}ms`;
         }
-        
+
         reject(new Error(`snarkjs initialization timed out after ${timeout}ms`));
       }, timeout);
     });
   }
-  
+
   initializationStatus = 'in-progress';
   initializationError = null;
-  
+
   reportProgress(0, 'Starting snarkjs initialization');
-  
+
   let attemptCount = 0;
   while (attemptCount < retryAttempts) {
     try {
       attemptCount++;
       reportProgress(5, `Initialization attempt ${attemptCount}/${retryAttempts}`);
-      
+
       // Check if WebAssembly is supported
       reportProgress(10, 'Checking WebAssembly support');
       const wasmSupported = wasmLoader.isWasmSupported();
@@ -316,11 +316,11 @@ export async function initializeSnarkJS(options: {
         reportProgress(15, 'WebAssembly not supported, using server-side fallback');
         throw new Error('WebAssembly is not supported in this environment. Using server-side fallback.');
       }
-      
+
       // Initialize WebAssembly loader
       reportProgress(20, 'Initializing WebAssembly loader');
       await wasmLoader.initialize();
-      
+
       // Check if client-side processing is recommended
       reportProgress(30, 'Checking device capabilities');
       const clientSideRecommended = wasmLoader.isClientSideRecommended();
@@ -328,26 +328,26 @@ export async function initializeSnarkJS(options: {
         reportProgress(35, 'Device capabilities limited, using server-side fallback');
         throw new Error('Device capabilities suggest server-side processing is preferable.');
       }
-      
+
       // Import snarkjs library
       reportProgress(40, 'Importing snarkjs library');
       const snarkjs = await safeImportSnarkjs();
-      
+
       // Check version compatibility
       reportProgress(60, 'Checking snarkjs version compatibility');
       if (SNARKJS_VERSION.current !== 'unknown') {
         const currentParts = SNARKJS_VERSION.current.split('.').map(Number);
         const requiredParts = SNARKJS_VERSION.required.split('.').map(Number);
-        
-        const isVersionCompatible = 
-          currentParts[0] > requiredParts[0] || 
+
+        const isVersionCompatible =
+          currentParts[0] > requiredParts[0] ||
           (currentParts[0] === requiredParts[0] && currentParts[1] >= requiredParts[1]);
-        
+
         if (!isVersionCompatible) {
           console.warn(`snarkjs version ${SNARKJS_VERSION.current} is below required version ${SNARKJS_VERSION.required}`);
         }
       }
-      
+
       // Modern versions may have an initialize method
       reportProgress(70, 'Initializing snarkjs');
       if (typeof snarkjs.initialize === 'function') {
@@ -357,31 +357,31 @@ export async function initializeSnarkJS(options: {
         // Older versions or direct import
         snarkjsInstance = snarkjs;
       }
-      
+
       // Verify that essential functionality is available
       reportProgress(80, 'Verifying snarkjs functionality');
-      const hasCoreFeatures = 
-        snarkjsInstance && 
-        snarkjsInstance.groth16 && 
+      const hasCoreFeatures =
+        snarkjsInstance &&
+        snarkjsInstance.groth16 &&
         typeof snarkjsInstance.groth16.fullProve === 'function' &&
-        snarkjsInstance.wtns && 
+        snarkjsInstance.wtns &&
         typeof snarkjsInstance.wtns.calculate === 'function';
-      
+
       if (!hasCoreFeatures) {
         throw new Error('Initialized snarkjs instance is missing required functionality');
       }
-      
+
       // Run a simple proof verification test to ensure full functionality
       reportProgress(90, 'Testing snarkjs functionality');
       const testSucceeded = await testSnarkjsFunctionality(snarkjsInstance);
       if (!testSucceeded) {
         throw new Error('snarkjs functionality test failed');
       }
-      
+
       console.log('snarkjs initialized successfully');
       reportProgress(100, 'snarkjs initialized successfully');
       initializationStatus = 'success';
-      
+
       // Update telemetry with success
       const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
       if (telemetryIndex >= 0) {
@@ -391,24 +391,24 @@ export async function initializeSnarkJS(options: {
           attempts: attemptCount
         };
       }
-      
+
       return snarkjsInstance;
     } catch (error) {
       console.error(`Failed to initialize snarkjs (attempt ${attemptCount}/${retryAttempts}):`, error);
-      
+
       // If this was the last attempt or it's a permanent error, use fallback
       if (attemptCount >= retryAttempts || isPermanentError(error)) {
         initializationStatus = 'failed';
         initializationError = error instanceof Error ? error : new Error(String(error));
-        
+
         // Create server-side fallback implementation
         console.warn('Using server-side fallback for snarkjs functionality');
         reportProgress(95, 'Using server-side fallback');
         snarkjsInstance = createServerSideFallback();
-        
+
         initializationStatus = 'success'; // We're providing a fallback, so it's a success
         reportProgress(100, 'Fallback initialization complete');
-        
+
         // Update telemetry with success (fallback)
         const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
         if (telemetryIndex >= 0) {
@@ -419,10 +419,10 @@ export async function initializeSnarkJS(options: {
             usingFallback: true
           };
         }
-        
+
         return snarkjsInstance;
       }
-      
+
       // Wait a bit before retrying (exponential backoff)
       const retryDelay = Math.min(1000 * Math.pow(2, attemptCount - 1), 5000);
       console.log(`Retrying in ${retryDelay}ms...`);
@@ -430,7 +430,7 @@ export async function initializeSnarkJS(options: {
       await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }
-  
+
   // Should never reach here, but TypeScript wants a return
   throw new Error('snarkjs initialization failed after all retry attempts');
 }
@@ -442,7 +442,7 @@ export async function initializeSnarkJS(options: {
  */
 function isPermanentError(error: any): boolean {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  
+
   // Check for permanent error conditions
   const permanentErrors = [
     'WebAssembly is not supported',
@@ -451,7 +451,7 @@ function isPermanentError(error: any): boolean {
     'Invalid module',
     'Device capabilities suggest server-side'
   ];
-  
+
   return permanentErrors.some(msg => errorMessage.includes(msg));
 }
 
@@ -469,7 +469,7 @@ async function testSnarkjsFunctionality(snarkjs: any): Promise<boolean> {
       ['1', '2'], // Mock public signals
       { pi_a: ['1', '2', '3'], pi_b: [['1', '2'], ['3', '4']], pi_c: ['5', '6', '7'] } // Mock proof
     );
-    
+
     // This should return false since our mock input is invalid,
     // but the important part is that it runs without errors
     return typeof mockValidResult === 'boolean';
@@ -486,23 +486,23 @@ async function testSnarkjsFunctionality(snarkjs: any): Promise<boolean> {
  */
 export function createMockSnarkjs() {
   console.warn('Creating mock snarkjs implementation for development/testing');
-  
+
   return {
     groth16: {
       prove: async () => ({
-        proof: { 
-          pi_a: ['1', '2', '3'], 
-          pi_b: [['4', '5'], ['6', '7'], ['8', '9']], 
-          pi_c: ['10', '11', '12'] 
+        proof: {
+          pi_a: ['1', '2', '3'],
+          pi_b: [['4', '5'], ['6', '7'], ['8', '9']],
+          pi_c: ['10', '11', '12']
         },
         publicSignals: ['13', '14', '15']
       }),
       verify: async () => true,
       fullProve: async () => ({
-        proof: { 
-          pi_a: ['1', '2', '3'], 
-          pi_b: [['4', '5'], ['6', '7'], ['8', '9']], 
-          pi_c: ['10', '11', '12'] 
+        proof: {
+          pi_a: ['1', '2', '3'],
+          pi_b: [['4', '5'], ['6', '7'], ['8', '9']],
+          pi_c: ['10', '11', '12']
         },
         publicSignals: ['13', '14', '15']
       })
@@ -534,10 +534,10 @@ export function createMockSnarkjs() {
  */
 export function createServerSideFallback() {
   console.log('Creating server-side fallback for snarkjs functionality');
-  
+
   // Base server endpoint for ZK operations
   const ZK_API_ENDPOINT = '/api/zk';
-  
+
   /**
    * Makes a server request with retry logic and telemetry
    * @param endpoint API endpoint path
@@ -557,12 +557,12 @@ export function createServerSideFallback() {
       operation: `server-${operation}`,
       startTime: Date.now()
     });
-    
+
     // Create progress reporter
     const progress = createProgressReporter(`server-${operation}`);
-    
+
     progress.reportProgress('start', 0, 'Starting server request');
-    
+
     // Add client capabilities to payload
     const enhancedData = {
       ...data,
@@ -572,18 +572,18 @@ export function createServerSideFallback() {
         timestamp: Date.now()
       }
     };
-    
+
     let lastError: Error | null = null;
-    
+
     // Try the request with retries
     for (let attempt = 1; attempt <= retryAttempts; attempt++) {
       try {
         progress.reportProgress(
-          'request', 
-          10 + (attempt / retryAttempts) * 30, 
+          'request',
+          10 + (attempt / retryAttempts) * 30,
           `Sending request (attempt ${attempt}/${retryAttempts})`
         );
-        
+
         const response = await fetch(`${ZK_API_ENDPOINT}/${endpoint}`, {
           method: 'POST',
           headers: {
@@ -592,7 +592,7 @@ export function createServerSideFallback() {
           },
           body: JSON.stringify(enhancedData)
         });
-        
+
         // If server returned error status, throw error
         if (!response.ok) {
           // Special handling for different status codes
@@ -606,12 +606,12 @@ export function createServerSideFallback() {
             throw new Error(`Server returned ${response.status}: ${response.statusText}`);
           }
         }
-        
+
         progress.reportProgress('processing', 70, 'Processing server response');
-        
+
         // Parse and return the result
         const result = await response.json();
-        
+
         // Update telemetry with success
         const telemetryIndex = telemetryData.findIndex(t => t.operationId === operationId);
         if (telemetryIndex >= 0) {
@@ -622,15 +622,15 @@ export function createServerSideFallback() {
             serverLatency: result.serverTiming?.totalTime
           };
         }
-        
+
         progress.reportProgress('complete', 100, 'Server request completed successfully');
         progress.complete(result);
-        
+
         return result;
       } catch (error) {
         console.error(`Server request failed (attempt ${attempt}/${retryAttempts}):`, error);
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // If this is the last attempt, update telemetry and throw
         if (attempt === retryAttempts) {
           // Update telemetry with failure
@@ -640,26 +640,26 @@ export function createServerSideFallback() {
             telemetryData[telemetryIndex].endTime = Date.now();
             telemetryData[telemetryIndex].errorMessage = lastError.message;
           }
-          
+
           progress.reportError('request', lastError);
           throw lastError;
         }
-        
+
         // Wait with exponential backoff before retrying
         const backoffTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
         progress.reportProgress(
-          'backoff', 
-          40 + (attempt / retryAttempts) * 20, 
+          'backoff',
+          40 + (attempt / retryAttempts) * 20,
           `Retrying in ${backoffTime}ms...`
         );
         await new Promise(resolve => setTimeout(resolve, backoffTime));
       }
     }
-    
+
     // Should never reach here due to the throw in the last iteration of the loop
     throw lastError || new Error('Unknown error during server request');
   }
-  
+
   // Create the proxy to server-side operations
   return {
     groth16: {
@@ -673,7 +673,7 @@ export function createServerSideFallback() {
           options
         }, 'groth16-prove');
       },
-      
+
       // Proxy proof verification to server
       verify: async (vKeyData: any, publicSignals: any, proof: any) => {
         console.log('Using server-side fallback for groth16.verify');
@@ -683,10 +683,10 @@ export function createServerSideFallback() {
           proof,
           proofSystem: 'groth16'
         }, 'groth16-verify');
-        
+
         return result.valid;
       },
-      
+
       // Combined proof generation from input
       fullProve: async (input: any, wasmFileName: string, zkeyFileName: string, options = {}) => {
         console.log('Using server-side fallback for groth16.fullProve');
@@ -698,7 +698,7 @@ export function createServerSideFallback() {
           options
         }, 'groth16-fullProve');
       },
-      
+
       // Proof export
       exportSolidityCallData: async (proof: any, publicSignals: any) => {
         console.log('Using server-side fallback for groth16.exportSolidityCallData');
@@ -707,11 +707,11 @@ export function createServerSideFallback() {
           publicSignals,
           proofSystem: 'groth16'
         }, 'export-calldata');
-        
+
         return result.calldata;
       }
     },
-    
+
     wtns: {
       // Proxy witness calculation to server
       calculate: async (input: any, wasmFileName: string) => {
@@ -722,7 +722,7 @@ export function createServerSideFallback() {
         }, 'calculate-witness');
       }
     },
-    
+
     plonk: {
       // Similar implementations for plonk
       prove: async (zkeyFileName: string, wtnsFileName: string, options = {}) => {
@@ -734,7 +734,7 @@ export function createServerSideFallback() {
           options
         }, 'plonk-prove');
       },
-      
+
       verify: async (vKeyData: any, publicSignals: any, proof: any) => {
         console.log('Using server-side fallback for plonk.verify');
         const result = await makeServerRequest('verify', {
@@ -743,10 +743,10 @@ export function createServerSideFallback() {
           proof,
           proofSystem: 'plonk'
         }, 'plonk-verify');
-        
+
         return result.valid;
       },
-      
+
       fullProve: async (input: any, wasmFileName: string, zkeyFileName: string, options = {}) => {
         console.log('Using server-side fallback for plonk.fullProve');
         return makeServerRequest('fullProve', {
@@ -757,7 +757,7 @@ export function createServerSideFallback() {
           options
         }, 'plonk-fullProve');
       },
-      
+
       exportSolidityCallData: async (proof: any, publicSignals: any) => {
         console.log('Using server-side fallback for plonk.exportSolidityCallData');
         const result = await makeServerRequest('exportSolidityCallData', {
@@ -765,11 +765,11 @@ export function createServerSideFallback() {
           publicSignals,
           proofSystem: 'plonk'
         }, 'export-calldata');
-        
+
         return result.calldata;
       }
     },
-    
+
     // Status check to determine if server-side processing is available
     status: {
       check: async () => {
@@ -805,16 +805,16 @@ export async function determineProofGenerationLocation(
   if (options?.preferredLocation) {
     return options.preferredLocation;
   }
-  
+
   try {
     // Initialize WebAssembly loader if needed
     if (!wasmLoader.getCapabilities()) {
       await wasmLoader.initialize();
     }
-    
+
     // Get client-side recommendation
     const clientSideRecommended = wasmLoader.isClientSideRecommended();
-    
+
     // If client-side is not recommended, try to check server availability
     if (!clientSideRecommended && snarkjsInstance) {
       // Check if server fallback is actually available
@@ -831,7 +831,7 @@ export async function determineProofGenerationLocation(
         console.warn('Could not check server availability:', e);
       }
     }
-    
+
     return clientSideRecommended ? 'client' : 'server';
   } catch (error) {
     console.warn('Failed to determine optimal proof generation location:', error);
@@ -848,7 +848,7 @@ export async function resetSnarkjs(): Promise<void> {
   snarkjsInstance = null;
   initializationStatus = 'not-started';
   initializationError = null;
-  
+
   // Clear any cached data
   console.log('snarkjs instance reset. Next call to initializeSnarkJS will reinitialize.');
 }
@@ -883,7 +883,7 @@ export function getSnarkjsVersion(): string {
  */
 class SnarkjsLoader {
   private initialized: boolean = false;
-  
+
   /**
    * Initialize the snarkjs library
    * @param options Initialization options
@@ -905,7 +905,7 @@ class SnarkjsLoader {
       return false;
     }
   }
-  
+
   /**
    * Check if snarkjs is initialized
    * @returns True if snarkjs is initialized
@@ -913,7 +913,7 @@ class SnarkjsLoader {
   isInitialized(): boolean {
     return isSnarkjsInitialized();
   }
-  
+
   /**
    * Get the snarkjs instance
    * @returns The snarkjs instance
@@ -921,7 +921,7 @@ class SnarkjsLoader {
   getSnarkjs(): any {
     return getSnarkjs();
   }
-  
+
   /**
    * Get the snarkjs version
    * @returns The snarkjs version
@@ -929,7 +929,7 @@ class SnarkjsLoader {
   getVersion(): string {
     return getSnarkjsVersion();
   }
-  
+
   /**
    * Reset the snarkjs instance
    * @returns Promise that resolves when reset is complete
@@ -938,7 +938,7 @@ class SnarkjsLoader {
     await resetSnarkjs();
     this.initialized = false;
   }
-  
+
   /**
    * Determine optimal proof generation location
    * @param options Options that may influence the decision
@@ -947,7 +947,7 @@ class SnarkjsLoader {
   async determineProofLocation(options?: ZKProofOptions): Promise<'client' | 'server'> {
     return determineProofGenerationLocation(options);
   }
-  
+
   /**
    * Get telemetry data for analysis
    * @returns Telemetry data

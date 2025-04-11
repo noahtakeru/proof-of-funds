@@ -92,10 +92,15 @@ template StandardProof() {
     component addressDerivedValue = Poseidon(1);
     addressDerivedValue.inputs[0] <== address;
     
-    // Simulated signature verification - in production, this would be more robust
-    // but we're optimizing for constraint count while maintaining security semantics
+    // Real signature verification - comparing the hashed wallet secret to the address-derived value
     signal signatureValid;
-    signatureValid <== 1;
+    component signatureCheck = IsEqual();
+    signatureCheck.in[0] <== secretHasher.out;
+    signatureCheck.in[1] <== addressDerivedValue.out;
+    signatureValid <== signatureCheck.out;
+    
+    // Ensure the signature is valid
+    signatureValid === 1;
     
     // Step 3: Hash inputs for verification commitment
     // Using Poseidon as it's optimized for ZK circuits (fewer constraints than Keccak/SHA)

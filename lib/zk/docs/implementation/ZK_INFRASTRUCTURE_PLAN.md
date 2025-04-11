@@ -1706,9 +1706,242 @@ These improvements will establish a solid foundation for continued development, 
 - Recursive proof verification for scaling (if applicable)
 - Complete documentation for all verification pathways
 
-## Phase 5: UI Integration (Weeks 9-10)
+## Phase 4.5: Core Platform Enhancements (Weeks 8.5-10.5)
 
-### Week 9: Frontend Integration
+### Week 8.5: User Management and Data Persistence
+
+#### Tasks:
+1. **PostgreSQL Integration (Days 1-2)**
+   - Implement robust database schema design:
+     - User account tables with proper indexing
+     - Proof tracking and metadata storage
+     - Wallet connection history
+     - Verification request logging
+   - Create comprehensive data access layer:
+     - Type-safe query builders and ORM integration
+     - Transaction management for data consistency
+     - Connection pooling for scalability
+     - Error handling and retry mechanisms
+   - Develop data migration and versioning system:
+     - Schema versioning with migration scripts
+     - Safe upgrade procedures
+     - Rollback capabilities
+     - Data integrity validation
+   - Add security measures for data protection:
+     - Data encryption for sensitive fields
+     - Role-based access control
+     - SQL injection prevention
+     - Audit logging for database operations
+
+2. **User Authentication System (Days 3-4)**
+   - Implement secure user signup workflow:
+     - Email verification process
+     - Identity validation options
+     - Progressive account creation
+     - Anti-spam measures
+   - Create comprehensive authentication system:
+     - Email/password authentication
+     - Wallet-based authentication (sign message)
+     - Multi-factor authentication support
+     - Session management and token handling
+   - Develop robust password and security policies:
+     - Password strength requirements
+     - Account recovery mechanisms
+     - Login attempt limiting
+     - Suspicious activity detection
+   - Add user profile management:
+     - Profile data CRUD operations
+     - Privacy settings management
+     - Communication preferences
+     - Account linking (email + wallet)
+
+3. **Account Lifecycle Management (Day 5)**
+   - Implement complete account lifecycle:
+     - Account creation with progressive verification
+     - Account suspension and reactivation
+     - Account merging for multiple registrations
+     - Account deletion with data handling
+   - Create GDPR-compliant data management:
+     - Data export functionality
+     - Right to be forgotten implementation
+     - Consent management
+     - Data retention policies
+   - Develop comprehensive account deletion:
+     - Soft deletion with retention period
+     - Hard deletion with complete data removal
+     - Proof invalidation upon deletion
+     - Asset relationship handling
+   - Add data retention and privacy controls:
+     - Configurable data retention periods
+     - Automated data anonymization
+     - Privacy impact assessment tools
+     - Regulatory compliance documentation
+
+#### Deliverables:
+- PostgreSQL database schema and migration scripts
+- Comprehensive data access layer with type safety
+- Secure user authentication system with multiple methods
+- Complete user management workflows (signup, login, recovery)
+- GDPR-compliant account deletion and data management
+- User profile management with privacy controls
+- Database security documentation
+- Authentication system architecture documentation
+
+### Week 9.5: Admin Interface and Analytics
+
+#### Tasks:
+1. **Admin Dashboard (Days 1-2)**
+   - Implement comprehensive admin interface:
+     - User management and search
+     - Proof tracking and verification
+     - System health monitoring
+     - Configuration management
+   - Create role-based access control:
+     - Admin role hierarchy
+     - Permission-based feature access
+     - Admin action logging
+     - Privileged operation approval flows
+   - Develop user management tools:
+     - User search and filtering
+     - Account status management
+     - Manual verification processes
+     - Support ticket integration
+   - Add proof management features:
+     - Proof search and exploration
+     - Verification status monitoring
+     - Manual verification capabilities
+     - Proof invalidation controls
+
+2. **GCP/BigQuery Integration (Days 3-4)**
+   - Implement secure GCP infrastructure:
+     - Service account setup and key management
+     - IAM policies and least privilege
+     - Secure credential storage
+     - Environment separation (dev/staging/prod)
+   - Create comprehensive analytics pipeline:
+     - Event collection and transformation
+     - Data streaming to BigQuery
+     - Scheduled batch processing
+     - Data warehousing best practices
+   - Develop analytics schema design:
+     - Event-based schema design
+     - Efficient partitioning strategy
+     - Historical data management
+     - Schema evolution handling
+   - Add detailed metrics and reporting:
+     - Usage statistics dashboards
+     - Performance monitoring
+     - User behavior analysis
+     - Business metrics tracking
+
+3. **System Monitoring & Reporting (Day 5)**
+   - Implement comprehensive monitoring:
+     - Service health checks
+     - Performance metrics collection
+     - Error rate tracking
+     - Resource utilization monitoring
+   - Create alerting and notification system:
+     - Threshold-based alerts
+     - Anomaly detection
+     - On-call rotation support
+     - Incident management integration
+   - Develop audit logging for compliance:
+     - Admin action logging
+     - User activity tracking
+     - Security event recording
+     - Compliance report generation
+   - Add executive dashboard for key metrics:
+     - Business KPI tracking
+     - System health overview
+     - User growth metrics
+     - Proof usage statistics
+
+#### Deliverables:
+- Comprehensive admin interface with role-based access
+- GCP infrastructure setup with secure practices
+- BigQuery integration for analytics data
+- Analytics dashboards for business insights
+- System monitoring and alerting configuration
+- Audit logging system for compliance
+- Administrative documentation and user guides
+- Security and access control documentation
+
+### Week 10.5: Infrastructure Security & Compliance
+
+#### Tasks:
+1. **Key Management System (Days 1-2)**
+   - Implement GCP Secret Manager integration:
+     - Secure storage of temporary wallet private keys
+     - Encryption key management with rotation policies
+     - Granular access controls with audit logging
+     - Environment-specific secret segmentation
+   - Create comprehensive encryption service:
+     - Centralized encryption/decryption logic
+     - Key derivation and protection
+     - Version-aware encryption to support key rotation
+     - Hardware security module (HSM) integration options
+   - Develop authentication token management:
+     - Secure token generation and validation
+     - Refresh token workflows
+     - Token revocation capabilities
+     - Cross-service authentication
+
+2. **Blockchain Indexing Service (Days 2-3)**
+   - Implement integration with blockchain indexing service:
+     - The Graph or similar service setup for Polygon
+     - Custom subgraph development for proof tracking
+     - Efficient query building for balance monitoring
+     - Real-time event subscription
+   - Create balance monitoring system:
+     - Transaction tracking for verified wallets
+     - Balance change detection with configurable thresholds
+     - USD value conversion with price feeds
+     - Historical balance tracking with time series
+   - Develop transaction analysis capabilities:
+     - Inflow/outflow categorization
+     - Transaction source/destination analysis
+     - Volume pattern detection
+     - Anomaly detection for unusual activity
+
+3. **API Gateway & Notification System (Days 3-5)**
+   - Implement comprehensive API Gateway:
+     - Centralized request routing and validation
+     - Rate limiting and throttling
+     - Request/response logging
+     - Cross-origin resource sharing (CORS) configuration
+   - Create robust authentication middleware:
+     - JWT validation and verification
+     - Role-based access control integration
+     - IP-based restrictions for admin functions
+     - Session management and timeout handling
+   - Develop notification system:
+     - Email notifications for key events
+     - In-app notification center
+     - Webhook support for external integrations
+     - Notification preferences management
+   - Add compliance and regulatory features:
+     - Configurable compliance checks
+     - Transaction monitoring for suspicious activity
+     - Audit trails for sensitive operations
+     - Regulatory reporting capabilities
+
+#### Deliverables:
+- GCP Secret Manager integration with key rotation policies
+- Centralized encryption service with version-aware encryption
+- Blockchain indexing service integration with The Graph or similar
+- Balance monitoring system with USD value conversion
+- Transaction analysis system with pattern detection
+- API Gateway with request validation and rate limiting
+- Authentication middleware with role-based access control
+- Notification system supporting email and in-app notifications
+- Compliance features with audit trails and monitoring
+- Security architecture documentation with threat modeling
+- Key management documentation with rotation procedures
+- API security documentation with authentication flows
+
+## Phase 5: UI Integration (Weeks 11-12.5)
+
+### Week 11: Frontend Integration
 
 #### Tasks:
 1. **Core UI Components (Days 1-3)**
@@ -1806,7 +2039,7 @@ These improvements will establish a solid foundation for continued development, 
 - Accessibility compliance report
 - Performance impact assessment by device class
 
-### Week 10: Performance Optimization & User Guidance
+### Week 12.5: Performance Optimization & User Guidance
 
 #### Tasks:
 1. **Performance Optimization (Days 1-3)**
@@ -1906,9 +2139,9 @@ These improvements will establish a solid foundation for continued development, 
 - Performance SLA documentation with specific metrics by operation
 - User preference personalization system for educational content
 
-## Phase 6: Testing & Deployment (Weeks 11-12)
+## Phase 6: Testing & Deployment (Weeks 13-14.5)
 
-### Week 11: Comprehensive Testing
+### Week 13: Comprehensive Testing
 
 #### Tasks:
 1. **Integration Testing (Days 1-2)**
@@ -2007,7 +2240,7 @@ These improvements will establish a solid foundation for continued development, 
 - Final testing sign-off document with comprehensive validation
 - User flow validation report with accessibility verification
 
-### Week 12: Documentation & Deployment
+### Week 14.5: Deployment & Documentation
 
 #### Tasks:
 1. **Complete Documentation (Days 1-2)**
