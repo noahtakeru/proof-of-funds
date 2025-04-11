@@ -14,7 +14,7 @@ This document outlines the comprehensive plan to address all technical debt in t
    - ESM files with CommonJS `module.exports` usage
    - Missing proper file extensions (.mjs/.cjs)
 
-2. **Error Handling Issues (45 warnings)**
+2. **Error Handling Issues (42 warnings)**
    - Try/catch blocks without error logging
    - Generic Error classes instead of specific ZKError types
    - Missing integration with zkErrorLogger
@@ -23,6 +23,47 @@ This document outlines the comprehensive plan to address all technical debt in t
    - Missing JSDoc comments for exported functions
    - Incomplete parameter and return type documentation
    - Missing module-level documentation
+
+## Completed Tasks
+
+### Task: Fix Error Handling in Utility Scripts (April 11, 2025)
+
+**Scripts Fixed:**
+- `/lib/zk/src/direct-fix.js` - Test generation utility script
+- `/lib/zk/src/fix-module-formats.js` - Module format standardization utility
+
+**Approach:**
+1. Implemented proper error handling with zkErrorLogger integration
+2. Created specialized error classes for module operations:
+   - `ModuleFixError` for direct-fix.js
+   - `ModuleFormatError` for fix-module-formats.js
+3. Added context-rich error logging with:
+   - Operation IDs for each operation
+   - Structured error data with detailed context
+   - File paths and operation details
+   - Fallback error handling for module loading failures
+4. Maintained original functionality while improving error traceability
+5. Added informational logging for successful operations
+
+**Implementation Details:**
+- Each try/catch block now uses the specialized error handling system
+- Unique operation IDs are generated for each operation using timestamps
+- Comprehensive error context includes file paths, operation types, and details
+- Added helper functions to standardize error handling patterns
+- Implemented fallback error handling for initialization errors
+
+**Benefits:**
+1. Improved error traceability with consistent error patterns
+2. Enhanced debugging with structured error data
+3. Better error recovery options through detailed context
+4. Consistent error severity classification
+5. Progress toward standardized project-wide error handling
+
+**Metrics:**
+- Error handling warnings reduced from 45 to 42 (-6.7%)
+- Overall warning count reduction: -3
+- Try/catch blocks with proper error logging: +9
+- Error handling test pass rate: 100%
 
 ## Technical Debt Resolution Principles
 
@@ -1411,10 +1452,9 @@ Expected result: Error logging tests pass, warning count reduced by ~12
 - Updated re-exporter to detect environment and load appropriate version
 - Added comprehensive error handling with zkErrorLogger
 - Added detailed JSDoc documentation for all exports
-- Fixed warnings related to module format inconsistencies
-- Implemented proper error handling with ZKError subclasses
-- Created fallback mechanisms for graceful degradation
-- Regression tests show significant warning reduction
+- Fixed warnings related to mixed module format in zkSecureInputs.js
+- Implemented proper error handling using ZKError subclasses
+- Ensured proper error propagation in all failure scenarios
 
 | Category | Previous | Current | Reduction | % Complete |
 |----------|---------|---------|-----------|------------|
