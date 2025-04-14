@@ -672,8 +672,21 @@ export class SystemConfigurationManager {
   }
 }
 
+// Singleton instance management
+let instance: SystemConfigurationManager | null = null;
+
+/**
+ * Get the singleton instance of the System Configuration Manager
+ */
+export function getInstance(): SystemConfigurationManager {
+  if (!instance) {
+    instance = new SystemConfigurationManager();
+  }
+  return instance;
+}
+
 // Create a singleton instance
-export const systemConfigurationManager = new SystemConfigurationManager();
+export const systemConfigurationManager = getInstance();
 
 // Export default for CommonJS compatibility
 export default systemConfigurationManager;

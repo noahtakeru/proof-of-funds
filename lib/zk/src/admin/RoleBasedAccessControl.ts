@@ -12,7 +12,9 @@
  * - Support for custom approval workflows
  */
 
-import { zkErrorLogger } from '../src/zkErrorLogger.mjs';
+import { EventEmitter } from 'events';
+import { v4 as uuidv4 } from 'uuid';
+import { zkErrorLogger } from '../zkErrorLogger.mjs';
 
 // Permission constants
 export enum Permission {
@@ -177,12 +179,13 @@ export interface PrivilegedActionRequest {
 /**
  * RBAC System implementation
  */
-export class RBACSystem {
+export class RBACSystem extends EventEmitter {
   private userRoles: UserRole[] = [];
   private actionLog: ActionLogEntry[] = [];
   private privilegedActions: PrivilegedActionRequest[] = [];
   
   constructor() {
+    super();
     // Initialize with a default super admin if none exists
     if (process.env.SUPER_ADMIN_WALLET) {
       this.addUserRole({
@@ -215,6 +218,96 @@ export class RBACSystem {
     }
     
     return true;
+  }
+  
+  /**
+   * Assign a role to a user
+   * @param walletAddress The wallet address of the user
+   * @param role The role to assign
+   * @param adminWalletAddress The wallet address of the admin making the change
+   * @returns True if the role was assigned successfully, false otherwise
+   */
+  public assignRole(walletAddress: string, role: Role, adminWalletAddress: string): boolean {
+    // Check if admin has permission to edit users
+    if (!this.hasPermission(adminWalletAddress, Permission.EDIT_USER)) {
+      this.logAction({
+        userId: 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'assign_role',
+        targetResource: walletAddress,
+        status: 'denied',
+        details: { role }
+      });
+      
+      return false;
+    }
+    
+    // Find the user role
+    const userRole = this.getUserRole(walletAddress);
+    
+    // Security check: prevent non-super-admins from modifying super-admin roles
+    const adminRole = this.getUserRole(adminWalletAddress);
+    if (role === Role.SUPER_ADMIN && 
+        adminRole && !adminRole.roles.includes(Role.SUPER_ADMIN)) {
+      this.logAction({
+        userId: adminRole.userId,
+        walletAddress: adminWalletAddress,
+        action: 'assign_role',
+        targetResource: userRole ? userRole.userId : walletAddress,
+        status: 'denied',
+        details: {
+          reason: 'Cannot assign super admin role without super admin privileges'
+        }
+      });
+      
+      return false;
+    }
+    
+    if (userRole) {
+      // If user already has the role, no need to add it again
+      if (userRole.roles.includes(role)) {
+        return true;
+      }
+      
+      // Add the role to the user
+      const updatedRoles = [...userRole.roles, role];
+      this.addUserRole({
+        ...userRole,
+        roles: updatedRoles
+      });
+      
+      // Log the action
+      this.logAction({
+        userId: adminRole?.userId || 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'assign_role',
+        targetResource: userRole.userId,
+        status: 'success',
+        details: { role, updatedRoles }
+      });
+      
+      return true;
+    } else {
+      // User doesn't exist, create a new user with the role
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      this.addUserRole({
+        userId,
+        walletAddress,
+        roles: [role]
+      });
+      
+      // Log the action
+      this.logAction({
+        userId: adminRole?.userId || 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'assign_role',
+        targetResource: userId,
+        status: 'success',
+        details: { role, newUser: true }
+      });
+      
+      return true;
+    }
   }
   
   /**
@@ -276,6 +369,9 @@ export class RBACSystem {
     };
     
     this.actionLog.push(logEntry);
+    
+    // Emit event for real-time monitoring
+    this.emit('audit', logEntry);
     
     // Also log to the central error logger for persistence
     zkErrorLogger.log(
@@ -452,8 +548,21 @@ export class RBACSystem {
   }
 }
 
+// Singleton instance management
+let instance: RBACSystem | null = null;
+
+/**
+ * Get the singleton instance of the RBAC system
+ */
+export function getInstance(): RBACSystem {
+  if (!instance) {
+    instance = new RBACSystem();
+  }
+  return instance;
+}
+
 // Create a singleton instance
-export const rbacSystem = new RBACSystem();
+export const rbacSystem = getInstance();
 
 // Export default for CommonJS compatibility
 export default rbacSystem;

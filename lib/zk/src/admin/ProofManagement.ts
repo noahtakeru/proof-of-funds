@@ -635,8 +635,21 @@ export class ProofManagementSystem {
   }
 }
 
+// Singleton instance management
+let instance: ProofManagementSystem | null = null;
+
+/**
+ * Get the singleton instance of the Proof Management System
+ */
+export function getInstance(): ProofManagementSystem {
+  if (!instance) {
+    instance = new ProofManagementSystem();
+  }
+  return instance;
+}
+
 // Create a singleton instance
-export const proofManagementSystem = new ProofManagementSystem();
+export const proofManagementSystem = getInstance();
 
 // Export default for CommonJS compatibility
 export default proofManagementSystem;

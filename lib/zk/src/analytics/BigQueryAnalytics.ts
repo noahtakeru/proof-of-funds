@@ -411,6 +411,58 @@ export class BigQueryAnalytics {
   }
   
   /**
+   * Stream data to BigQuery in real-time
+   * 
+   * @param tableName - The name of the table to stream data to
+   * @param data - The data to stream
+   * @param options - Optional streaming options
+   * @returns True if the data was streamed successfully
+   */
+  public async streamData(
+    tableName: string,
+    data: Record<string, any>[],
+    options?: {
+      skipInvalidRows?: boolean;
+      ignoreUnknownValues?: boolean;
+      templateSuffix?: string;
+    }
+  ): Promise<boolean> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
+    if (!this.client) {
+      return false;
+    }
+    
+    try {
+      // Get the table
+      const table = this.tables[tableName] || this.dataset?.table(tableName);
+      if (!table) {
+        throw new Error(`Table not found: ${tableName}`);
+      }
+      
+      // Insert the data
+      await table.insert(data, {
+        skipInvalidRows: options?.skipInvalidRows,
+        ignoreUnknownValues: options?.ignoreUnknownValues,
+        templateSuffix: options?.templateSuffix
+      });
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to stream data to BigQuery', {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message, tableName, dataSize: data.length }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
    * Run a custom analytics query
    * 
    * @param query - The BigQuery SQL query to run
@@ -495,6 +547,157 @@ export class BigQueryAnalytics {
   }
   
   /**
+   * Create a new BigQuery table with the specified schema
+   * 
+   * @param tableName - The name of the table to create
+   * @param schema - The schema definition for the table
+   * @param options - Optional table creation options
+   * @returns True if the table was created successfully
+   */
+  public async createTable(
+    tableName: string,
+    schema: SchemaDefinition[],
+    options?: {
+      timePartitioning?: { type: 'DAY' | 'HOUR'; field?: string };
+      clustering?: { fields: string[] };
+      description?: string;
+    }
+  ): Promise<boolean> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
+    if (!this.client || !this.dataset) {
+      return false;
+    }
+    
+    try {
+      // Check if table already exists
+      const table = this.dataset.table(tableName);
+      const [exists] = await table.exists();
+      
+      if (exists) {
+        zkErrorLogger.log('WARNING', `Table already exists: ${tableName}`, {
+          category: 'analytics',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      // Create the table
+      await table.create({
+        schema: schema.map(field => ({
+          name: field.name,
+          type: field.type,
+          mode: field.mode || 'NULLABLE',
+          description: field.description,
+          fields: field.fields
+        })),
+        timePartitioning: options?.timePartitioning,
+        clustering: options?.clustering,
+        description: options?.description
+      });
+      
+      // Store table reference
+      this.tables[tableName] = table;
+      
+      zkErrorLogger.log('INFO', `Created BigQuery table: ${tableName}`, {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true
+      });
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to create BigQuery table', {
+        category: 'analytics',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message, tableName }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
+   * Update the schema of an existing BigQuery table
+   * 
+   * @param tableName - The name of the table to update
+   * @param schemaUpdates - The schema fields to add (BigQuery only allows adding new fields)
+   * @returns True if the schema was updated successfully
+   */
+  public async updateSchema(
+    tableName: string,
+    schemaUpdates: SchemaDefinition[]
+  ): Promise<boolean> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
+    if (!this.client || !this.dataset) {
+      return false;
+    }
+    
+    try {
+      // Get the table
+      const table = this.tables[tableName] || this.dataset.table(tableName);
+      const [exists] = await table.exists();
+      
+      if (!exists) {
+        zkErrorLogger.log('WARNING', `Table does not exist: ${tableName}`, {
+          category: 'analytics',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      // Get current schema
+      const [metadata] = await table.getMetadata();
+      const currentSchema = metadata.schema.fields;
+      
+      // Add new fields to schema (BigQuery only allows adding new fields)
+      const updatedSchema = [
+        ...currentSchema,
+        ...schemaUpdates.map(field => ({
+          name: field.name,
+          type: field.type,
+          mode: field.mode || 'NULLABLE',
+          description: field.description,
+          fields: field.fields
+        }))
+      ];
+      
+      // Update the table schema
+      await table.setMetadata({
+        schema: {
+          fields: updatedSchema
+        }
+      });
+      
+      zkErrorLogger.log('INFO', `Updated schema for BigQuery table: ${tableName}`, {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true,
+        details: { addedFields: schemaUpdates.map(f => f.name) }
+      });
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to update BigQuery table schema', {
+        category: 'analytics',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message, tableName }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
    * Create or update an ETL job
    * 
    * @param job - The ETL job definition
@@ -533,6 +736,93 @@ export class BigQueryAnalytics {
         userFixable: false,
         recoverable: true,
         details: { error: error.message, jobId: job.id }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
+   * Manage ETL (Extract, Transform, Load) job
+   * 
+   * @param operation - The operation to perform (create, update, delete, schedule, run)
+   * @param job - The ETL job definition or ID
+   * @returns The result of the operation
+   */
+  public async manageETLJob(
+    operation: 'create' | 'update' | 'delete' | 'schedule' | 'run',
+    job: ETLJob | string
+  ): Promise<boolean | ETLJob | null> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
+    try {
+      switch (operation) {
+        case 'create':
+        case 'update':
+          if (typeof job === 'string') {
+            throw new Error('Job definition is required for create/update operations');
+          }
+          return await this.saveETLJob(job);
+          
+        case 'delete':
+          if (typeof job !== 'string') {
+            job = job.id;
+          }
+          
+          // Find and remove the job
+          const jobIndex = this.etlJobs.findIndex(j => j.id === job);
+          if (jobIndex >= 0) {
+            this.etlJobs.splice(jobIndex, 1);
+            return true;
+          }
+          return false;
+          
+        case 'schedule':
+          if (typeof job !== 'string') {
+            job = job.id;
+          }
+          
+          // Find the job
+          const jobToSchedule = this.etlJobs.find(j => j.id === job);
+          if (!jobToSchedule) {
+            return false;
+          }
+          
+          // In a real implementation, this would register a cron job
+          // For this simulation, we just log that it was scheduled
+          zkErrorLogger.log('INFO', `ETL job scheduled: ${job}`, {
+            category: 'analytics',
+            userFixable: false,
+            recoverable: true,
+            details: { schedule: jobToSchedule.schedule }
+          });
+          
+          return true;
+          
+        case 'run':
+          if (typeof job !== 'string') {
+            job = job.id;
+          }
+          
+          // Run the job
+          const success = await this.runETLJob(job);
+          if (success) {
+            // Return the updated job
+            return this.etlJobs.find(j => j.id === job) || null;
+          }
+          return false;
+          
+        default:
+          throw new Error(`Invalid operation: ${operation}`);
+      }
+    } catch (error) {
+      zkErrorLogger.log('ERROR', `Failed to manage ETL job: ${operation}`, {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message, operation, job: typeof job === 'string' ? job : job.id }
       });
       
       return false;

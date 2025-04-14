@@ -1,0 +1,19 @@
+{
+  "date": "2025-04-14T08:03:06.528Z",
+  "totalTests": 3,
+  "passedTests": 0,
+  "testResults": [
+    {
+      "name": "Admin Dashboard Components",
+      "script": "/Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/week95/admin-dashboard-test.cjs"
+    },
+    {
+      "name": "GCP/BigQuery Integration",
+      "script": "/Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/week95/gcp-bigquery-test.cjs"
+    },
+    {
+      "name": "System Monitoring & Reporting",
+      "script": "/Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/week95/system-monitoring-test.cjs"
+    }
+  ]
+}

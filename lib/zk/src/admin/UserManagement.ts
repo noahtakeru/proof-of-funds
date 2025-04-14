@@ -399,6 +399,112 @@ export class UserManagementSystem {
   }
   
   /**
+   * Assign a single role to a user
+   * @param walletAddress The wallet address of the user
+   * @param role The role to assign
+   * @param adminWalletAddress The wallet address of the admin making the change
+   * @returns True if the role was assigned successfully, false otherwise
+   */
+  public assignUserRole(
+    walletAddress: string,
+    role: Role,
+    adminWalletAddress: string
+  ): boolean {
+    // Check if admin has permission to edit users
+    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.EDIT_USER)) {
+      rbacSystem.logAction({
+        userId: 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'assign_user_role',
+        targetResource: walletAddress,
+        status: 'denied',
+        details: { role }
+      });
+      
+      return false;
+    }
+    
+    // Find the user in our management system
+    const user = this.users.find(
+      u => u.walletAddress.toLowerCase() === walletAddress.toLowerCase()
+    );
+    
+    // Get admin user info for logging
+    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
+    
+    if (!user) {
+      // If user doesn't exist in the management system but exists in RBAC, add them
+      const userRole = rbacSystem.getUserRole(walletAddress);
+      
+      if (userRole) {
+        // Use RBAC system directly to assign the role
+        const success = rbacSystem.assignRole(walletAddress, role, adminWalletAddress);
+        
+        if (success) {
+          // Create the user in our management system
+          this.createUser(
+            {
+              walletAddress: walletAddress,
+              roles: [...userRole.roles], // Already updated by RBAC system
+              customPermissions: userRole.customPermissions
+            },
+            adminWalletAddress
+          );
+          
+          return true;
+        }
+        
+        return false;
+      } else {
+        // Create a new user with the role
+        const newUser = this.createUser(
+          {
+            walletAddress: walletAddress,
+            roles: [role]
+          },
+          adminWalletAddress
+        );
+        
+        return newUser !== null;
+      }
+    }
+    
+    // Security check: prevent non-super-admins from adding super-admin role
+    if (role === Role.SUPER_ADMIN && 
+        adminRole && !adminRole.roles.includes(Role.SUPER_ADMIN)) {
+      rbacSystem.logAction({
+        userId: adminRole.userId,
+        walletAddress: adminWalletAddress,
+        action: 'assign_user_role',
+        targetResource: user.id,
+        status: 'denied',
+        details: {
+          reason: 'Cannot assign super admin role without super admin privileges'
+        }
+      });
+      
+      return false;
+    }
+    
+    // Use the RBAC system to assign the role
+    const success = rbacSystem.assignRole(walletAddress, role, adminWalletAddress);
+    
+    if (success) {
+      // Log the action
+      rbacSystem.logAction({
+        userId: adminRole?.userId || 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'assign_user_role',
+        targetResource: user.id,
+        status: 'success',
+        details: { role }
+      });
+    }
+    
+    return success;
+  }
+  
+  /**
    * Update user status (verification, suspension)
    */
   public updateUserStatus(
@@ -828,8 +934,21 @@ export class UserManagementSystem {
   }
 }
 
+// Singleton instance management
+let instance: UserManagementSystem | null = null;
+
+/**
+ * Get the singleton instance of the User Management System
+ */
+export function getInstance(): UserManagementSystem {
+  if (!instance) {
+    instance = new UserManagementSystem();
+  }
+  return instance;
+}
+
 // Create a singleton instance
-export const userManagementSystem = new UserManagementSystem();
+export const userManagementSystem = getInstance();
 
 // Export default for CommonJS compatibility
 export default userManagementSystem;

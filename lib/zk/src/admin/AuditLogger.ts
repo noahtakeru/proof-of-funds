@@ -95,6 +95,45 @@ export class AuditLoggingSystem {
 
     return logEntry;
   }
+  
+  /**
+   * Log an event (simplified interface for external systems)
+   * @param userId The ID of the user who performed the action
+   * @param walletAddress The wallet address of the user
+   * @param action The action performed
+   * @param targetResource The resource targeted by the action
+   * @param status The status of the action (success, denied, error)
+   * @param category The category of the action
+   * @param severity The severity of the event
+   * @param details Additional details about the event
+   * @returns The created log entry
+   */
+  public logEvent(
+    userId: string,
+    walletAddress: string,
+    action: string,
+    targetResource: string,
+    status: 'success' | 'denied' | 'error',
+    category: AuditLogEntry['category'] = 'other',
+    severity: AuditLogEntry['severity'] = 'info',
+    details?: any
+  ): AuditLogEntry {
+    return this.logAuditEvent({
+      userId,
+      walletAddress,
+      action,
+      targetResource,
+      status,
+      category,
+      severity,
+      details,
+      // Add IP address and user agent if available from the environment
+      ...(process.env.CLIENT_IP ? { ip: process.env.CLIENT_IP } : {}),
+      ...(process.env.USER_AGENT ? { userAgent: process.env.USER_AGENT } : {}),
+      // Add a session ID if available
+      ...(process.env.SESSION_ID ? { sessionId: process.env.SESSION_ID } : {})
+    });
+  }
 
   /**
    * Search audit logs
@@ -340,6 +379,61 @@ export class AuditLoggingSystem {
   }
 
   /**
+   * Get audit logs with optional filtering
+   * @param filters Optional filters to apply to the audit logs
+   * @param adminWalletAddress The wallet address of the admin requesting the logs
+   * @param pagination Optional pagination parameters
+   * @returns An array of audit log entries matching the filters, or null if the user doesn't have permission
+   */
+  public getAuditLogs(
+    filters: AuditLogSearchFilters | undefined,
+    adminWalletAddress: string,
+    pagination?: { skip: number; limit: number }
+  ): AuditLogEntry[] | null {
+    // Check if admin has permission to view logs
+    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_LOGS)) {
+      rbacSystem.logAction({
+        userId: 'unknown',
+        walletAddress: adminWalletAddress,
+        action: 'get_audit_logs',
+        targetResource: 'audit_logs',
+        status: 'denied',
+        details: { filters }
+      });
+
+      return null;
+    }
+
+    // Search logs with the given filters
+    const searchResult = this.searchAuditLogs(filters || {}, adminWalletAddress, pagination);
+
+    if (!searchResult) {
+      return null;
+    }
+
+    // Get admin user info for logging
+    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
+
+    // Log the action
+    this.logAuditEvent({
+      userId: adminRole?.userId || 'unknown',
+      walletAddress: adminWalletAddress,
+      action: 'get_audit_logs',
+      targetResource: 'audit_logs',
+      status: 'success',
+      category: 'security',
+      severity: 'info',
+      details: {
+        filters,
+        pagination,
+        resultCount: searchResult.logs.length
+      }
+    });
+
+    return searchResult.logs;
+  }
+
+  /**
    * Export audit logs for compliance
    */
   public exportAuditLogs(
@@ -572,8 +666,21 @@ export class AuditLoggingSystem {
   }
 }
 
+// Singleton instance management
+let instance: AuditLoggingSystem | null = null;
+
+/**
+ * Get the singleton instance of the Audit Logging System
+ */
+export function getInstance(): AuditLoggingSystem {
+  if (!instance) {
+    instance = new AuditLoggingSystem();
+  }
+  return instance;
+}
+
 // Create a singleton instance
-export const auditLoggingSystem = new AuditLoggingSystem();
+export const auditLoggingSystem = getInstance();
 
 // Export default for CommonJS compatibility
 export default auditLoggingSystem;
