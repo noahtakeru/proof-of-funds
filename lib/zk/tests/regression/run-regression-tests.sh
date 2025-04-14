@@ -59,6 +59,15 @@ week7_passed=0
 week8_tests=0
 week8_passed=0
 
+week85_tests=0
+week85_passed=0
+
+week10_tests=0
+week10_passed=0
+
+week105_tests=0
+week105_passed=0
+
 # Phase 4 tests (real wallet tests)
 phase4_tests=0
 phase4_passed=0
@@ -97,6 +106,12 @@ print_pass() {
     week7_passed=$((week7_passed + 1))
   elif [[ "$current_week" == "8" ]]; then
     week8_passed=$((week8_passed + 1))
+  elif [[ "$current_week" == "8.5" ]]; then
+    week85_passed=$((week85_passed + 1))
+  elif [[ "$current_week" == "10" ]]; then
+    week10_passed=$((week10_passed + 1))
+  elif [[ "$current_week" == "10.5" ]]; then
+    week105_passed=$((week105_passed + 1))
   elif [[ "$current_week" == "phase4" ]]; then
     phase4_passed=$((phase4_passed + 1))
   fi
@@ -133,6 +148,12 @@ track_test() {
     week7_tests=$((week7_tests + 1))
   elif [[ "$current_week" == "8" ]]; then
     week8_tests=$((week8_tests + 1))
+  elif [[ "$current_week" == "8.5" ]]; then
+    week85_tests=$((week85_tests + 1))
+  elif [[ "$current_week" == "10" ]]; then
+    week10_tests=$((week10_tests + 1))
+  elif [[ "$current_week" == "10.5" ]]; then
+    week105_tests=$((week105_tests + 1))
   elif [[ "$current_week" == "phase4" ]]; then
     phase4_tests=$((phase4_tests + 1))
   fi
@@ -801,6 +822,10 @@ task7_2_passed=0
 task7_3_tests=1
 task7_3_passed=0
 
+# Initialize week 8.5 test counter
+week85_tests=0
+week85_passed=0
+
 print_task "Task 1: Contract Interface"
 print_info "Testing contract interface implementation..."
 track_test # increment test counter
@@ -908,6 +933,116 @@ task8_3_tests=1
 task8_3_passed=0
 task8_4_tests=1
 task8_4_passed=0
+
+# Week 8.5 Tests
+print_header "Week 8.5: Memory Optimization and Cross-Platform Deployment"
+current_week="8.5"
+
+# Initialize task-specific counters
+task85_1_tests=1
+task85_1_passed=0
+task85_2_tests=1
+task85_2_passed=0
+task85_3_tests=1
+task85_3_passed=0
+task85_4_tests=1
+task85_4_passed=0
+
+print_task "Task 1: Memory Optimization"
+track_test # increment test counter
+# Check for memory optimization module files
+if [ -f ./lib/zk/src/memory/MemoryOptimizer.ts ] && [ -f ./lib/zk/src/memory/CircuitMemoryPool.ts ] && [ -f ./lib/zk/src/memory/MemoryAnalyzer.ts ]; then
+  # Check if the files contain the required functionality
+  if node --input-type=module -e "
+    import * as fs from 'fs';
+    
+    const files = [
+      './lib/zk/src/memory/MemoryOptimizer.ts',
+      './lib/zk/src/memory/CircuitMemoryPool.ts',
+      './lib/zk/src/memory/MemoryAnalyzer.ts'
+    ];
+    
+    let allFilesValid = true;
+    
+    for (const file of files) {
+      const content = fs.readFileSync(file, 'utf8');
+      
+      if (file.includes('MemoryOptimizer') && 
+          !(content.includes('class MemoryOptimizer') && content.includes('applyOptimizationStrategy'))) {
+        console.log('MemoryOptimizer.ts missing required functionality');
+        allFilesValid = false;
+      }
+      
+      if (file.includes('CircuitMemoryPool') && 
+          !(content.includes('class CircuitMemoryPool') && content.includes('allocate'))) {
+        console.log('CircuitMemoryPool.ts missing required functionality');
+        allFilesValid = false;
+      }
+      
+      if (file.includes('MemoryAnalyzer') && 
+          !(content.includes('class MemoryAnalyzer') && content.includes('generateReport'))) {
+        console.log('MemoryAnalyzer.ts missing required functionality');
+        allFilesValid = false;
+      }
+    }
+    
+    if (allFilesValid) {
+      console.log('All memory optimization modules contain required functionality');
+      process.exit(0);
+    } else {
+      process.exit(1);
+    }
+  "; then
+    print_pass "Memory Optimization tests passed"
+    task85_1_passed=1
+  else
+    print_fail "Memory Optimization tests failed"
+  fi
+else
+  print_fail "Memory optimization module files not found"
+fi
+
+print_task "Task 2: Cross-Platform Deployment Framework"
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/cross-platform-deployment-test.cjs ]; then
+  # Run the dedicated test file
+  if node ./lib/zk/tests/regression/cross-platform-deployment-test.cjs; then
+    print_pass "Cross-Platform Deployment Framework tests passed"
+    task85_2_passed=1
+  else
+    print_fail "Cross-Platform Deployment Framework tests failed"
+  fi
+else
+  print_fail "Cross-Platform Deployment Framework test file not found"
+fi
+
+print_task "Task 3: Proof Size Optimization"
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/proof-size-optimization-test.cjs ]; then
+  # Run the dedicated test file
+  if node ./lib/zk/tests/regression/proof-size-optimization-test.cjs; then
+    print_pass "Proof Size Optimization tests passed"
+    task85_3_passed=1
+  else
+    print_fail "Proof Size Optimization tests failed"
+  fi
+else
+  print_fail "Proof Size Optimization test file not found"
+fi
+
+print_task "Task 4: Dynamic Resource Allocation"
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/dynamic-resource-allocation-test.cjs ]; then
+  # Run the dedicated test file
+  if node ./lib/zk/tests/regression/dynamic-resource-allocation-test.cjs; then
+    print_pass "Dynamic Resource Allocation tests passed"
+    task85_4_passed=1
+  else
+    print_fail "Dynamic Resource Allocation tests failed"
+  fi
+else
+  print_fail "Dynamic Resource Allocation test file not found"
+fi
 
 print_task "Task 1: Multi-platform Deployment Manager"
 track_test # increment test counter
@@ -1063,6 +1198,169 @@ else
   print_fail "Security framework files not found"
 fi
 
+# Add Week 10.5 tests section after the Security Testing Framework tests
+print_header "Week 10.5: Enhanced Security Framework"
+current_week="10.5"
+
+# Initialize task-specific counters
+task105_1_tests=1
+task105_1_passed=0
+task105_2_tests=1
+task105_2_passed=0
+task105_3_tests=1
+task105_3_passed=0
+task105_4_tests=1
+task105_4_passed=0
+task105_5_tests=1
+task105_5_passed=0
+
+print_task "Task 1: Performance Benchmarking Framework"
+track_test # increment test counter
+if [ -f ./lib/zk/tests/performance/PerformanceBenchmark.js ] && [ -f ./lib/zk/tests/performance/ProofGenerationTest.js ] && [ -f ./lib/zk/tests/performance/ScalabilityTest.js ]; then
+  if node ./lib/zk/tests/regression/security-framework-test.cjs; then
+    print_pass "Performance Benchmarking Framework tests passed"
+    task105_1_passed=1
+  else
+    print_fail "Performance Benchmarking Framework tests failed"
+  fi
+else
+  print_fail "Performance Benchmarking Framework files not found"
+fi
+
+print_task "Task 2: Security Testing Framework Enhancement"
+track_test # increment test counter
+if [ -f ./lib/zk/tests/security/SecurityTest.js ] && [ -f ./lib/zk/tests/security/AttackVectorTest.js ]; then
+  if node --eval "
+    const fs = require('fs');
+    const securityTestContent = fs.readFileSync('./lib/zk/tests/security/SecurityTest.js', 'utf8');
+    const attackVectorTestContent = fs.readFileSync('./lib/zk/tests/security/AttackVectorTest.js', 'utf8');
+    
+    if (securityTestContent.includes('generateRecommendation') && 
+        attackVectorTestContent.includes('simulateSignatureReplay') &&
+        attackVectorTestContent.includes('extends SecurityTest')) {
+      console.log('✓ Security Testing Framework Enhancement contains required methods');
+      process.exit(0);
+    } else {
+      console.log('✗ Security Testing Framework Enhancement missing required methods');
+      process.exit(1);
+    }
+  "; then
+    print_pass "Security Testing Framework Enhancement tests passed"
+    task105_2_passed=1
+  else
+    print_fail "Security Testing Framework Enhancement tests failed"
+  fi
+else
+  print_fail "Security Testing Framework Enhancement files not found"
+fi
+
+print_task "Task 3: Implementation Vulnerability Detector"
+track_test # increment test counter
+if [ -f ./lib/zk/src/security/detectors/ImplementationVulnerabilityDetector.js ] && [ -f ./lib/zk/scripts/run-implementation-vulnerability-check.js ]; then
+  if node --eval "
+    const fs = require('fs');
+    
+    try {
+      const ivdContent = fs.readFileSync('./lib/zk/src/security/detectors/ImplementationVulnerabilityDetector.js', 'utf8');
+      const scriptContent = fs.readFileSync('./lib/zk/scripts/run-implementation-vulnerability-check.js', 'utf8');
+      const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+      
+      if (ivdContent.includes('class ImplementationVulnerabilityDetector') && 
+          ivdContent.includes('evaluate') &&
+          scriptContent.includes('runImplementationVulnerabilityCheck') &&
+          packageJson.scripts && packageJson.scripts['test:zk:vuln']) {
+        console.log('✓ Implementation Vulnerability Detector contains required methods and scripts');
+        process.exit(0);
+      } else {
+        console.log('✗ Implementation Vulnerability Detector missing required methods or scripts');
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
+  "; then
+    print_pass "Implementation Vulnerability Detector tests passed"
+    task105_3_passed=1
+  else
+    print_fail "Implementation Vulnerability Detector tests failed"
+  fi
+else
+  print_fail "Implementation Vulnerability Detector files not found"
+fi
+
+print_task "Task 4: Security Rules Framework"
+track_test # increment test counter
+if [ -f ./lib/zk/src/security/rules/CryptoVerificationRule.js ] && [ -f ./lib/zk/src/security/rules/PrivilegeEscalationRule.js ] && [ -f ./lib/zk/src/security/rules/index.js ]; then
+  if node --eval "
+    const fs = require('fs');
+    
+    try {
+      const cryptoRuleContent = fs.readFileSync('./lib/zk/src/security/rules/CryptoVerificationRule.js', 'utf8');
+      const privRuleContent = fs.readFileSync('./lib/zk/src/security/rules/PrivilegeEscalationRule.js', 'utf8');
+      const indexContent = fs.readFileSync('./lib/zk/src/security/rules/index.js', 'utf8');
+      
+      if (cryptoRuleContent.includes('class CryptoVerificationRule') && 
+          cryptoRuleContent.includes('evaluate') &&
+          privRuleContent.includes('class PrivilegeEscalationRule') &&
+          privRuleContent.includes('evaluate') &&
+          indexContent.includes('defaultRules') &&
+          indexContent.includes('getAllRules')) {
+        console.log('✓ Security Rules Framework contains required rules and methods');
+        process.exit(0);
+      } else {
+        console.log('✗ Security Rules Framework missing required rules or methods');
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
+  "; then
+    print_pass "Security Rules Framework tests passed"
+    task105_4_passed=1
+  else
+    print_fail "Security Rules Framework tests failed"
+  fi
+else
+  print_fail "Security Rules Framework files not found"
+fi
+
+print_task "Task 5: Anomaly Detection"
+track_test # increment test counter
+if [ -f ./lib/zk/src/security/detectors/AnomalyDetector.js ] && [ -f ./lib/zk/src/security/detectors/SecurityDetectorFactory.js ]; then
+  if node --eval "
+    const fs = require('fs');
+    
+    try {
+      const anomalyDetectorContent = fs.readFileSync('./lib/zk/src/security/detectors/AnomalyDetector.js', 'utf8');
+      const factoryContent = fs.readFileSync('./lib/zk/src/security/detectors/SecurityDetectorFactory.js', 'utf8');
+      
+      if (anomalyDetectorContent.includes('class AnomalyDetector') && 
+          anomalyDetectorContent.includes('detectStatisticalOutliers') &&
+          anomalyDetectorContent.includes('detectNamingInconsistencies') &&
+          factoryContent.includes('AnomalyDetector') &&
+          factoryContent.includes('this.registerDetector(new AnomalyDetector())')) {
+        console.log('✓ Anomaly Detection contains required methods and factory integration');
+        process.exit(0);
+      } else {
+        console.log('✗ Anomaly Detection missing required methods or factory integration');
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
+  "; then
+    print_pass "Anomaly Detection tests passed"
+    task105_5_passed=1
+  else
+    print_fail "Anomaly Detection tests failed"
+  fi
+else
+  print_fail "Anomaly Detection files not found"
+fi
+
 # Run the enhanced regression tests if they exist
 if [ -f ./lib/zk/tests/regression/enhanced-runner.cjs ]; then
   print_info "Running enhanced regression tests..."
@@ -1158,6 +1456,19 @@ echo -e "  Task 1: Multi-platform Deployment Manager - $([ $task8_1_passed -eq $
 echo -e "  Task 2: Performance Optimization Framework - $([ $task8_2_passed -eq $task8_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_2_passed))/$task8_2_tests passed${NC}")"
 echo -e "  Task 3: End-to-End Integration Testing - $([ $task8_3_passed -eq $task8_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_3_passed))/$task8_3_tests passed${NC}")"
 echo -e "  Task 4: Security Testing Framework - $([ $task8_4_passed -eq $task8_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_4_passed))/$task8_4_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 8.5: Memory Optimization and Cross-Platform Deployment - ${week85_passed:-0}/${week85_tests:-0} tests passed${NC}"
+echo -e "  Task 1: Memory Optimization - $([ $task85_1_passed -eq $task85_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_1_passed))/$task85_1_tests passed${NC}")"
+echo -e "  Task 2: Cross-Platform Deployment Framework - $([ $task85_2_passed -eq $task85_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_2_passed))/$task85_2_tests passed${NC}")"
+echo -e "  Task 3: Proof Size Optimization - $([ $task85_3_passed -eq $task85_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_3_passed))/$task85_3_tests passed${NC}")"
+echo -e "  Task 4: Dynamic Resource Allocation - $([ $task85_4_passed -eq $task85_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_4_passed))/$task85_4_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 10.5: Enhanced Security Framework - ${week105_passed}/${week105_tests} tests passed${NC}"
+echo -e "  Task 1: Performance Benchmarking Framework - $([ $task105_1_passed -eq $task105_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_1_passed))/$task105_1_tests passed${NC}")"
+echo -e "  Task 2: Security Testing Framework Enhancement - $([ $task105_2_passed -eq $task105_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_2_passed))/$task105_2_tests passed${NC}")"
+echo -e "  Task 3: Implementation Vulnerability Detector - $([ $task105_3_passed -eq $task105_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_3_passed))/$task105_3_tests passed${NC}")"
+echo -e "  Task 4: Security Rules Framework - $([ $task105_4_passed -eq $task105_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_4_passed))/$task105_4_tests passed${NC}")"
+echo -e "  Task 5: Anomaly Detection - $([ $task105_5_passed -eq $task105_5_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_5_passed))/$task105_5_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
