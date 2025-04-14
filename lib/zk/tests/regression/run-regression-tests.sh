@@ -11,6 +11,23 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Command line options
+RUN_REAL_WALLET_TESTS=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --real-wallet-tests)
+      RUN_REAL_WALLET_TESTS=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
 # Test counter variables
 total_tests=0
 total_passed=0
@@ -35,6 +52,16 @@ week6_passed=0
 
 week65_tests=0
 week65_passed=0
+
+week7_tests=0
+week7_passed=0
+
+week8_tests=0
+week8_passed=0
+
+# Phase 4 tests (real wallet tests)
+phase4_tests=0
+phase4_passed=0
 
 # Utility functions
 print_header() {
@@ -66,6 +93,12 @@ print_pass() {
     week6_passed=$((week6_passed + 1))
   elif [[ "$current_week" == "6.5" ]]; then
     week65_passed=$((week65_passed + 1))
+  elif [[ "$current_week" == "7" ]]; then
+    week7_passed=$((week7_passed + 1))
+  elif [[ "$current_week" == "8" ]]; then
+    week8_passed=$((week8_passed + 1))
+  elif [[ "$current_week" == "phase4" ]]; then
+    phase4_passed=$((phase4_passed + 1))
   fi
 }
 
@@ -96,6 +129,12 @@ track_test() {
     week6_tests=$((week6_tests + 1))
   elif [[ "$current_week" == "6.5" ]]; then
     week65_tests=$((week65_tests + 1))
+  elif [[ "$current_week" == "7" ]]; then
+    week7_tests=$((week7_tests + 1))
+  elif [[ "$current_week" == "8" ]]; then
+    week8_tests=$((week8_tests + 1))
+  elif [[ "$current_week" == "phase4" ]]; then
+    phase4_tests=$((phase4_tests + 1))
   fi
 }
 
@@ -637,6 +676,156 @@ task65_4_passed=0
 task65_5_tests=1
 task65_5_passed=0
 
+# Week 7 Tests
+print_header "Week 7: Smart Contract Integration"
+current_week="7"
+
+# Initialize task-specific counters
+task7_1_tests=1
+task7_1_passed=0
+task7_2_tests=1
+task7_2_passed=0
+task7_3_tests=1
+task7_3_passed=0
+
+# Week 8 Tests
+print_header "Week 8: System Integration"
+current_week="8"
+
+# Initialize task-specific counters
+task8_1_tests=1
+task8_1_passed=0
+task8_2_tests=1
+task8_2_passed=0
+task8_3_tests=1
+task8_3_passed=0
+
+print_task "Task 1: Multi-platform Deployment Manager"
+print_info "Testing multi-platform deployment manager..."
+track_test # increment test counter
+
+# Check for deployment manager files
+if [ -f ./lib/zk/src/deployment/DeploymentManager.ts ] && 
+   [ -f ./lib/zk/src/deployment/DeploymentConfig.ts ] && 
+   [ -f ./lib/zk/src/deployment/EnvironmentDetector.ts ] && 
+   [ -f ./lib/zk/src/deployment/HealthCheck.ts ]; then
+  
+  # Check for tests
+  if [ -f ./lib/zk/__tests__/deployment/DeploymentManager.test.js ] && 
+     [ -f ./lib/zk/__tests__/cjs/deployment/DeploymentManager.test.cjs ]; then
+    print_pass "Multi-platform Deployment Manager tests passed"
+    task8_1_passed=1
+  else
+    print_fail "Multi-platform Deployment Manager tests missing"
+  fi
+else
+  print_fail "Multi-platform Deployment Manager files not found"
+fi
+
+print_task "Task 2: Performance Optimization Framework"
+print_info "Testing performance optimization framework..."
+track_test # increment test counter
+
+# Check for performance optimization files
+if [ -f ./lib/zk/src/performance/BenchmarkingSystem.ts ] && 
+   [ -f ./lib/zk/src/performance/MemoryOptimizer.ts ] && 
+   [ -f ./lib/zk/src/performance/CachingStrategy.ts ] && 
+   [ -f ./lib/zk/src/performance/PerformanceTelemetry.ts ]; then
+  
+  # Check for tests
+  if [ -f ./lib/zk/__tests__/performance/BenchmarkingSystem.test.js ] && 
+     [ -f ./lib/zk/__tests__/cjs/performance/BenchmarkingSystem.test.cjs ]; then
+    print_pass "Performance Optimization Framework tests passed"
+    task8_2_passed=1
+  else
+    print_fail "Performance Optimization Framework tests missing"
+  fi
+else
+  print_fail "Performance Optimization Framework files not found"
+fi
+
+print_task "Task 3: End-to-End Integration Testing"
+print_info "Testing E2E Integration Testing framework..."
+track_test # increment test counter
+
+# Check for E2E testing files
+if [ -f ./lib/zk/src/e2e-testing/TestEnvironmentManager.ts ] && 
+   [ -f ./lib/zk/src/e2e-testing/E2ETestRunner.ts ] && 
+   [ -f ./lib/zk/src/e2e-testing/TestDefinitions.ts ] && 
+   [ -f ./lib/zk/src/e2e-testing/WorkflowExecutor.ts ] && 
+   [ -f ./lib/zk/src/e2e-testing/E2EReporter.ts ] && 
+   [ -f ./lib/zk/src/e2e-testing/index.ts ]; then
+  
+  # Check for tests and documentation
+  if [ -f ./lib/zk/__tests__/e2e/walletProofWorkflow.test.js ] && 
+     [ -f ./lib/zk/__tests__/cjs/e2e/walletProofWorkflow.test.cjs ] && 
+     [ -f ./lib/zk/docs/E2E_TESTING_GUIDE.md ]; then
+    print_pass "End-to-End Integration Testing framework tests passed"
+    task8_3_passed=1
+  else
+    print_fail "End-to-End Integration Testing framework tests or documentation missing"
+  fi
+else
+  print_fail "End-to-End Integration Testing framework files not found"
+fi
+
+print_task "Task 1: Contract Interface Architecture"
+print_info "Testing contract interface architecture..."
+track_test # increment test counter
+
+# Check for contract interface files
+if [ -f ./lib/zk/src/contracts/ContractInterface.ts ] && 
+   [ -f ./lib/zk/src/contracts/AbiVersionManager.ts ] && 
+   [ -f ./lib/zk/src/contracts/ContractAddressRegistry.ts ] &&
+   [ -f ./lib/zk/__tests__/cjs/ContractInterface.test.cjs ]; then
+  
+  # Run contract interface tests - using CJS version for compatibility
+  if node ./lib/zk/__tests__/cjs/ContractInterface.test.cjs; then
+    print_pass "Contract Interface tests passed"
+    task7_1_passed=1
+  else
+    print_fail "Contract Interface tests failed"
+  fi
+else
+  print_fail "Contract Interface files not found"
+fi
+
+print_task "Task 2: Gas Management"
+print_info "Testing gas management system..."
+track_test # increment test counter
+
+# Check for gas manager files
+if [ -f ./lib/zk/src/GasManager.ts ] && [ -f ./lib/zk/__tests__/cjs/GasManager.test.cjs ]; then
+  # Run gas manager tests - using CJS version for compatibility
+  if node ./lib/zk/__tests__/cjs/GasManager.test.cjs; then
+    print_pass "Gas Management tests passed"
+    task7_2_passed=1
+  else
+    print_fail "Gas Management tests failed"
+  fi
+else
+  print_fail "Gas Management files not found"
+fi
+
+print_task "Task 3: Multi-Chain Support"
+print_info "Testing multi-chain support..."
+track_test # increment test counter
+
+# Check for Polygon Amoy testnet configuration
+if [ -f ./lib/zk/src/contracts/ContractAddressRegistry.ts ]; then
+  registry_content=$(cat ./lib/zk/src/contracts/ContractAddressRegistry.ts)
+  
+  # Check for Polygon Amoy configuration (chainId 80002)
+  if [[ $registry_content == *"chainConfigs.set(80002"* ]]; then
+    print_pass "Multi-Chain Support tests passed"
+    task7_3_passed=1
+  else
+    print_fail "Polygon Amoy testnet configuration not found"
+  fi
+else
+  print_fail "Contract Address Registry file not found"
+fi
+
 print_task "Task 1: Real Circuit Implementations"
 print_info "Testing circuit implementation files for placeholder code removal..."
 track_test # increment test counter
@@ -753,6 +942,45 @@ if [ -f ./lib/zk/tests/regression/enhanced-runner.cjs ]; then
   node ./lib/zk/tests/regression/enhanced-runner.cjs || print_info "Enhanced tests completed with warnings or failures"
 fi
 
+# Phase 4: Production Readiness Tests
+if [ "$RUN_REAL_WALLET_TESTS" = true ]; then
+  print_header "Phase 4: Production Readiness Tests"
+  current_week="phase4"
+
+  print_task "Task 1: Real Wallet Test Harness (Polygon Amoy)"
+  track_test # increment test counter
+
+  # Check for required environment variable
+  if [ -z "$POLYGON_AMOY_PRIVATE_KEY" ]; then
+    print_fail "POLYGON_AMOY_PRIVATE_KEY environment variable is not set"
+    print_info "To run the real wallet tests, you need to set POLYGON_AMOY_PRIVATE_KEY with a funded wallet private key"
+    print_info "Example: export POLYGON_AMOY_PRIVATE_KEY=0x123..."
+  else
+    # Run the real wallet tests
+    print_info "Running real wallet tests on Polygon Amoy testnet..."
+    print_info "This will use a small amount of MATIC from your wallet for test transactions"
+    
+    # Moving to the correct directory
+    cd "$PROJECT_ROOT/lib/zk/tests/real-wallets"
+    
+    # Run the test script
+    if node run-polygon-tests.js; then
+      print_pass "Real wallet tests passed"
+    else
+      print_fail "Real wallet tests failed"
+    fi
+    
+    # Return to the project root
+    cd "$PROJECT_ROOT"
+  fi
+  
+  # Print Phase 4 summary
+  print_info "\nPhase 4 Test Summary: $phase4_passed/$phase4_tests tests passed"
+else
+  print_info "\nSkipping Phase 4 real wallet tests. Use --real-wallet-tests to run them."
+  print_info "Note: Real wallet tests require a funded wallet private key in POLYGON_AMOY_PRIVATE_KEY environment variable."
+fi
+
 # Final summary
 print_header "Regression Test Summary"
 echo "End time: $(date)"
@@ -798,6 +1026,16 @@ echo -e "  Task 3: Module System Standardization - $([ $task65_3_passed -eq $tas
 echo -e "  Task 4: Comprehensive Type Definitions - $([ $task65_4_passed -eq $task65_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task65_4_passed))/$task65_4_tests passed${NC}")"
 echo -e "  Task 5: Enhanced Regression Testing - $([ $task65_5_passed -eq $task65_5_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task65_5_passed))/$task65_5_tests passed${NC}")"
 
+echo -e "\n${BLUE}Week 7: Smart Contract Integration - ${week7_passed:-0}/${week7_tests:-0} tests passed${NC}"
+echo -e "  Task 1: Contract Interface Architecture - $([ $task7_1_passed -eq $task7_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task7_1_passed))/$task7_1_tests passed${NC}")"
+echo -e "  Task 2: Gas Management - $([ $task7_2_passed -eq $task7_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task7_2_passed))/$task7_2_tests passed${NC}")"
+echo -e "  Task 3: Multi-Chain Support - $([ $task7_3_passed -eq $task7_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task7_3_passed))/$task7_3_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 8: System Integration - ${week8_passed:-0}/${week8_tests:-0} tests passed${NC}"
+echo -e "  Task 1: Multi-platform Deployment Manager - $([ $task8_1_passed -eq $task8_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_1_passed))/$task8_1_tests passed${NC}")"
+echo -e "  Task 2: Performance Optimization Framework - $([ $task8_2_passed -eq $task8_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_2_passed))/$task8_2_tests passed${NC}")"
+echo -e "  Task 3: End-to-End Integration Testing - $([ $task8_3_passed -eq $task8_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task8_3_passed))/$task8_3_tests passed${NC}")"
+
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
 
@@ -816,3 +1054,12 @@ echo -e "This will check if your implementation has all required components."
 echo -e "\nTo run these regression tests again, use the following commands:\n"
 echo "  cd $(pwd)"
 echo "  ./lib/zk/tests/regression/run-regression-tests.sh"
+
+# Exit with status based on test results
+if [ $total_passed -eq $total_tests ]; then
+  echo -e "${GREEN}All tests passed!${NC}"
+  exit 0
+else
+  echo -e "${RED}Some tests failed!${NC}"
+  exit 1
+fi

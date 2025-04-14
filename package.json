@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ethersproject/keccak256": "^5.8.0",
+    "@google-cloud/secret-manager": "^6.0.1",
     "@heroicons/react": "^2.2.0",
     "@openzeppelin/contracts": "^5.2.0",
     "@solana/spl-token": "^0.4.13",
