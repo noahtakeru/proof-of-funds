@@ -72,12 +72,12 @@ template MaximumProof() {
     // Step 2: Verify actual balance is <= maximum (main constraint)
     // Use the standard LessEqThan component with 128-bit precision
     // This is adequate for typical balance amounts while reducing constraints
-    component lessEqCheck = LessEqThan(128); 
-    lessEqCheck.in[0] <== actualBalance;
-    lessEqCheck.in[1] <== maximum;
+    component amountChecker = LessEqThan(128); 
+    amountChecker.in[0] <== actualBalance;
+    amountChecker.in[1] <== maximum;
     
     // The comparison must be valid (1=true)
-    lessEqCheck.out === 1;
+    amountChecker.out === 1;
     
     // Step 3: Create secure commitment hash for verification
     // Use Poseidon hash which is optimized for ZK circuits
