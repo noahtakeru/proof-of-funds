@@ -108,6 +108,8 @@ print_pass() {
     week8_passed=$((week8_passed + 1))
   elif [[ "$current_week" == "8.5" ]]; then
     week85_passed=$((week85_passed + 1))
+  elif [[ "$current_week" == "9.5" ]]; then
+    week95_passed=$((week95_passed + 1))
   elif [[ "$current_week" == "10" ]]; then
     week10_passed=$((week10_passed + 1))
   elif [[ "$current_week" == "10.5" ]]; then
@@ -150,6 +152,8 @@ track_test() {
     week8_tests=$((week8_tests + 1))
   elif [[ "$current_week" == "8.5" ]]; then
     week85_tests=$((week85_tests + 1))
+  elif [[ "$current_week" == "9.5" ]]; then
+    week95_tests=$((week95_tests + 1))
   elif [[ "$current_week" == "10" ]]; then
     week10_tests=$((week10_tests + 1))
   elif [[ "$current_week" == "10.5" ]]; then
@@ -697,6 +701,10 @@ task65_4_passed=0
 task65_5_tests=1
 task65_5_passed=0
 
+# Initialize week 9.5 test counter
+week95_tests=0
+week95_passed=0
+
 print_task "Task 1: Real Circuit Implementations"
 print_info "Testing for real circuit implementations..."
 track_test # increment test counter
@@ -1198,7 +1206,52 @@ else
   print_fail "Security framework files not found"
 fi
 
-# Add Week 10.5 tests section after the Security Testing Framework tests
+# Week 9.5 Tests for Admin Dashboard, GCP Integration, and System Monitoring
+print_header "Week 9.5: Admin Dashboard, GCP Integration, and System Monitoring"
+current_week="9.5"
+
+# Initialize task-specific counters
+task95_1_tests=1
+task95_1_passed=0
+task95_2_tests=1
+task95_2_passed=0
+task95_3_tests=1
+task95_3_passed=0
+
+print_task "Task 1: Admin Dashboard with Role-Based Access Control"
+print_info "Testing admin dashboard components..."
+track_test # increment test counter
+
+if node ./lib/zk/tests/regression/week95/admin-dashboard-test.cjs; then
+  print_pass "Admin Dashboard tests passed"
+  task95_1_passed=1
+else
+  print_fail "Admin Dashboard tests failed"
+fi
+
+print_task "Task 2: GCP/BigQuery Integration"
+print_info "Testing GCP/BigQuery integration..."
+track_test # increment test counter
+
+if node ./lib/zk/tests/regression/week95/gcp-bigquery-test.cjs; then
+  print_pass "GCP/BigQuery Integration tests passed"
+  task95_2_passed=1
+else
+  print_fail "GCP/BigQuery Integration tests failed"
+fi
+
+print_task "Task 3: System Monitoring & Reporting"
+print_info "Testing system monitoring & reporting..."
+track_test # increment test counter
+
+if node ./lib/zk/tests/regression/week95/system-monitoring-test.cjs; then
+  print_pass "System Monitoring & Reporting tests passed"
+  task95_3_passed=1
+else
+  print_fail "System Monitoring & Reporting tests failed"
+fi
+
+# Add Week 10.5 tests section after the Week 9.5 tests
 print_header "Week 10.5: Enhanced Security Framework"
 current_week="10.5"
 
@@ -1462,6 +1515,11 @@ echo -e "  Task 1: Memory Optimization - $([ $task85_1_passed -eq $task85_1_test
 echo -e "  Task 2: Cross-Platform Deployment Framework - $([ $task85_2_passed -eq $task85_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_2_passed))/$task85_2_tests passed${NC}")"
 echo -e "  Task 3: Proof Size Optimization - $([ $task85_3_passed -eq $task85_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_3_passed))/$task85_3_tests passed${NC}")"
 echo -e "  Task 4: Dynamic Resource Allocation - $([ $task85_4_passed -eq $task85_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task85_4_passed))/$task85_4_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 9.5: Admin Dashboard, GCP Integration, and System Monitoring - ${week95_passed:-0}/${week95_tests:-0} tests passed${NC}"
+echo -e "  Task 1: Admin Dashboard - $([ $task95_1_passed -eq $task95_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task95_1_passed))/$task95_1_tests passed${NC}")"
+echo -e "  Task 2: GCP/BigQuery Integration - $([ $task95_2_passed -eq $task95_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task95_2_passed))/$task95_2_tests passed${NC}")"
+echo -e "  Task 3: System Monitoring & Reporting - $([ $task95_3_passed -eq $task95_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task95_3_passed))/$task95_3_tests passed${NC}")"
 
 echo -e "\n${BLUE}Week 10.5: Enhanced Security Framework - ${week105_passed}/${week105_tests} tests passed${NC}"
 echo -e "  Task 1: Performance Benchmarking Framework - $([ $task105_1_passed -eq $task105_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_1_passed))/$task105_1_tests passed${NC}")"

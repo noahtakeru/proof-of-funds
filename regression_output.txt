@@ -3,7 +3,7 @@
 [0;34mZero-Knowledge Infrastructure Regression Tests[0m
 [0;34m======================================[0m
 Running tests from: /Users/karpel/Documents/GitHub/proof-of-funds
-Start time: Sun Apr 13 23:42:09 PDT 2025
+Start time: Mon Apr 14 00:46:40 PDT 2025
 
 [0;34m======================================[0m
 [0;34mWeek 1: ZK System Architecture[0m
@@ -261,6 +261,33 @@ Summary:
 Proof Size Optimization is fully implemented!
 [0;32m✓ Proof Size Optimization tests passed[0m
 
+[0;33m--- Task 4: Dynamic Resource Allocation ---[0m
+Checking Dynamic Resource Allocation implementation:
+---------------------------------------------------
+✓ File exists: src/resources/ResourceMonitor.ts
+  ✓ All required functionality found
+✓ File exists: src/resources/ResourceAllocator.ts
+  ✓ All required functionality found
+✓ File exists: src/resources/AdaptiveComputation.ts
+  ✓ All required functionality found
+✓ File exists: src/resources/ResourcePrediction.ts
+  ✓ All required functionality found
+✓ File exists: src/resources/index.ts
+  ✓ All required functionality found
+✓ File exists: src/resources/cjs/ResourceMonitor.cjs
+  ✓ All required functionality found
+✓ File exists: __tests__/resources/ResourceManagement.test.js
+  ✓ All required functionality found
+✓ Resource management is integrated with zkUtils.mjs
+✓ Resource management is exported in main entry point
+
+Summary:
+--------
+7/7 components fully implemented
+
+Dynamic Resource Allocation is fully implemented!
+[0;32m✓ Dynamic Resource Allocation tests passed[0m
+
 [0;33m--- Task 1: Multi-platform Deployment Manager ---[0m
 ✓ DeploymentManager contains required methods
 [0;32m✓ Multi-platform Deployment Manager tests passed[0m
@@ -277,6 +304,77 @@ Proof Size Optimization is fully implemented!
 ✓ Security Testing Framework contains required methods
 [0;32m✓ Security Testing Framework tests passed[0m
 Security tests are available to run with: NODE_OPTIONS=--experimental-vm-modules node ./lib/zk/scripts/run-security-tests.mjs
+
+[0;34m======================================[0m
+[0;34mWeek 9.5: Admin Dashboard, GCP Integration, and System Monitoring[0m
+[0;34m======================================[0m
+
+[0;33m--- Task 1: Admin Dashboard with Role-Based Access Control ---[0m
+Testing admin dashboard components...
+Running Admin Dashboard Components regression tests...
+Testing file existence and structure...
+Testing CommonJS compatibility...
+
+Test Results:
+✗ File existence and structure
+  Details:
+  - File src/admin/RoleBasedAccessControl.ts is missing required content: assignRole
+  - File src/admin/UserManagement.ts is missing required content: assignUserRole
+  - File src/admin/AuditLogger.ts is missing required content: logEvent, getAuditLogs
+✓ CommonJS compatibility
+
+✗ Admin Dashboard Components regression tests FAILED
+[0;31m✗ Admin Dashboard tests failed[0m
+
+[0;33m--- Task 2: GCP/BigQuery Integration ---[0m
+Testing GCP/BigQuery integration...
+Running GCP/BigQuery Integration regression tests...
+Testing file existence and structure...
+Testing CommonJS compatibility...
+Testing BigQuery schema management...
+Testing ETL job management...
+
+Test Results:
+✗ File existence and structure
+  Details:
+  - File src/analytics/BigQueryAnalytics.ts is missing required content: streamData, manageETLJob
+✓ CommonJS compatibility
+✗ BigQuery Schema Management
+  Details:
+  - Feature not implemented: BigQuery Schema Management
+✗ ETL Job Management
+  Details:
+  - Feature not implemented: ETL Job Management
+
+✗ GCP/BigQuery Integration regression tests FAILED
+[0;31m✗ GCP/BigQuery Integration tests failed[0m
+
+[0;33m--- Task 3: System Monitoring & Reporting ---[0m
+Testing system monitoring & reporting...
+Running System Monitoring & Reporting regression tests...
+Testing file existence and structure...
+Testing CommonJS compatibility...
+Testing alert escalation policy...
+Testing executive dashboard report generation...
+Testing event emitter integration...
+
+Test Results:
+✗ File existence and structure
+  Details:
+  - File src/monitoring/SystemMonitor.ts is missing required content: trackMetric, getMetricHistory, setThresholdAlert
+  - File src/monitoring/AlertManager.ts is missing required content: createAlert
+  - File src/monitoring/ExecutiveDashboard.ts is missing required content: generateDashboardReport, getKPIStatus, scheduleReport
+✓ CommonJS compatibility
+✗ Alert Escalation Policy
+  Details:
+  - Feature not implemented: Alert Escalation Policy
+✗ Executive Dashboard Report Generation
+  Details:
+  - Feature not implemented: Executive Dashboard Report Generation
+✓ Event Emitter Integration
+
+✗ System Monitoring & Reporting regression tests FAILED
+[0;31m✗ System Monitoring & Reporting tests failed[0m
 
 [0;34m======================================[0m
 [0;34mWeek 10.5: Enhanced Security Framework[0m
@@ -345,7 +443,7 @@ All tests passed!
 Running enhanced regression tests...
 [34mStarting Enhanced Regression Tests[0m
 [34mProject root: /Users/karpel/Documents/GitHub/proof-of-funds/lib/zk[0m
-[34mTime: 2025-04-14T06:42:10.411Z[0m
+[34mTime: 2025-04-14T07:46:41.583Z[0m
 [36m
 Running test: Required Files Validation[0m
 [34m
@@ -356,37 +454,16 @@ Running test: Module System Consistency[0m
 [34m
 === Testing Module System Consistency ===[0m
 [32m✓ PASS: Module System Consistency[0m
-[33m! WARNING: src/resources/ResourceMonitor.js: ESM file contains CommonJS exports[0m
-[33m! WARNING: src/security/SecurityAuditor.js: Try/catch blocks should use the error logging system[0m
-[33m! WARNING: src/security/detectors/InputValidationDetector.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/detectors/MalleabilityDetector.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/detectors/ReplayAttackDetector.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/rules/CryptographicRule.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/rules/InputValidationRule.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/rules/SecurityRule.js: Generic errors should be replaced with specific error classes[0m
-[33m! WARNING: src/security/rules/SecurityRule.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/rules/ZKSecurityRule.js: Missing JSDoc comments for exports (0/1)[0m
-[33m! WARNING: src/security/rules/index.js: Missing JSDoc comments for exports (3/4)[0m
 [36m
 Running test: Error Handling Consistency[0m
 [34m
 === Testing Error Handling Consistency ===[0m
 [32m✓ PASS: Error Handling Consistency[0m
-[33m! WARNING: src/security/SecurityAuditor.js: Try/catch without error logging[0m
-[33m! WARNING: src/security/rules/SecurityRule.js: Generic errors used instead of custom error classes[0m
 [36m
 Running test: Documentation Coverage[0m
 [34m
 === Testing Documentation Coverage ===[0m
 [32m✓ PASS: Documentation Coverage[0m
-[33m! WARNING: src/security/detectors/InputValidationDetector.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/detectors/MalleabilityDetector.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/detectors/ReplayAttackDetector.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/rules/CryptographicRule.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/rules/InputValidationRule.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/rules/SecurityRule.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/rules/ZKSecurityRule.js: Undocumented exports (0/1)[0m
-[33m! WARNING: src/security/rules/index.js: Undocumented exports (3/4)[0m
 [36m
 Running test: Circuit Implementation[0m
 [34m
@@ -394,15 +471,15 @@ Running test: Circuit Implementation[0m
 [32m✓ PASS: Circuit Implementation[0m
 [34m
 === Regression Test Report ===[0m
-[37mExecution time: 0.07 seconds[0m
-[37mStart: 2025-04-14T06:42:10.408Z[0m
-[37mEnd: 2025-04-14T06:42:10.473Z[0m
+[37mExecution time: 0.06 seconds[0m
+[37mStart: 2025-04-14T07:46:41.580Z[0m
+[37mEnd: 2025-04-14T07:46:41.639Z[0m
 [34m
 Overall Results:[0m
 [37mTotal: 5[0m
 [32mPassed: 5[0m
 [37mFailed: 0[0m
-[33mWarnings: 21[0m
+[37mWarnings: 0[0m
 [34m
 Results by Category:[0m
 [32mmodule_system: 1/1 (100%)[0m
@@ -410,7 +487,7 @@ Results by Category:[0m
 [32mapi_consistency: 2/2 (100%)[0m
 [32mdocumentation: 1/1 (100%)[0m
 [34m
-Detailed report saved to: /Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/reports/regression-report-2025-04-14T06-42-10-408Z.json[0m
+Detailed report saved to: /Users/karpel/Documents/GitHub/proof-of-funds/lib/zk/tests/regression/reports/regression-report-2025-04-14T07-46-41-580Z.json[0m
 [32m✅ Regression tests passed[0m
 
 Skipping Phase 4 real wallet tests. Use --real-wallet-tests to run them.
@@ -419,7 +496,7 @@ Note: Real wallet tests require a funded wallet private key in POLYGON_AMOY_PRIV
 [0;34m======================================[0m
 [0;34mRegression Test Summary[0m
 [0;34m======================================[0m
-End time: Sun Apr 13 23:42:10 PDT 2025
+End time: Mon Apr 14 00:46:41 PDT 2025
 
 [0;34mWeek 1: ZK System Architecture - 3/3 tests passed[0m
   Task 1: System Architecture - [0;32mAll tests passed[0m
@@ -465,10 +542,16 @@ End time: Sun Apr 13 23:42:10 PDT 2025
   Task 3: End-to-End Integration Testing - [0;32mAll tests passed[0m
   Task 4: Security Testing Framework - [0;32mAll tests passed[0m
 
-[0;34mWeek 8.5: Memory Optimization and Cross-Platform Deployment - 7/7 tests passed[0m
+[0;34mWeek 8.5: Memory Optimization and Cross-Platform Deployment - 8/8 tests passed[0m
   Task 1: Memory Optimization - [0;32mAll tests passed[0m
   Task 2: Cross-Platform Deployment Framework - [0;32mAll tests passed[0m
   Task 3: Proof Size Optimization - [0;32mAll tests passed[0m
+  Task 4: Dynamic Resource Allocation - [0;32mAll tests passed[0m
+
+[0;34mWeek 9.5: Admin Dashboard, GCP Integration, and System Monitoring - 0/3 tests passed[0m
+  Task 1: Admin Dashboard - [0;31m0/1 passed[0m
+  Task 2: GCP/BigQuery Integration - [0;31m0/1 passed[0m
+  Task 3: System Monitoring & Reporting - [0;31m0/1 passed[0m
 
 [0;34mWeek 10.5: Enhanced Security Framework - 5/5 tests passed[0m
   Task 1: Performance Benchmarking Framework - [0;32mAll tests passed[0m
@@ -477,7 +560,7 @@ End time: Sun Apr 13 23:42:10 PDT 2025
   Task 4: Security Rules Framework - [0;32mAll tests passed[0m
   Task 5: Anomaly Detection - [0;32mAll tests passed[0m
 
-[0;34mOverall: 39/39 tests passed (100%)[0m
+[0;34mOverall: 40/43 tests passed (93%)[0m
 
 If all tests passed, the ZK infrastructure is working correctly.
 For any failures, check the specific task documentation and error messages.
@@ -495,4 +578,4 @@ To run these regression tests again, use the following commands:
 
   cd /Users/karpel/Documents/GitHub/proof-of-funds
   ./lib/zk/tests/regression/run-regression-tests.sh
-[0;32mAll tests passed![0m
+[0;31mSome tests failed![0m
