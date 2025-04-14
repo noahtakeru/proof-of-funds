@@ -48,3 +48,7 @@ next-env.d.ts
 # contract artifacts
 /artifacts
 /cache
+
+# GCP configuration
+/config/gcp/*.json
+service-account-key.json

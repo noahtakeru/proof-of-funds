@@ -44,7 +44,15 @@
   },
   "scripts": {
     "test": "jest",
+    "test:unit": "jest --testPathIgnorePatterns=integration e2e",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "test:regression": "bash ./tests/regression/run-regression-tests.sh",
+    "test:security": "node scripts/security/run-security-tests.mjs",
+    "test:security:verbose": "node scripts/security/run-security-tests.mjs --verbose",
+    "test:security:html": "node scripts/security/run-security-tests.mjs --format html",
     "build": "rollup -c",
+    "build:circuits": "node scripts/build-circuits.mjs",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write src/**/*.{js,ts}"
   },

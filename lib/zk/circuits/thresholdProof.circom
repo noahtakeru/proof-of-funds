@@ -82,12 +82,12 @@ template ThresholdProof() {
     
     // Step 2: Verify actual balance is >= threshold (primary constraint for threshold proof)
     // Use our optimized comparison component which uses fewer constraints
-    component greaterEqCheck = OptimizedGreaterEqThan(128); // 128-bit is sufficient for typical balances
-    greaterEqCheck.in[0] <== actualBalance;
-    greaterEqCheck.in[1] <== threshold;
+    component amountChecker = OptimizedGreaterEqThan(128); // 128-bit is sufficient for typical balances
+    amountChecker.in[0] <== actualBalance;
+    amountChecker.in[1] <== threshold;
     
     // The comparison must be valid (1=true)
-    greaterEqCheck.out === 1;
+    amountChecker.out === 1;
     
     // Step 3: Create commitment hash for verification
     // Use Poseidon which is optimized for ZK circuits

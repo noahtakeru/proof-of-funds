@@ -64,7 +64,10 @@ template StandardProof() {
     
     // Step 1: Verify actual balance equals claimed amount
     // This is the key constraint for standard proof
-    actualBalance === amount;
+    component amountChecker = IsEqual();
+    amountChecker.in[0] <== actualBalance;
+    amountChecker.in[1] <== amount;
+    amountChecker.out === 1; // Must equal 1 (true)
     
     // Step 2: Verify wallet ownership with efficient signature check
     // Instead of full EdDSA implementation, we use a simplified ownership verification

@@ -1,0 +1,201 @@
+name: ZK Infrastructure CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'lib/zk/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'lib/zk/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment for deployment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+          
+      - name: Install dependencies
+        run: |
+          cd lib/zk
+          npm ci
+          
+      - name: Run linting
+        run: |
+          cd lib/zk
+          npm run lint
+          
+      - name: Run unit tests
+        run: |
+          cd lib/zk
+          npm run test:unit
+          
+      - name: Run integration tests
+        run: |
+          cd lib/zk
+          npm run test:integration
+      
+      - name: Run regression tests
+        run: |
+          cd lib/zk
+          npm run test:regression
+          
+      - name: Run security tests
+        run: |
+          cd lib/zk
+          npm run test:security
+          
+      - name: Upload test reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-reports-node-${{ matrix.node-version }}
+          path: lib/zk/tests/reports/
+          retention-days: 7
+
+  build:
+    name: Build and Package
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd lib/zk
+          npm ci
+          
+      - name: Build circuits
+        run: |
+          cd lib/zk
+          npm run build:circuits
+          
+      - name: Bundle JavaScript
+        run: |
+          cd lib/zk
+          npm run build
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: zk-build
+          path: |
+            lib/zk/dist
+            lib/zk/build
+          retention-days: 7
+
+  analyze:
+    name: Security Analysis
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          
+      - name: Install dependencies
+        run: |
+          cd lib/zk
+          npm ci
+          
+      - name: Run npm audit
+        run: |
+          cd lib/zk
+          npm audit --production
+          
+      - name: Run security test suite
+        run: |
+          cd lib/zk
+          npm run test:security:html
+          
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: lib/zk/tests/security/reports/
+          retention-days: 14
+
+  deploy:
+    name: Deploy
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [build, analyze]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: zk-build
+          path: lib/zk/
+          
+      - name: Set up deployment environment
+        run: |
+          cd lib/zk
+          npm ci
+          
+      - name: Run deployment script
+        env:
+          DEPLOY_ENV: ${{ github.event.inputs.environment || 'staging' }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          POLYGON_PRIVATE_KEY: ${{ secrets.POLYGON_PRIVATE_KEY }}
+          VERIFICATION_KEY_SECRET: ${{ secrets.VERIFICATION_KEY_SECRET }}
+        run: |
+          cd lib/zk
+          node scripts/ci/deployment.js --env=$DEPLOY_ENV
+          
+      - name: Run health check
+        run: |
+          cd lib/zk
+          node scripts/ci/health-check.js --env=$DEPLOY_ENV
+          
+      - name: Send deployment notification
+        if: success()
+        run: |
+          cd lib/zk
+          node scripts/ci/notify-deployment.js --status=success --env=$DEPLOY_ENV
+          
+      - name: Send failure notification
+        if: failure()
+        run: |
+          cd lib/zk
+          node scripts/ci/notify-deployment.js --status=failure --env=$DEPLOY_ENV

@@ -17,6 +17,15 @@ import { telemetry } from '../../../lib/zk/src/telemetry';
 import { performance } from 'perf_hooks';
 import { RateLimiter } from '../../../lib/zk/src/zkProxyClient';
 
+// Import analytics for server-side tracking
+let analyticsClient;
+try {
+  analyticsClient = require('../../../lib/analytics/bigQueryClient');
+} catch (e) {
+  console.warn('Analytics client could not be loaded:', e.message);
+  analyticsClient = null;
+}
+
 // Create rate limiter for API
 const rateLimiter = new RateLimiter();
 
@@ -278,6 +287,22 @@ export default async function handler(req, res) {
         proofType: input.proofType
       }
     });
+
+    // Track server-side proof generation in BigQuery
+    if (analyticsClient) {
+      try {
+        analyticsClient.logProofGeneration({
+          operationId,
+          proofType: input.proofType,
+          network: clientInfo.network || 'unknown',
+          executionTimeMs: processingTime,
+          success: true,
+          clientType: clientInfo.clientType || 'browser'
+        });
+      } catch (analyticsError) {
+        console.warn('Failed to log analytics:', analyticsError);
+      }
+    }
 
     // Return the proof and public signals
     return res.status(200).json({

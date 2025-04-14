@@ -20,10 +20,17 @@
     "test:zk:all": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__ --config jest.config.cjs",
     "test:zk:snarkjs": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/snarkjsLoader.test.js --config jest.config.cjs",
     "test:zk:api": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/zkApiEndpoints.test.js --config jest.config.cjs",
-    "test:zk:circuits": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/circuits/ --config jest.config.cjs"
+    "test:zk:circuits": "NODE_OPTIONS=--experimental-vm-modules jest lib/zk/__tests__/circuits/ --config jest.config.cjs",
+    "test:zk:performance": "NODE_OPTIONS=--experimental-vm-modules node lib/zk/scripts/run-performance-tests.mjs",
+    "test:zk:security": "NODE_OPTIONS=--experimental-vm-modules node lib/zk/scripts/run-security-tests.mjs",
+    "fix:zk": "node lib/zk/scripts/run-code-fixes.js",
+    "fix:zk:modules": "node lib/zk/scripts/run-code-fixes.js --fixModules",
+    "fix:zk:tests": "node lib/zk/scripts/run-code-fixes.js --fixTests",
+    "fix:zk:dryrun": "node lib/zk/scripts/run-code-fixes.js --dryRun"
   },
   "dependencies": {
     "@ethersproject/keccak256": "^5.8.0",
+    "@google-cloud/secret-manager": "^6.0.1",
     "@heroicons/react": "^2.2.0",
     "@openzeppelin/contracts": "^5.2.0",
     "@solana/spl-token": "^0.4.13",
