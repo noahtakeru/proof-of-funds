@@ -17,6 +17,7 @@ import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { InjectedConnector } from 'wagmi/connectors/injected';
 import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext';
+import Script from 'next/script';
 
 /**
  * Polygon Amoy Testnet Configuration
@@ -109,6 +110,30 @@ const Layout = dynamic(() => import('../components/Layout'), {
  * Handles wallet connection persistence logic
  */
 function MyApp({ Component, pageProps }) {
+    // Analytics page view tracking
+    useEffect(() => {
+        const handleRouteChange = (url) => {
+            if (window.gtag) {
+                window.gtag('config', 'G-XXXXXXXXXX', {
+                    page_path: url,
+                });
+            }
+        };
+
+        // Subscribe to Next.js route changes
+        const handleRouteChangeComplete = (url) => handleRouteChange(url);
+
+        // Add event listeners for route changes
+        if (typeof window !== 'undefined') {
+            import('next/router').then(({ default: router }) => {
+                router.events.on('routeChangeComplete', handleRouteChangeComplete);
+                return () => {
+                    router.events.off('routeChangeComplete', handleRouteChangeComplete);
+                };
+            });
+        }
+    }, []);
+
     // Check and synchronize stored connection state on initial load
     useEffect(() => {
         // Only run in browser
@@ -127,13 +152,34 @@ function MyApp({ Component, pageProps }) {
     }, []);
 
     return (
-        <WagmiConfig client={client}>
-            <PhantomMultiWalletProvider>
-                <Layout>
-                    <Component {...pageProps} />
-                </Layout>
-            </PhantomMultiWalletProvider>
-        </WagmiConfig>
+        <>
+            {/* Google Analytics Measurement ID - Replace G-XXXXXXXXXX with your actual GA4 measurement ID */}
+            <Script
+                strategy="afterInteractive"
+                src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
+            />
+            <Script
+                id="google-analytics"
+                strategy="afterInteractive"
+                dangerouslySetInnerHTML={{
+                    __html: `
+                        window.dataLayer = window.dataLayer || [];
+                        function gtag(){dataLayer.push(arguments);}
+                        gtag('js', new Date());
+                        gtag('config', 'G-XXXXXXXXXX', {
+                            page_path: window.location.pathname,
+                        });
+                    `,
+                }}
+            />
+            <WagmiConfig client={client}>
+                <PhantomMultiWalletProvider>
+                    <Layout>
+                        <Component {...pageProps} />
+                    </Layout>
+                </PhantomMultiWalletProvider>
+            </WagmiConfig>
+        </>
     );
 }
 
