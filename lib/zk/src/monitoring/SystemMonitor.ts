@@ -446,6 +446,388 @@ export class SystemMonitor extends EventEmitter {
   }
   
   /**
+   * Track a metric over time - alias for recordMetric with additional functionality
+   * 
+   * @param metricName - The name of the metric
+   * @param value - The value to track
+   * @param labels - Optional labels for the data point
+   * @param options - Additional tracking options
+   * @returns True if the metric was tracked successfully
+   */
+  public trackMetric(
+    metricName: string,
+    value: number,
+    labels: Record<string, string> = {},
+    options: {
+      aggregate?: boolean;
+      checkThresholds?: boolean;
+    } = {}
+  ): boolean {
+    try {
+      // Record the metric value
+      const recorded = this.recordMetric(metricName, value, labels);
+      
+      if (!recorded) {
+        return false;
+      }
+      
+      // Optional: Check against thresholds if requested
+      if (options.checkThresholds) {
+        this.checkMetricThresholds(metricName, value, labels);
+      }
+      
+      // Aggregate data if requested (for histograms/summaries)
+      if (options.aggregate && this.metrics.has(metricName)) {
+        const metric = this.metrics.get(metricName)!;
+        
+        if (metric.type === MetricType.HISTOGRAM || metric.type === MetricType.SUMMARY) {
+          // Calculate statistics on recent data
+          const recentData = this.getMetricData(metricName, 300000, undefined, labels);
+          
+          if (recentData && recentData.length > 0) {
+            const values = recentData.map(point => point.value);
+            const sum = values.reduce((a, b) => a + b, 0);
+            const avg = sum / values.length;
+            const sorted = [...values].sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            const min = sorted[0];
+            const max = sorted[sorted.length - 1];
+            const p95 = sorted[Math.floor(sorted.length * 0.95)];
+            
+            // Record derived metrics
+            const baseLabels = { ...labels, source: metricName };
+            this.recordMetric(`${metricName}.avg`, avg, baseLabels);
+            this.recordMetric(`${metricName}.median`, median, baseLabels);
+            this.recordMetric(`${metricName}.min`, min, baseLabels);
+            this.recordMetric(`${metricName}.max`, max, baseLabels);
+            this.recordMetric(`${metricName}.p95`, p95, baseLabels);
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', `Failed to track metric: ${metricName}`, {
+        category: 'monitoring',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
+   * Get historical data for a metric with flexible filtering and aggregation
+   * 
+   * @param metricName - The name of the metric
+   * @param options - Options for fetching history
+   * @returns Array of metric data points or null if an error occurred
+   */
+  public getMetricHistory(
+    metricName: string,
+    options: {
+      timeRange?: {
+        start?: Date;
+        end?: Date;
+        durationMs?: number;
+      };
+      aggregation?: 'avg' | 'sum' | 'min' | 'max' | 'count' | 'p95';
+      interval?: 'minute' | 'hour' | 'day';
+      labelFilters?: Record<string, string>;
+      limit?: number;
+    } = {}
+  ): MetricDataPoint[] | null {
+    try {
+      // Check if metric exists
+      if (!this.metrics.has(metricName)) {
+        zkErrorLogger.log('WARNING', `Metric does not exist: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
+      // Get the data array for this metric
+      const data = this.metricData.get(metricName)!;
+      
+      // Determine time range
+      let startTime: Date;
+      let endTime = options.timeRange?.end || new Date();
+      
+      if (options.timeRange?.start) {
+        startTime = options.timeRange.start;
+      } else if (options.timeRange?.durationMs) {
+        startTime = new Date(endTime.getTime() - options.timeRange.durationMs);
+      } else {
+        // Default to last hour
+        startTime = new Date(endTime.getTime() - 3600000);
+      }
+      
+      // Filter by time range
+      let filteredData = data.filter(point => 
+        point.timestamp >= startTime && point.timestamp <= endTime
+      );
+      
+      // Filter by labels if provided
+      if (options.labelFilters) {
+        filteredData = filteredData.filter(point => {
+          return Object.entries(options.labelFilters!).every(([key, value]) => 
+            point.labels[key] === value
+          );
+        });
+      }
+      
+      // Determine grouping interval in milliseconds
+      let intervalMs: number;
+      switch (options.interval) {
+        case 'minute':
+          intervalMs = 60 * 1000;
+          break;
+        case 'hour':
+          intervalMs = 60 * 60 * 1000;
+          break;
+        case 'day':
+          intervalMs = 24 * 60 * 60 * 1000;
+          break;
+        default:
+          // Default to minute aggregation
+          intervalMs = 60 * 1000;
+      }
+      
+      // Apply aggregation if specified
+      if (options.aggregation && filteredData.length > 0) {
+        // Group by interval
+        const groupedByInterval = new Map<number, number[]>();
+        
+        for (const point of filteredData) {
+          const interval = Math.floor(point.timestamp.getTime() / intervalMs);
+          if (!groupedByInterval.has(interval)) {
+            groupedByInterval.set(interval, []);
+          }
+          groupedByInterval.get(interval)!.push(point.value);
+        }
+        
+        // Apply aggregation function to each group
+        const aggregatedData: MetricDataPoint[] = [];
+        
+        for (const [interval, values] of groupedByInterval.entries()) {
+          let aggregatedValue: number;
+          
+          switch (options.aggregation) {
+            case 'avg':
+              aggregatedValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+              break;
+            case 'sum':
+              aggregatedValue = values.reduce((sum, val) => sum + val, 0);
+              break;
+            case 'min':
+              aggregatedValue = Math.min(...values);
+              break;
+            case 'max':
+              aggregatedValue = Math.max(...values);
+              break;
+            case 'count':
+              aggregatedValue = values.length;
+              break;
+            case 'p95':
+              const sorted = [...values].sort((a, b) => a - b);
+              const p95Index = Math.floor(sorted.length * 0.95);
+              aggregatedValue = sorted[p95Index];
+              break;
+            default:
+              aggregatedValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+          }
+          
+          aggregatedData.push({
+            timestamp: new Date(interval * intervalMs),
+            value: aggregatedValue,
+            labels: { aggregation: options.aggregation }
+          });
+        }
+        
+        filteredData = aggregatedData;
+      }
+      
+      // Sort by timestamp
+      filteredData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      
+      // Apply limit if specified
+      if (options.limit && options.limit > 0) {
+        filteredData = filteredData.slice(0, options.limit);
+      }
+      
+      return filteredData;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', `Failed to get metric history: ${metricName}`, {
+        category: 'monitoring',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return null;
+    }
+  }
+  
+  /**
+   * Set an alert threshold for a metric
+   * 
+   * @param metricName - The name of the metric
+   * @param threshold - The threshold configuration
+   * @returns The ID of the created alert or null if an error occurred
+   */
+  public setThresholdAlert(
+    metricName: string,
+    threshold: {
+      operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
+      value: number;
+      duration?: number;
+      severity?: AlertSeverity;
+      description?: string;
+      labels?: Record<string, string>;
+      notificationChannels?: string[];
+    }
+  ): string | null {
+    try {
+      // Check if metric exists
+      if (!this.metrics.has(metricName)) {
+        zkErrorLogger.log('WARNING', `Cannot set threshold for non-existent metric: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
+      // Generate alert ID
+      const alertId = `alert_${metricName}_${threshold.operator}_${threshold.value}_${Date.now()}`;
+      
+      // Create alert definition
+      const alertDefinition: AlertDefinition = {
+        id: alertId,
+        name: `${metricName} ${threshold.operator} ${threshold.value}`,
+        description: threshold.description || `Alert when ${metricName} ${threshold.operator} ${threshold.value}`,
+        metricName,
+        condition: {
+          operator: threshold.operator,
+          threshold: threshold.value,
+          duration: threshold.duration || 300000 // Default to 5 minutes
+        },
+        severity: threshold.severity || AlertSeverity.WARNING,
+        labels: threshold.labels,
+        notificationChannels: threshold.notificationChannels,
+        cooldownPeriod: 1800000, // Default to 30 minutes
+        enabled: true
+      };
+      
+      // Register the alert
+      const registered = this.registerAlert(alertDefinition);
+      
+      if (!registered) {
+        return null;
+      }
+      
+      zkErrorLogger.log('INFO', `Threshold alert created for ${metricName}`, {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: {
+          metricName,
+          alertId,
+          threshold: threshold.value,
+          operator: threshold.operator
+        }
+      });
+      
+      return alertId;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', `Failed to set threshold alert for ${metricName}`, {
+        category: 'monitoring',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return null;
+    }
+  }
+  
+  /**
+   * Check if a metric value violates any defined thresholds
+   * 
+   * @param metricName - The name of the metric
+   * @param value - The current value
+   * @param labels - Optional labels for filtering alerts
+   * @private
+   */
+  private checkMetricThresholds(
+    metricName: string,
+    value: number,
+    labels: Record<string, string> = {}
+  ): void {
+    // Find alerts for this metric
+    const relevantAlerts = Array.from(this.alerts.values())
+      .filter(alert => alert.metricName === metricName && alert.enabled);
+    
+    // Check each alert
+    for (const alert of relevantAlerts) {
+      // Match labels if present
+      if (alert.labels && Object.keys(alert.labels).length > 0) {
+        const labelsMatch = Object.entries(alert.labels).every(
+          ([key, val]) => labels[key] === val
+        );
+        
+        if (!labelsMatch) {
+          continue;
+        }
+      }
+      
+      // Check threshold condition
+      let conditionMet = false;
+      
+      switch (alert.condition.operator) {
+        case '>':
+          conditionMet = value > alert.condition.threshold;
+          break;
+        case '<':
+          conditionMet = value < alert.condition.threshold;
+          break;
+        case '>=':
+          conditionMet = value >= alert.condition.threshold;
+          break;
+        case '<=':
+          conditionMet = value <= alert.condition.threshold;
+          break;
+        case '==':
+          conditionMet = value === alert.condition.threshold;
+          break;
+        case '!=':
+          conditionMet = value !== alert.condition.threshold;
+          break;
+      }
+      
+      if (conditionMet) {
+        // This would trigger the full alerting system in a real evaluation,
+        // but here we just log that the threshold was crossed
+        zkErrorLogger.log('INFO', `Metric ${metricName} crossed threshold ${alert.condition.operator} ${alert.condition.threshold}`, {
+          category: 'monitoring',
+          userFixable: false,
+          recoverable: true,
+          details: {
+            metricName,
+            value,
+            threshold: alert.condition.threshold,
+            operator: alert.condition.operator
+          }
+        });
+      }
+    }
+  }
+  
+  /**
    * Register a new alert
    * 
    * @param alert - The alert definition

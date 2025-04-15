@@ -66,6 +66,25 @@ export interface EscalationPolicy {
   repeatFinalStage: boolean;
 }
 
+// Notification Channel types
+export enum NotificationChannelType {
+  EMAIL = 'email',
+  SMS = 'sms',
+  WEBHOOK = 'webhook',
+  SLACK = 'slack',
+  TEAMS = 'teams',
+  PAGERDUTY = 'pagerduty'
+}
+
+// Notification Channel
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  type: NotificationChannelType;
+  config: Record<string, any>;
+  active: boolean;
+}
+
 // Escalation stage
 export interface EscalationStage {
   level: number;
@@ -259,6 +278,58 @@ export class AlertManager extends EventEmitter {
       });
       
       return false;
+    }
+  }
+  
+  /**
+   * Create an alert manually
+   * 
+   * @param alert - The alert details
+   * @returns The created alert ID or null if creation failed
+   */
+  public createAlert(alert: {
+    metricName: string;
+    severity: AlertSeverity;
+    value: number;
+    threshold: number;
+    message: string;
+    source?: string;
+    tags?: string[];
+  }): string | null {
+    try {
+      // Generate a unique ID for the alert
+      const alertId = `manual-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Create the alert event
+      const alertEvent: AlertEvent = {
+        id: alertId,
+        metricName: alert.metricName,
+        severity: alert.severity,
+        timestamp: new Date(),
+        value: alert.value,
+        threshold: alert.threshold,
+        message: alert.message,
+        source: alert.source || 'manual'
+      };
+      
+      // Process it through the normal alert flow
+      this.handleNewAlert(alertEvent);
+      
+      // Add any provided tags
+      if (alert.tags && alert.tags.length > 0) {
+        this.addTagsToAlert(alertId, alert.tags);
+      }
+      
+      return alertId;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to create manual alert', {
+        category: 'monitoring',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message, alert }
+      });
+      
+      return null;
     }
   }
   
@@ -470,6 +541,150 @@ export class AlertManager extends EventEmitter {
       return true;
     } catch (error) {
       zkErrorLogger.log('ERROR', `Failed to resolve alert: ${alertId}`, {
+        category: 'monitoring',
+        userFixable: true,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
+   * Manually escalate an alert to the next level or a specific level
+   * 
+   * @param alertId - The ID of the alert to escalate
+   * @param options - Escalation options
+   * @returns True if the alert was successfully escalated
+   */
+  public escalateAlert(
+    alertId: string,
+    options: {
+      toLevel?: number;
+      escalatedBy?: string;
+      reason?: string;
+      notificationChannels?: string[];
+    } = {}
+  ): boolean {
+    try {
+      // Check if alert exists and is not already resolved
+      if (!this.trackedAlerts.has(alertId)) {
+        zkErrorLogger.log('WARNING', `Alert does not exist: ${alertId}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      const alert = this.trackedAlerts.get(alertId)!;
+      
+      // Check if alert is already resolved
+      if (alert.status === AlertStatus.RESOLVED) {
+        zkErrorLogger.log('WARNING', `Cannot escalate resolved alert: ${alertId}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      // Get current escalation level
+      const currentLevel = alert.escalationLevel;
+      
+      // Determine the target level
+      const targetLevel = options.toLevel || (currentLevel + 1);
+      
+      if (targetLevel <= currentLevel) {
+        zkErrorLogger.log('WARNING', `Target escalation level (${targetLevel}) is not higher than current level (${currentLevel})`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      // Get the escalation policy to use
+      const policyId = this.defaultEscalationPolicyId;
+      if (!policyId || !this.escalationPolicies.has(policyId)) {
+        zkErrorLogger.log('WARNING', 'No escalation policy available', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      const policy = this.escalationPolicies.get(policyId)!;
+      
+      // Check if the target level exists in the policy
+      let validLevel = targetLevel <= policy.stages.length;
+      if (!validLevel && policy.repeatFinalStage) {
+        // If we can repeat the final stage, any level above the max is valid
+        validLevel = true;
+      }
+      
+      if (!validLevel) {
+        zkErrorLogger.log('WARNING', `Invalid escalation level: ${targetLevel}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return false;
+      }
+      
+      // Update the alert status
+      alert.status = AlertStatus.ESCALATED;
+      alert.escalationLevel = targetLevel;
+      alert.updatedAt = new Date();
+      
+      // Clear any scheduled escalation
+      alert.nextEscalationTime = undefined;
+      
+      // Store who escalated the alert if provided
+      if (options.escalatedBy) {
+        alert.tags.push(`escalated-by:${options.escalatedBy}`);
+      }
+      
+      // Store reason if provided
+      if (options.reason) {
+        alert.tags.push(`escalation-reason:${options.reason}`);
+      }
+      
+      // Save the updated alert
+      this.trackedAlerts.set(alertId, alert);
+      
+      // Perform the escalation notification
+      if (options.notificationChannels && options.notificationChannels.length > 0) {
+        // Use the provided notification channels
+        alert.notifiedChannels = [...alert.notifiedChannels, ...options.notificationChannels];
+        alert.notifiedChannels = [...new Set(alert.notifiedChannels)]; // Remove duplicates
+      } else {
+        // Use policy-based escalation
+        this.performEscalation(alertId, targetLevel);
+      }
+      
+      // Emit event
+      this.emit('alertEscalated', alert);
+      
+      // Log the manual escalation
+      zkErrorLogger.log('INFO', `Alert manually escalated: ${alertId} from level ${currentLevel} to ${targetLevel}`, {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { 
+          alertId,
+          previousLevel: currentLevel,
+          newLevel: targetLevel,
+          escalatedBy: options.escalatedBy,
+          reason: options.reason
+        }
+      });
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', `Failed to escalate alert: ${alertId}`, {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,

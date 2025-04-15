@@ -44,6 +44,15 @@ export interface SchemaDefinition {
   description?: string;
 }
 
+// Schema field for BigQuery
+export interface SchemaField {
+  name: string;
+  type: string;
+  mode?: string;
+  fields?: SchemaField[];
+  description?: string;
+}
+
 // ETL job interface
 export interface ETLJob {
   id: string;
@@ -933,6 +942,55 @@ export class BigQueryAnalytics {
     }
   }
   
+  /**
+   * Schedule an ETL job to run at specified intervals
+   * 
+   * @param jobId - The ID of the job to schedule
+   * @param schedule - The schedule in cron format
+   * @returns True if job was scheduled successfully
+   */
+  public async scheduleETLJob(jobId: string, schedule: string): Promise<boolean> {
+    try {
+      const job = this.etlJobs.find(j => j.id === jobId);
+      if (!job) {
+        throw new Error(`ETL job not found: ${jobId}`);
+      }
+      
+      // Update the job schedule
+      job.schedule = schedule;
+      
+      // For demonstration - this would register with a real scheduler in production
+      zkErrorLogger.log('INFO', `ETL job scheduled: ${jobId}`, {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true,
+        details: { jobId, schedule }
+      });
+      
+      return true;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to schedule ETL job', {
+        category: 'analytics',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message, jobId }
+      });
+      
+      return false;
+    }
+  }
+  
+  /**
+   * Transform data using a transformation function
+   * 
+   * @param data - The data to transform
+   * @param transformFn - The transformation function
+   * @returns The transformed data
+   */
+  public transform<T, U>(data: T[], transformFn: (item: T) => U): U[] {
+    return data.map(transformFn);
+  }
+
   /**
    * Close the BigQuery client and clean up resources
    */

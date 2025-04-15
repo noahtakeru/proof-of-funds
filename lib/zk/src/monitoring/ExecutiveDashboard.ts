@@ -17,6 +17,14 @@ import { alertManager } from './AlertManager';
 import { bigQueryAnalytics } from '../analytics/BigQueryAnalytics';
 import { zkErrorLogger } from '../zkErrorLogger.mjs';
 
+// Report formats
+export enum ReportFormat {
+  HTML = 'html',
+  PDF = 'pdf',
+  JSON = 'json',
+  CSV = 'csv'
+}
+
 // Dashboard metrics
 export interface DashboardMetrics {
   systemHealth: {
@@ -321,6 +329,350 @@ export class ExecutiveDashboard {
       });
       
       return false;
+    }
+  }
+  
+  /**
+   * Generate a dashboard report with metrics and KPIs for a specific timeframe
+   * 
+   * @param options - Report generation options
+   * @returns The generated report content or null if an error occurred
+   */
+  public async generateDashboardReport(
+    options: {
+      title?: string;
+      description?: string;
+      timeRange?: {
+        start?: Date;
+        end?: Date;
+        durationMs?: number;
+      };
+      metrics?: string[];
+      format?: 'json' | 'html' | 'pdf';
+      includeCharts?: boolean;
+      recipients?: string[];
+    } = {}
+  ): Promise<string | null> {
+    try {
+      // Get latest metrics
+      const metrics = await this.getMetrics(true);
+      if (!metrics) {
+        return null;
+      }
+      
+      // Create a report configuration
+      const reportId = `report_${Date.now()}`;
+      const report: DashboardReport = {
+        id: reportId,
+        name: options.title || 'Dashboard Report',
+        description: options.description || 'Generated dashboard report',
+        metrics: options.metrics || ['systemHealth', 'performance', 'usage', 'proofMetrics', 'alertMetrics'],
+        format: options.format || 'html',
+        schedule: {
+          frequency: 'daily',
+          hour: 0,
+          minute: 0
+        },
+        recipients: options.recipients || []
+      };
+      
+      // Generate the report content
+      let content: string;
+      
+      switch (report.format) {
+        case 'json':
+          content = this.generateJsonReport(report, metrics);
+          break;
+        case 'html':
+          content = this.generateHtmlReport(report, metrics);
+          break;
+        case 'pdf':
+          // In a real implementation, this would generate a PDF
+          content = this.generateHtmlReport(report, metrics);
+          break;
+        default:
+          content = this.generateJsonReport(report, metrics);
+      }
+      
+      // Store report metadata
+      report.lastGenerated = new Date();
+      
+      // Log report generation
+      zkErrorLogger.log('INFO', `Dashboard report generated: ${report.name}`, {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { 
+          reportId,
+          metrics: report.metrics.length
+        }
+      });
+      
+      return content;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to generate dashboard report', {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return null;
+    }
+  }
+  
+  /**
+   * Get the current status of Key Performance Indicators
+   * 
+   * @param kpiNames - Optional array of specific KPI names to retrieve
+   * @returns Object with KPI statuses or null if an error occurred
+   */
+  public async getKPIStatus(
+    kpiNames?: string[]
+  ): Promise<Record<string, {
+    name: string;
+    value: number | null;
+    status: 'good' | 'warning' | 'critical';
+    trend: 'increasing' | 'decreasing' | 'stable';
+    description: string;
+  }> | null> {
+    try {
+      // Get latest metrics
+      const metrics = await this.getMetrics(true);
+      if (!metrics) {
+        return null;
+      }
+      
+      // Define available KPIs
+      const allKPIs: Record<string, {
+        name: string;
+        getValue: () => number | null;
+        getStatus: (value: number | null) => 'good' | 'warning' | 'critical';
+        getTrend: () => 'increasing' | 'decreasing' | 'stable';
+        description: string;
+      }> = {
+        'system_health': {
+          name: 'System Health',
+          getValue: () => {
+            switch (metrics.systemHealth.status) {
+              case 'healthy': return 100;
+              case 'degraded': return 50;
+              case 'critical': return 0;
+              default: return null;
+            }
+          },
+          getStatus: (value) => {
+            if (value === 100) return 'good';
+            if (value === 50) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'stable', // Would be calculated from historical data
+          description: 'Overall system health status'
+        },
+        'error_rate': {
+          name: 'Error Rate',
+          getValue: () => metrics.performance.errorRate,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value < 1) return 'good';
+            if (value < 5) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'stable', // Would be calculated from historical data
+          description: 'Percentage of requests resulting in errors'
+        },
+        'response_time': {
+          name: 'Response Time',
+          getValue: () => metrics.performance.avgResponseTime,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value < 100) return 'good';
+            if (value < 500) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'stable', // Would be calculated from historical data
+          description: 'Average response time in milliseconds'
+        },
+        'active_users': {
+          name: 'Active Users',
+          getValue: () => metrics.usage.activeUsersToday,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value > 100) return 'good';
+            if (value > 10) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'increasing', // Would be calculated from historical data
+          description: 'Number of active users today'
+        },
+        'proof_success_rate': {
+          name: 'Proof Success Rate',
+          getValue: () => metrics.proofMetrics.successRate,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value > 95) return 'good';
+            if (value > 80) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'stable', // Would be calculated from historical data
+          description: 'Percentage of successful proof verifications'
+        },
+        'proof_generation_time': {
+          name: 'Proof Generation Time',
+          getValue: () => metrics.proofMetrics.avgGenerationTime,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value < 1000) return 'good';
+            if (value < 5000) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'decreasing', // Would be calculated from historical data
+          description: 'Average time to generate proofs in milliseconds'
+        },
+        'alert_rate': {
+          name: 'Alert Rate',
+          getValue: () => metrics.alertMetrics.triggerRate,
+          getStatus: (value) => {
+            if (value === null) return 'warning';
+            if (value < 5) return 'good';
+            if (value < 20) return 'warning';
+            return 'critical';
+          },
+          getTrend: () => 'stable', // Would be calculated from historical data
+          description: 'Number of alerts triggered per day'
+        }
+      };
+      
+      // Filter KPIs if specific names are provided
+      const kpisToInclude = kpiNames || Object.keys(allKPIs);
+      
+      // Generate KPI status report
+      const result: Record<string, {
+        name: string;
+        value: number | null;
+        status: 'good' | 'warning' | 'critical';
+        trend: 'increasing' | 'decreasing' | 'stable';
+        description: string;
+      }> = {};
+      
+      for (const kpiName of kpisToInclude) {
+        if (kpiName in allKPIs) {
+          const kpi = allKPIs[kpiName];
+          const value = kpi.getValue();
+          
+          result[kpiName] = {
+            name: kpi.name,
+            value,
+            status: kpi.getStatus(value),
+            trend: kpi.getTrend(),
+            description: kpi.description
+          };
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to get KPI status', {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return null;
+    }
+  }
+  
+  /**
+   * Schedule a recurring report
+   * 
+   * @param options - Report scheduling options
+   * @returns The ID of the scheduled report or null if an error occurred
+   */
+  public scheduleReport(
+    options: {
+      title: string;
+      description?: string;
+      metrics?: string[];
+      format?: 'json' | 'html' | 'pdf';
+      schedule: {
+        frequency: 'daily' | 'weekly' | 'monthly';
+        dayOfWeek?: number; // 0-6 for Sunday-Saturday (for weekly reports)
+        dayOfMonth?: number; // 1-31 (for monthly reports)
+        hour: number; // 0-23
+        minute: number; // 0-59
+      };
+      recipients: string[];
+    }
+  ): string | null {
+    try {
+      // Validate required fields
+      if (!options.title || !options.schedule || !options.recipients || options.recipients.length === 0) {
+        zkErrorLogger.log('WARNING', 'Invalid report scheduling options', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
+      // Validate schedule
+      if (options.schedule.frequency === 'weekly' && (options.schedule.dayOfWeek === undefined || options.schedule.dayOfWeek < 0 || options.schedule.dayOfWeek > 6)) {
+        zkErrorLogger.log('WARNING', 'Invalid day of week for weekly report', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
+      if (options.schedule.frequency === 'monthly' && (options.schedule.dayOfMonth === undefined || options.schedule.dayOfMonth < 1 || options.schedule.dayOfMonth > 31)) {
+        zkErrorLogger.log('WARNING', 'Invalid day of month for monthly report', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
+      // Create report ID
+      const reportId = `scheduled_report_${Date.now()}`;
+      
+      // Create report definition
+      const report: DashboardReport = {
+        id: reportId,
+        name: options.title,
+        description: options.description || `Scheduled ${options.schedule.frequency} report`,
+        metrics: options.metrics || ['systemHealth', 'performance', 'usage', 'proofMetrics'],
+        format: options.format || 'html',
+        schedule: options.schedule,
+        recipients: options.recipients
+      };
+      
+      // Save the report
+      this.saveReport(report);
+      
+      zkErrorLogger.log('INFO', `Scheduled new ${options.schedule.frequency} report: ${options.title}`, {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { 
+          reportId,
+          frequency: options.schedule.frequency,
+          recipients: options.recipients.length
+        }
+      });
+      
+      return reportId;
+    } catch (error) {
+      zkErrorLogger.log('ERROR', 'Failed to schedule report', {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { error: error.message }
+      });
+      
+      return null;
     }
   }
   
