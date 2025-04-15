@@ -229,6 +229,21 @@ export class ProgressiveEnhancement {
   }
   
   /**
+   * Check if a specific feature flag should be enabled based on device capabilities
+   * This method is important for feature flags implementation
+   * @param feature - Feature flag to check
+   * @returns Whether the feature should be enabled
+   */
+  public static async shouldEnableFeature(feature: keyof FeatureFlags): Promise<boolean> {
+    if (!this._isInitialized) {
+      await this.initialize();
+    }
+    
+    const flags = await this.getFeatureFlags();
+    return flags[feature] || false;
+  }
+  
+  /**
    * Get the fallback for a feature if available
    * @param featureName - Name of the feature
    * @returns Fallback feature name or null if no fallback
@@ -490,6 +505,42 @@ export class ProgressiveEnhancement {
     return fallbackFeatures;
   }
   
+  /**
+   * Get current feature flags based on device capabilities
+   * @returns Feature flags object
+   */
+  public static async getFeatureFlags(): Promise<FeatureFlags> {
+    if (!this._isInitialized) {
+      await this.initialize();
+    }
+    
+    // Default all to false
+    const flags: FeatureFlags = {
+      advancedVisualization: false,
+      detailedProgress: false,
+      realTimeUpdates: false,
+      parallelProcessing: false,
+      backgroundProcessing: false,
+      localCaching: false,
+      batchProofGeneration: false,
+      offlineOperation: false,
+      complexCircuits: false
+    };
+    
+    // Set flags based on available features
+    if (this._availableFeatures.has('advancedVisualization')) flags.advancedVisualization = true;
+    if (this._availableFeatures.has('detailedProgress')) flags.detailedProgress = true;
+    if (this._availableFeatures.has('realTimeUpdates')) flags.realTimeUpdates = true;
+    if (this._availableFeatures.has('parallelProcessing')) flags.parallelProcessing = true;
+    if (this._availableFeatures.has('backgroundProcessing')) flags.backgroundProcessing = true;
+    if (this._availableFeatures.has('localCaching')) flags.localCaching = true;
+    if (this._availableFeatures.has('batchProofGeneration')) flags.batchProofGeneration = true;
+    if (this._availableFeatures.has('offlineOperation')) flags.offlineOperation = true;
+    if (this._availableFeatures.has('complexCircuits')) flags.complexCircuits = true;
+    
+    return flags;
+  }
+
   /**
    * Get detailed information about device capabilities
    * @returns Device capability information

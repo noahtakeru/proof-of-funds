@@ -234,30 +234,65 @@ export default async function handler(req, res) {
     let proof, publicSignals;
 
     try {
-      // In production, this would use the actual files
-      // For now, we'll use a mock implementation if we can't access the files
+      // Generate a real ZK proof with proper error handling
       try {
+        // Extra validation of input files
+        if (!circuitWasmPath || typeof circuitWasmPath !== 'string') {
+          throw new Error('Invalid circuit WASM path');
+        }
+        
+        if (!zkeyPath || typeof zkeyPath !== 'string') {
+          throw new Error('Invalid zkey path');
+        }
+        
+        // Check if files exist by attempting to access them (this is server-side)
+        const fs = require('fs').promises;
+        
+        try {
+          await fs.access(circuitWasmPath);
+          await fs.access(zkeyPath);
+        } catch (fileAccessError) {
+          throw new Error(`Circuit files not accessible: ${fileAccessError.message}`);
+        }
+        
+        // Perform the actual proof generation
         const result = await snarkjs.groth16.fullProve(
           input,
           circuitWasmPath,
           zkeyPath,
           options
         );
+        
+        if (!result || !result.proof || !result.publicSignals) {
+          throw new Error('Proof generation returned incomplete results');
+        }
 
         proof = result.proof;
         publicSignals = result.publicSignals;
+        
+        // Log success
+        console.log(`Proof generated successfully for operation ${operationId}`);
       } catch (proofError) {
-        console.warn('Using mock proof due to error:', proofError.message);
+        console.error('Proof generation error:', proofError.message, {
+          error: proofError,
+          operationId,
+          circuitWasmPath,
+          zkeyPath,
+          inputKeys: Object.keys(input || {})
+        });
+        
         telemetry.recordError('fullProve-api', `Error generating real proof: ${proofError.message}`);
-
-        // Use mock data as fallback
-        proof = {
-          pi_a: ['1', '2', '3'],
-          pi_b: [['4', '5'], ['6', '7'], ['8', '9']],
-          pi_c: ['10', '11', '12']
-        };
-
-        publicSignals = ['13', '14', '15'];
+        
+        // Do not use mock data, return an error to the client
+        return res.status(500).json({
+          error: 'Proof generation failed',
+          message: proofError.message,
+          operationId,
+          details: {
+            errorType: proofError.name || 'Unknown',
+            errorTimestamp: new Date().toISOString()
+          }
+        });
       }
     } catch (proofGenError) {
       telemetry.recordError('fullProve-api', `Proof generation failed: ${proofGenError.message}`);
