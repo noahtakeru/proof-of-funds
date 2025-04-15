@@ -2671,3 +2671,5 @@ This revised ZK infrastructure plan addresses critical technical requirements fo
 7. A more realistic implementation timeline
 
 By following this structured approach with enhanced security and reliability considerations, we can deliver a robust and maintainable zero-knowledge proof system that preserves user privacy while maintaining excellent usability.
+
+npm run test:zk:security
