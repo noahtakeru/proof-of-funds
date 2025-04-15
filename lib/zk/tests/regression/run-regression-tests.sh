@@ -114,6 +114,8 @@ print_pass() {
     week10_passed=$((week10_passed + 1))
   elif [[ "$current_week" == "10.5" ]]; then
     week105_passed=$((week105_passed + 1))
+  elif [[ "$current_week" == "11" ]]; then
+    week11_passed=$((week11_passed + 1))
   elif [[ "$current_week" == "phase4" ]]; then
     phase4_passed=$((phase4_passed + 1))
   fi
@@ -158,6 +160,8 @@ track_test() {
     week10_tests=$((week10_tests + 1))
   elif [[ "$current_week" == "10.5" ]]; then
     week105_tests=$((week105_tests + 1))
+  elif [[ "$current_week" == "11" ]]; then
+    week11_tests=$((week11_tests + 1))
   elif [[ "$current_week" == "phase4" ]]; then
     phase4_tests=$((phase4_tests + 1))
   fi
@@ -849,8 +853,8 @@ if [ -d ./lib/zk/src/contracts ]; then
       zkVerifierContent=$(cat ./lib/zk/src/contracts/ZKVerifierContract.ts)
       if [[ $zkVerifierContent == *"verifyProof"* ]]; then
         print_pass "Contract Interface test passed"
-        task7_1_passed=1
-      else
+    task7_1_passed=1
+  else
         print_fail "ZKVerifierContract lacks required methods"
       fi
     elif [ -f ./lib/zk/src/contracts/ContractInterface.ts ]; then
@@ -1081,8 +1085,8 @@ if [ -f ./lib/zk/src/deployment/DeploymentManager.ts ] || [ -f ./lib/zk/src/depl
     task8_1_passed=1
   else
     print_fail "Multi-platform Deployment Manager tests failed"
-  fi
-else
+    fi
+  else
   print_fail "DeploymentManager file not found"
 fi
 
@@ -1151,8 +1155,8 @@ if [ -d ./lib/zk/src/e2e-testing ]; then
       task8_3_passed=1
     else
       print_fail "End-to-End Integration Testing tests failed"
-    fi
-  else
+  fi
+else
     print_fail "Required E2E Integration testing files not found"
   fi
 else
@@ -1266,6 +1270,10 @@ task105_4_tests=1
 task105_4_passed=0
 task105_5_tests=1
 task105_5_passed=0
+
+# Initialize week 11 test counter
+week11_tests=0
+week11_passed=0
 
 print_task "Task 1: Performance Benchmarking Framework"
 track_test # increment test counter
@@ -1420,6 +1428,60 @@ if [ -f ./lib/zk/tests/regression/enhanced-runner.cjs ]; then
   node ./lib/zk/tests/regression/enhanced-runner.cjs || print_info "Enhanced tests completed with warnings or failures"
 fi
 
+# Week 11 Tests
+print_header "Week 11: ZK Frontend Integration"
+current_week="11"
+
+# Initialize task-specific counters
+task11_1_tests=1
+task11_1_passed=0
+task11_2_tests=1
+task11_2_passed=0
+task11_3_tests=1
+task11_3_passed=0
+
+print_task "Task 1: Core UI Components"
+print_info "Testing ZK frontend core UI components..."
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/week11/core-ui-components-test.cjs ]; then
+  if node ./lib/zk/tests/regression/week11/core-ui-components-test.cjs; then
+    print_pass "Core UI Components tests passed"
+    task11_1_passed=1
+  else
+    print_fail "Core UI Components tests failed"
+  fi
+else
+  print_fail "Core UI Components test file not found"
+fi
+
+print_task "Task 2: Error Handling UI"
+print_info "Testing ZK frontend error handling UI..."
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/week11/error-handling-ui-test.cjs ]; then
+  if node ./lib/zk/tests/regression/week11/error-handling-ui-test.cjs; then
+    print_pass "Error Handling UI tests passed"
+    task11_2_passed=1
+  else
+    print_fail "Error Handling UI tests failed"
+  fi
+else
+  print_fail "Error Handling UI test file not found"
+fi
+
+print_task "Task 3: Multi-Device Testing"
+print_info "Testing ZK frontend multi-device support..."
+track_test # increment test counter
+if [ -f ./lib/zk/tests/regression/week11/multi-device-test.cjs ]; then
+  if node ./lib/zk/tests/regression/week11/multi-device-test.cjs; then
+    print_pass "Multi-Device Testing tests passed"
+    task11_3_passed=1
+  else
+    print_fail "Multi-Device Testing tests failed"
+  fi
+else
+  print_fail "Multi-Device Testing test file not found"
+fi
+
 # Phase 4: Production Readiness Tests
 if [ "$RUN_REAL_WALLET_TESTS" = true ]; then
   print_header "Phase 4: Production Readiness Tests"
@@ -1527,6 +1589,11 @@ echo -e "  Task 2: Security Testing Framework Enhancement - $([ $task105_2_passe
 echo -e "  Task 3: Implementation Vulnerability Detector - $([ $task105_3_passed -eq $task105_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_3_passed))/$task105_3_tests passed${NC}")"
 echo -e "  Task 4: Security Rules Framework - $([ $task105_4_passed -eq $task105_4_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_4_passed))/$task105_4_tests passed${NC}")"
 echo -e "  Task 5: Anomaly Detection - $([ $task105_5_passed -eq $task105_5_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task105_5_passed))/$task105_5_tests passed${NC}")"
+
+echo -e "\n${BLUE}Week 11: ZK Frontend Integration - ${week11_passed:-0}/${week11_tests:-0} tests passed${NC}"
+echo -e "  Task 1: Core UI Components - $([ $task11_1_passed -eq $task11_1_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task11_1_passed))/$task11_1_tests passed${NC}")"
+echo -e "  Task 2: Error Handling UI - $([ $task11_2_passed -eq $task11_2_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task11_2_passed))/$task11_2_tests passed${NC}")"
+echo -e "  Task 3: Multi-Device Testing - $([ $task11_3_passed -eq $task11_3_tests ] && echo "${GREEN}All tests passed${NC}" || echo "${RED}$(($task11_3_passed))/$task11_3_tests passed${NC}")"
 
 # Print overall test summary
 echo -e "\n${BLUE}Overall: ${total_passed}/${total_tests} tests passed ($(( (total_passed * 100) / total_tests ))%)${NC}"
