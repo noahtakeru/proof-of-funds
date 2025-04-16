@@ -17,7 +17,7 @@
 
 import zkErrorLoggerModule from '../zkErrorLogger.mjs';
 
-// Get error logger
+// Get the singleton logger instance
 const { zkErrorLogger } = zkErrorLoggerModule;
 
 /**
