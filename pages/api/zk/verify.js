@@ -194,25 +194,64 @@ export default async function handler(req, res) {
       }
     }
 
-    // For testing, we'll use a mock implementation to avoid dependencies
-    // In production, this would use the actual snarkjs instance
-    let verificationResult = true;
+    // Perform actual verification with proper error handling
+    let verificationResult = false;
 
     try {
-      const snarkjs = snarkjsLoader.getSnarkjs();
-      if (snarkjs && snarkjs.groth16 && typeof snarkjs.groth16.verify === 'function') {
-        verificationResult = await snarkjs.groth16.verify(
-          verificationKey,
-          publicSignals,
-          proof
-        );
-      } else {
-        console.log("Using mock verification result");
+      // Initialize snarkjs if not already done
+      if (!snarkjsLoader.isInitialized()) {
+        await snarkjsLoader.initialize({
+          serverSide: true,
+          timeout: 10000,
+          maxRetries: 3
+        });
       }
+      
+      const snarkjs = snarkjsLoader.getSnarkjs();
+      
+      if (!snarkjs || !snarkjs.groth16 || typeof snarkjs.groth16.verify !== 'function') {
+        throw new Error('snarkjs not properly initialized or missing verify functionality');
+      }
+      
+      // Perform actual cryptographic verification
+      verificationResult = await snarkjs.groth16.verify(
+        verificationKey,
+        publicSignals,
+        proof
+      );
+      
+      if (verificationResult === undefined || verificationResult === null) {
+        throw new Error('Verification returned undefined result');
+      }
+      
+      // Record successful verification in telemetry
+      telemetry.recordOperation({
+        operation: 'verify-success',
+        executionTimeMs: performance.now() - startTime,
+        serverSide: true,
+        success: !!verificationResult,
+        additionalInfo: {
+          operationId
+        }
+      });
     } catch (verifyError) {
-      console.warn("Verification error, using mock result:", verifyError.message);
+      // Log the error with detailed information
+      console.error("Verification error:", verifyError.message, {
+        error: verifyError,
+        operationId,
+        hasVerificationKey: !!verificationKey,
+        publicSignalsLength: publicSignals?.length,
+        proofStructure: proof ? Object.keys(proof) : null
+      });
+      
       telemetry.recordError('verify-operation', verifyError.message);
-      // Continue with mock result
+      
+      // Do not use mock results, return actual error
+      return res.status(400).json({
+        verified: false,
+        error: `Verification failed: ${verifyError.message}`,
+        operationId
+      });
     }
 
     const endTime = performance.now();

@@ -415,10 +415,10 @@ export class VerificationPathways {
   }
   
   /**
-   * Verifies a proof locally
+   * Verifies a proof locally using snarkjs
    * @param proofData The proof data to verify
-   * @param proofType Optional proof type (ignored for local verification)
-   * @param walletAddress Optional wallet address (ignored for local verification)
+   * @param proofType Optional proof type for circuit-specific verification
+   * @param walletAddress Optional wallet address (used for auditing purposes)
    * @returns Promise that resolves to the verification result
    */
   private async verifyLocally(
@@ -426,13 +426,10 @@ export class VerificationPathways {
     proofType?: ProofType,
     walletAddress?: WalletAddress
   ): Promise<VerificationResult> {
-    // We'll use a simplified local verification for now
-    // In a real implementation, this would use snarkjs.groth16.verify
-    
-    // Mock local verification (replace with actual snarkjs verification in production)
     const { proof, publicSignals } = proofData;
+    const proofId = this.generateProofId(proofData);
     
-    // Check basic proof structure as a minimal verification
+    // Check basic proof structure
     if (!proof || !proof.a || !proof.b || !proof.c ||
         !Array.isArray(proof.a) || proof.a.length !== 2 ||
         !Array.isArray(proof.b) || proof.b.length !== 2 ||
@@ -444,19 +441,88 @@ export class VerificationPathways {
         isVerified: false,
         error: 'Invalid proof structure',
         verificationMethod: 'local',
-        proofId: this.generateProofId(proofData)
+        proofId
       };
     }
     
-    // In a real implementation, we would do cryptographic verification here
-    // For now, we'll implement a placeholder that validates the basic structure
-    
-    // Return successful verification
-    return {
-      isVerified: true,
-      verificationMethod: 'local',
-      proofId: this.generateProofId(proofData)
-    };
+    try {
+      // Dynamically import snarkjs for verification
+      let snarkjs;
+      try {
+        // Try to import using the default path
+        const snarkjsModule = await import('snarkjs');
+        snarkjs = snarkjsModule.default || snarkjsModule;
+      } catch (importError) {
+        // If direct import fails, try to use the snarkjsLoader
+        try {
+          const { snarkjsLoader } = await import('./snarkjsLoader');
+          await snarkjsLoader.initialize();
+          snarkjs = snarkjsLoader.getSnarkjs();
+          
+          if (!snarkjs) {
+            throw new Error('Failed to load snarkjs from loader');
+          }
+        } catch (loaderError) {
+          throw new Error(`Failed to load snarkjs: ${loaderError.message}`);
+        }
+      }
+      
+      // Determine the appropriate verification key based on proof type
+      const circuitName = proofType !== undefined
+        ? proofType === 0 ? 'standardProof'
+          : proofType === 1 ? 'thresholdProof'
+            : proofType === 2 ? 'maximumProof'
+              : 'standardProof'
+        : 'standardProof';
+      
+      // Get verification key
+      let verificationKey;
+      try {
+        // Try to load verification key dynamically
+        const vkModule = await import(`../build/verification_key/${circuitName}.json`, { assert: { type: 'json' } });
+        verificationKey = vkModule.default;
+      } catch (vkError) {
+        // If key-specific import fails, try to use a generic path or environment variable
+        try {
+          // Look for verification keys in a common directory
+          const fs = await import('fs/promises');
+          const vkeyPath = `../build/verification_key/${circuitName}.json`;
+          const vkeyContents = await fs.readFile(new URL(vkeyPath, import.meta.url), 'utf8');
+          verificationKey = JSON.parse(vkeyContents);
+        } catch (fsError) {
+          throw new Error(`Failed to load verification key for ${circuitName}: ${fsError.message}`);
+        }
+      }
+      
+      if (!verificationKey) {
+        throw new Error(`Missing verification key for circuit: ${circuitName}`);
+      }
+      
+      // Perform actual cryptographic verification
+      const isVerified = await snarkjs.groth16.verify(
+        verificationKey,
+        publicSignals,
+        proof
+      );
+      
+      // Return verification result
+      return {
+        isVerified,
+        verificationMethod: 'local',
+        proofId,
+        circuit: circuitName,
+        walletAddress
+      };
+    } catch (error) {
+      console.error('Error during local proof verification:', error);
+      
+      return {
+        isVerified: false,
+        error: error instanceof Error ? error.message : String(error),
+        verificationMethod: 'local',
+        proofId
+      };
+    }
   }
   
   /**
