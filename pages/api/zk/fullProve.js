@@ -16,6 +16,10 @@ import { snarkjsLoader } from '../../../lib/zk/src/snarkjsLoader';
 import { telemetry } from '../../../lib/zk/src/telemetry';
 import { performance } from 'perf_hooks';
 import { RateLimiter } from '../../../lib/zk/src/zkProxyClient';
+import { nonceValidator } from '../../../lib/zk/src/security/NonceValidator';
+import { signatureVerifier } from '../../../lib/zk/src/security/RequestSignatureVerifier';
+import { inputValidator } from '../../../lib/zk/src/security/InputValidator';
+import { responseSigner } from '../../../lib/zk/src/security/ResponseSigner';
 
 // Import analytics for server-side tracking
 let analyticsClient;
@@ -152,7 +156,9 @@ export default async function handler(req, res) {
       circuitWasmPath,
       zkeyPath,
       options = {},
-      clientInfo = {}
+      clientInfo = {},
+      nonce,
+      timestamp
     } = req.body;
 
     // Validate required parameters
@@ -163,8 +169,66 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get user ID for rate limiting
+    // Sanitize input to prevent injection attacks
+    const sanitizedInput = inputValidator.sanitizeInput(input);
+    
+    // Perform comprehensive input validation
+    const validationResult = inputValidator.validateProofInput(sanitizedInput);
+    if (!validationResult.valid) {
+      return res.status(400).json({
+        error: 'Invalid input parameters',
+        validationErrors: validationResult.errors,
+        message: validationResult.errors.map(err => err.message).join('; ')
+      });
+    }
+
+    // Validate nonce to prevent replay attacks
+    if (!nonce) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'Nonce is required to prevent replay attacks',
+        requiredParams: ['nonce']
+      });
+    }
+    
+    // Get user ID for nonce validation and rate limiting
     const userId = getUserId(req);
+    
+    // Validate the nonce
+    const nonceValidation = nonceValidator.validateNonce(nonce, userId, timestamp || Date.now());
+    
+    if (!nonceValidation.valid) {
+      return res.status(400).json({
+        error: 'Invalid nonce',
+        message: nonceValidation.message,
+        reason: nonceValidation.reason
+      });
+    }
+    
+    // Verify request signature if provided
+    if (req.body.signature) {
+      const signatureInfo = {
+        signature: req.body.signature,
+        timestamp: req.body.timestamp || Date.now().toString(),
+        clientId: req.body.clientId || userId
+      };
+      
+      // Create a copy of the request data without the signature for verification
+      const { signature, ...requestDataWithoutSignature } = req.body;
+      
+      const signatureValidation = signatureVerifier.verifyClientSignature(
+        requestDataWithoutSignature,
+        signatureInfo
+      );
+      
+      if (!signatureValidation.valid) {
+        return res.status(401).json({
+          error: 'Invalid signature',
+          message: signatureValidation.message,
+          reason: signatureValidation.reason
+        });
+      }
+    }
 
     // Check API key if enabled (disabled for development)
     const apiKeyResult = process.env.REQUIRE_API_KEY === 'true'
@@ -339,8 +403,8 @@ export default async function handler(req, res) {
       }
     }
 
-    // Return the proof and public signals
-    return res.status(200).json({
+    // Prepare response data
+    const responseData = {
       proof,
       publicSignals,
       serverTiming: {
@@ -348,7 +412,13 @@ export default async function handler(req, res) {
       },
       operationId,
       executionTimeMs: processingTime
-    });
+    };
+    
+    // Sign the response to protect against MITM attacks
+    const signedResponse = responseSigner.signResponse(responseData);
+    
+    // Return the signed response
+    return res.status(200).json(signedResponse);
   } catch (error) {
     console.error('Unexpected error in fullProve API:', error);
     telemetry.recordError('fullProve-api', error.message || 'Unknown error during proof generation');

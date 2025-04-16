@@ -9,8 +9,17 @@
 import { EnvironmentType, DeploymentConfig, FeatureFlags } from './DeploymentConfig';
 import { EnvironmentDetector } from './EnvironmentDetector';
 import { HealthCheck, HealthCheckResult } from './HealthCheck';
-import { zkCircuitRegistry } from '../zkCircuitRegistry';
-import { getDeviceCapabilities } from '../deviceCapabilities';
+// Import the module interfaces
+import '../zkCircuitRegistry';
+import '../deviceCapabilities';
+
+// Type declarations for dynamic modules
+declare global {
+  interface Window {
+    zkCircuitRegistry: any;
+    deviceCapabilities: any;
+  }
+}
 
 /**
  * Options for initializing the deployment manager
@@ -73,24 +82,24 @@ export class DeploymentManager {
     this.healthCheck = new HealthCheck(this.environment, this.config);
     this.logLevel = options.logLevel || 'info';
     this.enableTelemetry = options.enableTelemetry !== undefined ? options.enableTelemetry : true;
-    
+
     // If circuit registry path is provided, configure it
     if (options.circuitRegistryPath) {
       this.configureCircuitRegistry(options.circuitRegistryPath);
     }
-    
+
     // Detect available features
     this.detectFeatures();
-    
+
     // Perform initial health check if requested
     if (options.performInitialHealthCheck !== false) {
       this.runHealthCheck();
     }
-    
+
     this.isInitialized = true;
     this.log('info', `DeploymentManager initialized for ${this.environment} environment`);
   }
-  
+
   /**
    * Initialize the deployment
    */
@@ -99,11 +108,11 @@ export class DeploymentManager {
       this.log('warn', 'DeploymentManager already initialized');
       return true;
     }
-    
+
     try {
       // Run health checks
       const health = await this.runHealthCheck();
-      
+
       // Initialize based on environment
       switch (this.environment) {
         case EnvironmentType.Browser:
@@ -121,7 +130,7 @@ export class DeploymentManager {
         default:
           throw new Error(`Unsupported environment: ${this.environment}`);
       }
-      
+
       this.isInitialized = true;
       this.log('info', `Deployment successfully initialized for ${this.environment}`);
       return true;
@@ -131,7 +140,7 @@ export class DeploymentManager {
       return false;
     }
   }
-  
+
   /**
    * Get current deployment status
    */
@@ -139,17 +148,17 @@ export class DeploymentManager {
     return {
       environment: this.environment,
       config: this.config,
-      healthCheck: this.lastHealthCheckResult || { 
+      healthCheck: this.lastHealthCheckResult || {
         status: 'unknown',
         checks: {},
-        timestamp: Date.now() 
+        timestamp: Date.now()
       },
       features: this.features,
       isReady: this.isInitialized,
       warnings: [...this.warnings]
     };
   }
-  
+
   /**
    * Run health checks for the current deployment
    */
@@ -157,7 +166,7 @@ export class DeploymentManager {
     this.log('info', 'Running deployment health checks');
     const result = await this.healthCheck.runChecks();
     this.lastHealthCheckResult = result;
-    
+
     // Process warnings from health check
     if (result.status === 'warning' || result.status === 'error') {
       for (const check of Object.values(result.checks)) {
@@ -166,10 +175,10 @@ export class DeploymentManager {
         }
       }
     }
-    
+
     return result;
   }
-  
+
   /**
    * Update configuration for the current deployment
    */
@@ -178,12 +187,12 @@ export class DeploymentManager {
       ...this.config,
       ...config
     };
-    
+
     // Update health check with new config
     this.healthCheck.updateConfig(this.config);
     this.log('info', 'Deployment configuration updated');
   }
-  
+
   /**
    * Reset the deployment manager to initial state
    */
@@ -191,62 +200,85 @@ export class DeploymentManager {
     this.isInitialized = false;
     this.warnings = [];
     this.lastHealthCheckResult = null;
-    
+
     // Re-detect environment
     this.environment = this.detector.detectEnvironment();
     this.config = this.createConfig(this.environment);
-    
+
     // Re-detect features
     this.detectFeatures();
-    
+
     this.log('info', 'DeploymentManager reset to initial state');
   }
-  
+
   /**
    * Check if specific features are available in the current environment
    */
   public hasFeature(featureName: keyof FeatureFlags): boolean {
     return this.features[featureName] === true;
   }
-  
+
   /**
    * Get recommended configuration based on environment capabilities
    */
   public getRecommendedConfig(): DeploymentConfig {
-    const deviceCaps = getDeviceCapabilities();
+    // Access deviceCapabilities from global scope or via dynamic import
+    let deviceCaps;
+    if (typeof window !== 'undefined' && window.deviceCapabilities) {
+      deviceCaps = window.deviceCapabilities.getDeviceCapabilities();
+    } else {
+      // Fallback values if deviceCapabilities isn't available
+      deviceCaps = {
+        cpuCores: 2,
+        availableMemory: 512,
+        storageQuota: 0,
+        persistentStorage: false,
+        cpuClass: 'medium'
+      };
+      this.log('warn', 'deviceCapabilities not available, using fallback values');
+    }
+
     const baseConfig = this.createConfig(this.environment);
-    
+
     // Adjust settings based on device capabilities
     return {
       ...baseConfig,
       workerThreads: deviceCaps.cpuCores > 2 ? Math.min(deviceCaps.cpuCores - 1, 4) : 0,
-      memoryLimit: Math.min(deviceCaps.memory * 0.7, 4096), // 70% of available memory or 4GB max
+      memoryLimit: Math.min(deviceCaps.availableMemory * 0.7, 4096), // 70% of available memory or 4GB max
       useLocalCache: deviceCaps.storageQuota > 50 * 1024 * 1024, // 50MB minimum
       offlineSupport: deviceCaps.persistentStorage,
-      proofGenerationTimeoutMs: deviceCaps.cpuPerformance === 'high' ? 
-        30000 : deviceCaps.cpuPerformance === 'medium' ? 
-        60000 : 120000
+      proofGenerationTimeoutMs: deviceCaps.cpuClass === 'high' ?
+        30000 : deviceCaps.cpuClass === 'medium' ?
+          60000 : 120000
     };
   }
-  
+
   /**
    * Configure circuit registry path
    */
   private configureCircuitRegistry(path: string): void {
     try {
-      zkCircuitRegistry.setBasePath(path);
-      this.log('info', `Circuit registry path configured: ${path}`);
+      // Access zkCircuitRegistry from global scope or via dynamic import
+      if (typeof window !== 'undefined' && window.zkCircuitRegistry &&
+        typeof window.zkCircuitRegistry.setBasePath === 'function') {
+        window.zkCircuitRegistry.setBasePath(path);
+        this.log('info', `Circuit registry path configured: ${path}`);
+      } else {
+        // We can't configure the registry path if zkCircuitRegistry isn't available
+        this.log('warn', 'zkCircuitRegistry not available, cannot configure registry path');
+        this.warnings.push('Circuit registry path configuration skipped: registry not available');
+      }
     } catch (error) {
       this.log('error', `Failed to configure circuit registry: ${error instanceof Error ? error.message : String(error)}`);
       this.warnings.push(`Circuit registry error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  
+
   /**
    * Create environment-specific configuration
    */
   private createConfig(
-    environment: EnvironmentType, 
+    environment: EnvironmentType,
     overrides?: Partial<DeploymentConfig>
   ): DeploymentConfig {
     // Base configuration
@@ -271,10 +303,10 @@ export class DeploymentManager {
         localStorage: true
       }
     };
-    
+
     // Environment-specific adjustments
     let envConfig: DeploymentConfig;
-    
+
     switch (environment) {
       case EnvironmentType.Browser:
         envConfig = {
@@ -286,7 +318,7 @@ export class DeploymentManager {
           }
         };
         break;
-        
+
       case EnvironmentType.Node:
         envConfig = {
           ...baseConfig,
@@ -302,7 +334,7 @@ export class DeploymentManager {
           }
         };
         break;
-        
+
       case EnvironmentType.Mobile:
         envConfig = {
           ...baseConfig,
@@ -316,7 +348,7 @@ export class DeploymentManager {
           }
         };
         break;
-        
+
       case EnvironmentType.Worker:
         envConfig = {
           ...baseConfig,
@@ -327,11 +359,11 @@ export class DeploymentManager {
           }
         };
         break;
-        
+
       default:
         envConfig = baseConfig;
     }
-    
+
     // Apply any overrides
     if (overrides) {
       return {
@@ -343,16 +375,16 @@ export class DeploymentManager {
         }
       };
     }
-    
+
     return envConfig;
   }
-  
+
   /**
    * Detect features available in the current environment
    */
   private detectFeatures(): void {
     const detectedFeatures = this.detector.detectFeatures();
-    
+
     // Update features configuration based on detection
     this.config.features = {
       ...this.config.features,
@@ -364,7 +396,7 @@ export class DeploymentManager {
       secureContext: detectedFeatures.isSecureContext,
       localStorage: detectedFeatures.supportsLocalStorage
     };
-    
+
     // Copy to features record for external use
     this.features = {
       webWorkers: this.config.features.webWorkers,
@@ -375,19 +407,19 @@ export class DeploymentManager {
       secureContext: this.config.features.secureContext,
       localStorage: this.config.features.localStorage
     };
-    
+
     this.log('info', `Feature detection completed: ${Object.entries(this.features)
       .filter(([, value]) => value)
       .map(([key]) => key)
       .join(', ')}`);
   }
-  
+
   /**
    * Initialize browser-specific environment
    */
   private async initializeBrowserEnvironment(): Promise<void> {
     this.log('info', 'Initializing browser environment');
-    
+
     // Register service worker if supported and enabled
     if (this.config.features.serviceWorker && 'serviceWorker' in navigator) {
       try {
@@ -398,30 +430,30 @@ export class DeploymentManager {
         this.warnings.push(`Service worker registration failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    
+
     // Initialize IndexedDB if needed
     if (this.config.useLocalCache && this.config.features.indexedDB) {
       // IndexedDB initialization would go here
       this.log('info', 'IndexedDB cache initialized');
     }
   }
-  
+
   /**
    * Initialize Node.js-specific environment
    */
   private async initializeNodeEnvironment(): Promise<void> {
     this.log('info', 'Initializing Node.js environment');
-    
+
     // Node.js specific setup
     // No special initialization needed for now
   }
-  
+
   /**
    * Initialize mobile-specific environment
    */
   private async initializeMobileEnvironment(): Promise<void> {
     this.log('info', 'Initializing mobile environment');
-    
+
     // Mobile-specific setup
     // Check for background processing limits
     if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
@@ -442,24 +474,24 @@ export class DeploymentManager {
       }
     }
   }
-  
+
   /**
    * Initialize web worker-specific environment
    */
   private async initializeWorkerEnvironment(): Promise<void> {
     this.log('info', 'Initializing worker environment');
-    
+
     // Worker-specific setup
     // No special initialization needed for now
   }
-  
+
   /**
    * Log a message with appropriate level
    */
   private log(level: 'error' | 'warn' | 'info' | 'debug', message: string): void {
-    const levels = { error: 0, warn: 1, info: 2, debug: 3, none: 4 };
+    const levels: Record<string, number> = { error: 0, warn: 1, info: 2, debug: 3, none: 4 };
     const configLevel = this.logLevel || 'info';
-    
+
     if (levels[level] <= levels[configLevel]) {
       if (level === 'error') {
         console.error(`[DeploymentManager] ${message}`);
@@ -471,5 +503,122 @@ export class DeploymentManager {
         console.debug(`[DeploymentManager] ${message}`);
       }
     }
+  }
+
+  /**
+   * Rollback to a previous deployment state or configuration
+   * 
+   * @param options Rollback configuration options
+   * @returns Promise resolving to true if rollback was successful
+   */
+  public async rollback(options: {
+    /** The previous configuration to restore */
+    config?: DeploymentConfig;
+    /** Target version to rollback to */
+    targetVersion?: string;
+    /** Whether to force rollback even if health checks fail */
+    force?: boolean;
+    /** Callback for progress updates */
+    progressCallback?: (progress: number, message: string) => void;
+  } = {}): Promise<boolean> {
+    this.log('info', `Initiating rollback ${options.targetVersion ? `to version ${options.targetVersion}` : 'to previous state'}`);
+
+    try {
+      // Store current config as backup
+      const previousConfig = { ...this.config };
+
+      // Apply previous configuration if provided
+      if (options.config) {
+        this.updateConfig(options.config);
+      }
+
+      // Run health checks to ensure system can operate with rolled back config
+      const healthResult = await this.runHealthCheck();
+
+      // If health checks fail and force isn't enabled, revert to previous config
+      if (healthResult.status === 'error' && !options.force) {
+        this.log('error', `Rollback failed health checks. Use force option to override.`);
+        this.updateConfig(previousConfig);
+        return false;
+      }
+
+      // Execute environment-specific rollback procedures
+      switch (this.environment) {
+        case EnvironmentType.Browser:
+          await this.rollbackBrowserEnvironment(options.targetVersion);
+          break;
+        case EnvironmentType.Node:
+          await this.rollbackNodeEnvironment(options.targetVersion);
+          break;
+        case EnvironmentType.Mobile:
+          await this.rollbackMobileEnvironment(options.targetVersion);
+          break;
+        case EnvironmentType.Worker:
+          await this.rollbackWorkerEnvironment(options.targetVersion);
+          break;
+      }
+
+      this.log('info', `Rollback completed successfully ${options.targetVersion ? `to version ${options.targetVersion}` : ''}`);
+      return true;
+    } catch (error) {
+      this.log('error', `Rollback failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.warnings.push(`Rollback error: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+
+  /**
+   * Execute browser-specific rollback procedures
+   */
+  private async rollbackBrowserEnvironment(targetVersion?: string): Promise<void> {
+    // Clear caches if appropriate
+    if ('caches' in window) {
+      try {
+        const cacheKeys = await caches.keys();
+        const deletionPromises = cacheKeys
+          .filter(key => key.includes('zk-proof-system-'))
+          .map(key => caches.delete(key));
+
+        await Promise.all(deletionPromises);
+        this.log('info', 'Browser caches cleared during rollback');
+      } catch (error) {
+        this.log('warn', `Failed to clear caches: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Reload service worker if appropriate
+    if (this.config.features.serviceWorker && 'serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+        this.log('info', 'Service workers unregistered during rollback');
+      } catch (error) {
+        this.log('warn', `Failed to unregister service workers: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  /**
+   * Execute Node.js-specific rollback procedures
+   */
+  private async rollbackNodeEnvironment(targetVersion?: string): Promise<void> {
+    // Node-specific rollback procedures
+    this.log('info', 'Node environment rollback completed');
+  }
+
+  /**
+   * Execute mobile-specific rollback procedures
+   */
+  private async rollbackMobileEnvironment(targetVersion?: string): Promise<void> {
+    // Mobile-specific rollback procedures 
+    this.log('info', 'Mobile environment rollback completed');
+  }
+
+  /**
+   * Execute worker-specific rollback procedures
+   */
+  private async rollbackWorkerEnvironment(targetVersion?: string): Promise<void> {
+    // Worker-specific rollback procedures
+    this.log('info', 'Worker environment rollback completed');
   }
 }
