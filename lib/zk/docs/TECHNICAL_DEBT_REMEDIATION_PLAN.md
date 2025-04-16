@@ -1,4 +1,4 @@
-# Technical Debt Remediation Plan for ZK Infrastructure
+# Technical Debt Remediation Plan for ZK Infrastructure -- Finished
 
 ## Summary
 

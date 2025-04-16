@@ -185,8 +185,8 @@
       ]
     },
     "/Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/contracts/ZKVerifier.sol": {
-      "lastModificationDate": 1743225765709,
-      "contentHash": "eea38bcb37f83fd00ebaa52a48f8cf4f",
+      "lastModificationDate": 1744777992796,
+      "contentHash": "cc03456d2ad71387becb220cbaf30cbd",
       "sourceName": "contracts/ZKVerifier.sol",
       "solcConfig": {
         "version": "0.8.19",
