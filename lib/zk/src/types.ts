@@ -56,7 +56,7 @@ export enum ExecutionMode {
 /**
  * Proof verification method
  */
-export type VerificationMethod = 'standard' | 'alternative' | 'server' | 'test-mock';
+export type VerificationMethod = 'standard' | 'alternative' | 'server' | 'test-mock' | 'local';
 
 /**
  * All environment types where proofs can be generated or verified
@@ -203,16 +203,20 @@ export interface ZKVerifyParams {
  * Detailed verification result
  */
 export interface VerificationResult {
+  /** Whether the proof is valid (will be deprecated in favor of valid) */
+  isVerified?: boolean;
   /** Whether the proof is valid */
-  valid: boolean;
+  valid?: boolean;
   /** Type of circuit that was verified */
-  circuitType: CircuitType;
+  circuitType?: CircuitType;
   /** ISO timestamp when verification was performed */
-  verifiedAt: string;
+  verifiedAt?: string;
   /** Method used for verification */
-  verificationMethod: VerificationMethod;
+  verificationMethod?: VerificationMethod;
   /** Error message if verification failed */
   errorMessage?: string;
+  /** Error message if verification failed (alias for errorMessage) */
+  error?: string;
   /** Any warnings that occurred during verification */
   warnings?: string[];
   /** Performance metrics for verification */
@@ -224,6 +228,16 @@ export interface VerificationResult {
   };
   /** Location where verification was performed */
   verifiedAt_location?: ExecutionLocation;
+  /** Contract address used for verification */
+  contractAddress?: string;
+  /** Proof ID that was verified */
+  proofId?: string;
+  /** Transaction hash for on-chain verification */
+  transactionHash?: string;
+  /** Block number for on-chain verification */
+  blockNumber?: number;
+  /** Gas used for on-chain verification */
+  gasUsed?: string | number;
 }
 
 // ============================================================
@@ -516,4 +530,119 @@ export interface GasEstimate {
   timestamp: number;
   /** Detailed breakdown of gas usage by operation */
   breakdown?: Record<string, number>;
+}
+
+/**
+ * Transaction options for contract interactions
+ */
+export interface TransactionOptions {
+  /** Gas limit to use for the transaction */
+  gasLimit?: number;
+  /** Gas price in wei */
+  gasPrice?: string;
+  /** Value to send with the transaction in wei */
+  value?: string;
+  /** Maximum fee per gas for EIP-1559 transactions */
+  maxFeePerGas?: string;
+  /** Maximum priority fee per gas for EIP-1559 transactions */
+  maxPriorityFeePerGas?: string;
+  /** Nonce to use for the transaction */
+  nonce?: number;
+  /** Whether to wait for transaction confirmation */
+  waitForConfirmation?: boolean;
+  /** Number of confirmations to wait for */
+  confirmations?: number;
+  /** Transaction timeout in milliseconds */
+  timeoutMs?: number;
+}
+
+/**
+ * Result of a blockchain transaction
+ */
+export interface TransactionResult {
+  /** Transaction hash */
+  transactionHash: string;
+  /** Transaction status (success or failure) */
+  status: 'success' | 'failure' | 'pending';
+  /** Block number where transaction was included */
+  blockNumber?: number;
+  /** Gas used by the transaction */
+  gasUsed?: number;
+  /** Effective gas price paid */
+  effectiveGasPrice?: string;
+  /** Transaction receipt object */
+  receipt?: any;
+  /** Error message if transaction failed */
+  errorMessage?: string;
+  /** Timestamp when transaction was submitted */
+  timestamp: number;
+  /** Transaction logs */
+  logs?: any[];
+}
+
+/**
+ * Wallet address type alias
+ */
+export type WalletAddress = string;
+
+/**
+ * Proof type enum
+ */
+export enum ProofType {
+  Standard = 0,
+  Threshold = 1,
+  Maximum = 2,
+  ZeroKnowledge = 3
+}
+
+/**
+ * Proof status enum
+ */
+export enum ProofStatus {
+  NotFound = 0,
+  Pending = 1,
+  Verified = 2,
+  Rejected = 3,
+  Expired = 4,
+  Failed = 5
+}
+
+/**
+ * Proof data structure
+ */
+export interface ProofData {
+  /** The zkSNARK proof */
+  proof: {
+    a: string[];
+    b: string[][];
+    c: string[];
+  };
+  /** Public signals for the proof */
+  publicSignals: string[];
+}
+
+/**
+ * Proof submission result
+ */
+export interface ProofSubmission {
+  /** Unique identifier for the proof */
+  proofId: string;
+  /** Status of the proof submission */
+  status: ProofStatus;
+  /** Transaction hash if submitted on-chain */
+  transactionHash?: string;
+  /** Block number if submitted on-chain */
+  blockNumber?: number;
+  /** Error message if submission failed */
+  error?: string;
+  /** Timestamp of the submission */
+  timestamp: number;
+  /** Wallet address the proof is for */
+  walletAddress: string;
+  /** Type of proof */
+  proofType: ProofType;
+  /** Any additional data for the proof */
+  additionalData?: string;
+  /** Index in the batch if submitted as part of a batch */
+  batchIndex?: number;
 }

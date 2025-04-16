@@ -16,7 +16,7 @@
  * @created July 2024
  */
 
-import { deviceCapabilities } from '../deviceCapabilities';
+import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
 import { ResourceMonitor } from '../resources/ResourceMonitor';
 import { ResourceAllocator } from '../resources/ResourceAllocator';
 import zkErrorLoggerModule from '../zkErrorLogger.mjs';
@@ -115,7 +115,7 @@ export interface WorkerPoolOptions {
     /** Resource monitor for checking available resources */
     resourceMonitor?: ResourceMonitor;
     /** Resource allocator for managing resource allocation */
-    resourceAllocator?: ResourceAllocator;
+    resourceAllocator?: ResourceAllocator | null;
 }
 
 /**
@@ -211,8 +211,8 @@ export class WebWorkerPool {
             workerScript: '../workers/task-worker.js',
             preloadWorkers: true,
             importScripts: [],
-            resourceMonitor: undefined,
-            resourceAllocator: undefined
+            resourceMonitor: null as unknown as ResourceMonitor,
+            resourceAllocator: null
         };
 
         // Merge provided options with defaults
@@ -241,11 +241,11 @@ export class WebWorkerPool {
         let optimal = navigator.hardwareConcurrency || 4;
 
         // Cap worker count based on device tier
-        const capabilities = deviceCapabilities();
-        if (capabilities.tier === 'high') {
+        const capabilities = deviceCapabilitiesModule.detectCapabilities();
+        if (capabilities.deviceClass === 'high') {
             // High-end devices can use more workers
             optimal = Math.max(4, optimal);
-        } else if (capabilities.tier === 'medium') {
+        } else if (capabilities.deviceClass === 'medium') {
             // Mid-range devices should be more conservative
             optimal = Math.min(optimal, 4);
         } else {
@@ -307,8 +307,9 @@ export class WebWorkerPool {
 
             return workerInfo;
         } catch (error) {
-            // Log error
-            zkErrorLogger.logError(error, {
+            // Log error with type check
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            zkErrorLogger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.createWorker',
                 workerId,
                 workerScript: this.options.workerScript,
@@ -316,7 +317,7 @@ export class WebWorkerPool {
             });
 
             // Throw error
-            throw new Error(`Failed to create worker: ${error.message}`);
+            throw new Error(`Failed to create worker: ${errorMessage}`);
         }
     }
 
@@ -371,16 +372,16 @@ export class WebWorkerPool {
                     break;
 
                 default:
-                    zkErrorLogger.logWarning({
+                    zkErrorLogger.log('WARN', 'Unknown message type from worker', {
                         context: 'WebWorkerPool.handleWorkerMessage',
                         workerId,
-                        messageType: message.type,
-                        message: 'Unknown message type from worker'
+                        messageType: message.type
                     });
                     break;
             }
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            zkErrorLogger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.handleWorkerMessage',
                 workerId,
                 messageType: message ? message.type : 'unknown',
@@ -400,7 +401,7 @@ export class WebWorkerPool {
             return;
         }
 
-        zkErrorLogger.logError(error, {
+        zkErrorLogger.logError(new Error(error.message || 'Worker error'), {
             context: 'WebWorkerPool.handleWorkerError',
             workerId: workerId.toString(),
             message: 'Worker encountered an error'
@@ -797,7 +798,8 @@ export class WebWorkerPool {
         try {
             workerInfo.worker.terminate();
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            zkErrorLogger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.terminateWorker',
                 workerId: workerId.toString(),
                 message: 'Error terminating worker'

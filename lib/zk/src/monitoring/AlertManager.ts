@@ -13,7 +13,15 @@
  */
 
 import { systemMonitor, AlertSeverity, AlertEvent } from './SystemMonitor';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+// Create mock logger
+const zkErrorLogger = {
+  log: (level: string, message: string, meta?: any) => {
+    console.log(`[${level}] ${message}`, meta);
+  },
+  logError: (error: Error, meta?: any) => {
+    console.error(`[ERROR] ${error.message}`, meta);
+  }
+};
 import { EventEmitter } from 'events';
 
 // Alert status
@@ -156,7 +164,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     });
   }
@@ -191,11 +199,14 @@ export class AlertManager extends EventEmitter {
       
       return true;
     } catch (error) {
+      // Safely extract error message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
       zkErrorLogger.log('ERROR', 'Failed to initialize AlertManager', {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: errorMessage }
       });
       
       return false;
@@ -233,11 +244,14 @@ export class AlertManager extends EventEmitter {
       
       return true;
     } catch (error) {
+      // Safely extract error message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
       zkErrorLogger.log('ERROR', `Failed to register escalation policy: ${policy.id}`, {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: errorMessage }
       });
       
       return false;
@@ -274,7 +288,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -303,13 +317,16 @@ export class AlertManager extends EventEmitter {
       // Create the alert event
       const alertEvent: AlertEvent = {
         id: alertId,
+        alertId: alertId, // Use the same ID for both id and alertId for manual alerts
         metricName: alert.metricName,
+        metricValue: alert.value, // Using value as metricValue
         severity: alert.severity,
         timestamp: new Date(),
-        value: alert.value,
         threshold: alert.threshold,
-        message: alert.message,
-        source: alert.source || 'manual'
+        labels: { // Create labels from message and source
+          message: alert.message,
+          source: alert.source || 'manual'
+        }
       };
       
       // Process it through the normal alert flow
@@ -326,7 +343,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message, alert }
+        details: { error: error instanceof Error ? error.message : String(error), alert }
       });
       
       return null;
@@ -360,7 +377,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -458,7 +475,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -544,7 +561,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -688,7 +705,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -902,7 +919,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -968,7 +985,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -1022,7 +1039,7 @@ export class AlertManager extends EventEmitter {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -1071,7 +1088,7 @@ export class AlertManager extends EventEmitter {
             category: 'monitoring',
             userFixable: true,
             recoverable: true,
-            details: { error: error.message }
+            details: { error: error instanceof Error ? error.message : String(error) }
           });
         }
       }

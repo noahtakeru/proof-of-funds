@@ -190,17 +190,19 @@ export abstract class ContractInterface {
         return {
           transactionHash: tx.hash,
           blockNumber: receipt.blockNumber,
-          confirmations: receipt.confirmations,
-          status: receipt.status === 1,
-          logs: receipt.logs,
+          status: receipt.status === 1 ? 'success' : 'failure',
+          gasUsed: receipt.gasUsed?.toNumber(),
+          effectiveGasPrice: receipt.effectiveGasPrice?.toString(),
           receipt,
-          transaction: tx
+          timestamp: Date.now(),
+          errorMessage: receipt.status === 1 ? undefined : 'Transaction failed'
         };
       }
       
       return {
         transactionHash: tx.hash,
-        transaction: tx
+        status: 'pending',
+        timestamp: Date.now()
       };
     } catch (error: any) {
       throw this.processContractError(error, method, args);

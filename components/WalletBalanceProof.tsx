@@ -88,7 +88,9 @@ const WalletBalanceProof: React.FC<WalletBalanceProofProps> = ({
   }, [proofData.expiryTime]);
 
   // Handle copy to clipboard
-  const copyToClipboard = (text: string, field: string) => {
+  const copyToClipboard = (text: string | undefined, field: string) => {
+    if (!text) return;
+    
     navigator.clipboard.writeText(text).then(() => {
       setCopied(field);
       setTimeout(() => setCopied(null), 2000);

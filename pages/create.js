@@ -30,7 +30,14 @@ import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
-import { isValidAmount } from '../lib/ethersUtils';
+// Directly define isValidAmount function to bypass import issues
+const isValidAmount = (amount) => {
+  if (!amount || amount.trim() === '') return false;
+  const num = Number(amount);
+  if (isNaN(num)) return false;
+  if (num < 0) return false;
+  return true;
+};
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { generateZKProof } from '../lib/zk/src/zkUtils';
 

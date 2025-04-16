@@ -401,10 +401,10 @@ export class CrossPlatformDeployment {
     };
     
     try {
-      // Check memory constraints
+      // Check memory constraints - performance.memory is only available in Chrome
       if (typeof performance !== 'undefined' && 
-          performance.memory && 
-          performance.memory.usedJSHeapSize > 0.8 * performance.memory.jsHeapSizeLimit) {
+          (performance as any).memory && 
+          (performance as any).memory.usedJSHeapSize > 0.8 * (performance as any).memory.jsHeapSizeLimit) {
         constraints.memoryConstrained = true;
         constraints.constraintSeverity += 0.3;
       }
@@ -433,8 +433,8 @@ export class CrossPlatformDeployment {
       }
       
       // Update memory usage in stats
-      if (typeof performance !== 'undefined' && performance.memory) {
-        this.stats.memoryUsageMB = Math.floor(performance.memory.usedJSHeapSize / (1024 * 1024));
+      if (typeof performance !== 'undefined' && (performance as any).memory) {
+        this.stats.memoryUsageMB = Math.floor((performance as any).memory.usedJSHeapSize / (1024 * 1024));
       }
       
       return constraints;

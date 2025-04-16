@@ -269,19 +269,19 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
    */
   public async optimizeForPlatform(): Promise<void> {
     // Optimize rendering if needed
-    if (document.hidden) {
+    if (typeof document !== 'undefined' && document.hidden) {
       // Document not visible, can reduce rendering work
     }
     
     // Check network conditions
-    if (navigator.connection) {
-      const conn = navigator.connection as any;
-      if (conn.saveData) {
+    if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+      const conn = (navigator as any).connection;
+      if (conn && conn.saveData) {
         // User has requested reduced data usage
         // Implement data-saving strategies
       }
       
-      if (conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g') {
+      if (conn && (conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g')) {
         // Very slow connection, optimize accordingly
       }
     }
@@ -563,8 +563,11 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
       },
       
       isMeteredConnection(): boolean {
-        if (navigator.connection && (navigator.connection as any).metered !== undefined) {
-          return (navigator.connection as any).metered;
+        if (typeof navigator !== 'undefined' && 
+            'connection' in navigator && 
+            (navigator as any).connection && 
+            (navigator as any).connection.metered !== undefined) {
+          return (navigator as any).connection.metered;
         }
         return false; // Unknown if metered
       }
@@ -585,8 +588,8 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
     
     // Check for low memory conditions
     if (typeof performance !== 'undefined' && 
-        performance.memory && 
-        performance.memory.usedJSHeapSize > 0.8 * performance.memory.jsHeapSizeLimit) {
+        (performance as any).memory && 
+        (performance as any).memory.usedJSHeapSize > 0.8 * (performance as any).memory.jsHeapSizeLimit) {
       // Memory pressure detected, implement memory-saving strategies
     }
   }
@@ -617,7 +620,11 @@ class WorkerPlatformAdapter extends BasePlatformAdapter {
     this.features.set('secureContext', true); // Workers inherit secure context from their creator
     this.features.set('localStorage', false);
     this.features.set('transferableObjects', true);
-    this.features.set('workboxAvailable', typeof importScripts === 'function');
+    // Check if this is a worker context - we can't directly access importScripts in TypeScript
+    this.features.set('workboxAvailable', typeof self !== 'undefined' && 
+                                         typeof window === 'undefined' && 
+                                         self.constructor && 
+                                         self.constructor.name === 'DedicatedWorkerGlobalScope');
   }
   
   /**

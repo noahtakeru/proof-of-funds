@@ -104,12 +104,20 @@ export function createSelectiveDisclosure(
     const proofContainer = typeof proof === 'string' 
       ? zkProofSerializer.deserializeProof(proof) 
       : proof;
+      
+    // Type assertion to access format property
+    const typedProofContainer = proofContainer as { 
+      format?: { version?: string };
+      proof?: { data?: any; publicSignals?: any };
+      metadata?: any;
+      circuit?: any;
+    };
 
     // Create partial proof structure with only selected components
     const partialProof: Record<string, any> = {
       partialDisclosure: true,
       format: {
-        version: proofContainer.format?.version || '1.0.0',
+        version: typedProofContainer.format?.version || '1.0.0',
         type: 'partial-zk-proof-of-funds'
       }
     };
@@ -118,58 +126,58 @@ export function createSelectiveDisclosure(
     for (const component of options.include) {
       switch (component) {
         case ProofComponent.PROOF_DATA:
-          if (proofContainer.proof?.data) {
-            partialProof.proof = { data: proofContainer.proof.data };
+          if (typedProofContainer.proof?.data) {
+            partialProof.proof = { data: typedProofContainer.proof.data };
           }
           break;
           
         case ProofComponent.PUBLIC_SIGNALS:
-          if (proofContainer.proof?.publicSignals) {
+          if (typedProofContainer.proof?.publicSignals) {
             if (!partialProof.proof) partialProof.proof = {};
-            partialProof.proof.publicSignals = proofContainer.proof.publicSignals;
+            partialProof.proof.publicSignals = typedProofContainer.proof.publicSignals;
           }
           break;
           
         case ProofComponent.WALLET_ADDRESS:
-          if (proofContainer.metadata?.walletAddress) {
+          if (typedProofContainer.metadata?.walletAddress) {
             if (!partialProof.metadata) partialProof.metadata = {};
             
             if (options.obscureWalletAddress) {
               partialProof.metadata.walletAddress = obscureWalletAddress(
-                proofContainer.metadata.walletAddress
+                typedProofContainer.metadata.walletAddress
               );
             } else {
-              partialProof.metadata.walletAddress = proofContainer.metadata.walletAddress;
+              partialProof.metadata.walletAddress = typedProofContainer.metadata.walletAddress;
             }
           }
           break;
           
         case ProofComponent.AMOUNT:
-          if (proofContainer.metadata?.amount !== undefined) {
+          if (typedProofContainer.metadata?.amount !== undefined) {
             if (!partialProof.metadata) partialProof.metadata = {};
-            partialProof.metadata.amount = proofContainer.metadata.amount;
+            partialProof.metadata.amount = typedProofContainer.metadata.amount;
           }
           break;
           
         case ProofComponent.TIMESTAMP:
-          if (proofContainer.metadata?.createdAt) {
+          if (typedProofContainer.metadata?.createdAt) {
             if (!partialProof.metadata) partialProof.metadata = {};
-            partialProof.metadata.createdAt = proofContainer.metadata.createdAt;
+            partialProof.metadata.createdAt = typedProofContainer.metadata.createdAt;
           }
           break;
           
         case ProofComponent.PROOF_TYPE:
-          if (proofContainer.circuit?.type) {
+          if (typedProofContainer.circuit?.type) {
             partialProof.circuit = { 
-              type: proofContainer.circuit.type,
-              version: proofContainer.circuit.version
+              type: typedProofContainer.circuit.type,
+              version: typedProofContainer.circuit.version
             };
           }
           break;
           
         case ProofComponent.METADATA:
-          if (proofContainer.metadata) {
-            partialProof.metadata = { ...proofContainer.metadata };
+          if (typedProofContainer.metadata) {
+            partialProof.metadata = { ...typedProofContainer.metadata };
             
             // Obscure wallet address if needed
             if (options.obscureWalletAddress && partialProof.metadata.walletAddress) {
@@ -190,7 +198,7 @@ export function createSelectiveDisclosure(
     // Calculate verification hash if requested
     let verificationHash: string | undefined;
     if (options.includeVerificationHash) {
-      verificationHash = calculateVerificationHash(proofContainer, partialProof);
+      verificationHash = calculateVerificationHash(typedProofContainer, partialProof);
       partialProof._verificationHash = verificationHash;
     }
 
@@ -211,7 +219,8 @@ export function createSelectiveDisclosure(
       disclosureMetadata
     };
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'createSelectiveDisclosure',
       context: { 
         proofType: typeof proof,
@@ -223,10 +232,11 @@ export function createSelectiveDisclosure(
       throw error;
     }
 
-    throw new ProofError(`Failed to create selective disclosure: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofError(`Failed to create selective disclosure: ${errorMsg}`, {
       code: 2010, // PROOF_DISCLOSURE_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -287,7 +297,8 @@ export function verifyPartialProof(
 
     return true;
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'verifyPartialProof',
       context: { 
         partialProofType: typeof partialProof,
@@ -356,7 +367,8 @@ export function extractVerifiableInfo(partialProof: object): {
 
     return result;
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'extractVerifiableInfo',
       context: { partialProofType: typeof partialProof }
     });
@@ -365,10 +377,11 @@ export function extractVerifiableInfo(partialProof: object): {
       throw error;
     }
 
-    throw new ProofError(`Failed to extract verifiable info: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofError(`Failed to extract verifiable info: ${errorMsg}`, {
       code: 2010, // PROOF_DISCLOSURE_ERROR
       recoverable: true,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -401,19 +414,25 @@ export function createProofReference(
     const proofContainer = typeof proof === 'string' 
       ? zkProofSerializer.deserializeProof(proof) 
       : proof;
+      
+    // Type assertion for proof container
+    const typedProofContainer = proofContainer as { 
+      circuit?: { type: string; version?: string };
+      metadata?: { createdAt?: number; [key: string]: any };
+    };
 
     // Validate proof
-    if (!proofContainer || !proofContainer.circuit?.type) {
+    if (!typedProofContainer || !typedProofContainer.circuit?.type) {
       throw new InputError('Invalid proof: missing required fields', {
         code: 7001,
         recoverable: false,
-        details: { proof: proofContainer }
+        details: { proof: typedProofContainer }
       });
     }
 
     // Extract minimal information
-    const proofType = proofContainer.circuit.type;
-    const createdAt = proofContainer.metadata?.createdAt || Date.now();
+    const proofType = typedProofContainer.circuit.type;
+    const createdAt = typedProofContainer.metadata?.createdAt || Date.now();
     
     // Generate unique reference using hash
     const proofStr = JSON.stringify(proofContainer);
@@ -432,7 +451,8 @@ export function createProofReference(
     
     return { reference, metadata };
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'createProofReference',
       context: { 
         proofType: typeof proof,
@@ -444,10 +464,11 @@ export function createProofReference(
       throw error;
     }
 
-    throw new ProofError(`Failed to create proof reference: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofError(`Failed to create proof reference: ${errorMsg}`, {
       code: 2010, // PROOF_DISCLOSURE_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -470,6 +491,12 @@ export function verifyProofReference(
     const proofContainer = typeof proof === 'string' 
       ? zkProofSerializer.deserializeProof(proof) 
       : proof;
+      
+    // Type assertion for proof container
+    const typedProofContainer = proofContainer as { 
+      circuit?: { type: string; version?: string };
+      metadata?: { createdAt?: number; [key: string]: any };
+    };
 
     // Parse reference parts
     const parts = reference.split('-');
@@ -480,13 +507,13 @@ export function verifyProofReference(
     const [refType, refTimestamp, refHash] = parts;
     
     // Check proof type
-    if (refType !== proofContainer.circuit?.type) {
+    if (refType !== typedProofContainer.circuit?.type) {
       return false;
     }
     
     // Check timestamp if present in the proof
-    if (proofContainer.metadata?.createdAt && 
-        refTimestamp !== String(proofContainer.metadata.createdAt)) {
+    if (typedProofContainer.metadata?.createdAt && 
+        refTimestamp !== String(typedProofContainer.metadata.createdAt)) {
       return false;
     }
     

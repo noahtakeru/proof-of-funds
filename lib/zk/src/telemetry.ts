@@ -11,10 +11,11 @@ export interface TelemetryOperationData {
   clientSide?: boolean;
   retries?: number;
   additionalInfo?: Record<string, any>;
+  timestamp?: number;
 }
 
 class Telemetry {
-  private _operations: TelemetryOperationData[] = [];
+  private _operations: (TelemetryOperationData & { timestamp: number })[] = [];
   private _errors: { component: string; message: string; timestamp: number }[] = [];
   private _maxStoredItems = 100;
   private _debugMode = false;
@@ -35,11 +36,11 @@ class Telemetry {
 
     if (this._debugMode) {
       console.log(`[ZK Telemetry] Operation: ${data.operation}, Success: ${data.success}`);
-      
+
       if (data.executionTimeMs) {
         console.log(`[ZK Telemetry] Execution time: ${data.executionTimeMs.toFixed(2)}ms`);
       }
-      
+
       if (data.retries && data.retries > 0) {
         console.log(`[ZK Telemetry] Retries: ${data.retries}`);
       }
@@ -105,16 +106,16 @@ class Telemetry {
     const operationsWithTime = this._operations.filter(
       (op) => op.executionTimeMs !== undefined
     );
-    
+
     const totalTime = operationsWithTime.reduce(
       (sum, op) => sum + (op.executionTimeMs || 0),
       0
     );
-    
+
     const serverSideOperations = this._operations.filter(
       (op) => op.serverSide === true
     ).length;
-    
+
     const clientSideOperations = this._operations.filter(
       (op) => op.clientSide === true
     ).length;

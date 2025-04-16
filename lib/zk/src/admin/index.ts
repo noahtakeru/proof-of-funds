@@ -6,31 +6,43 @@
  */
 
 // Import admin system components
-import { rbacSystem } from './RoleBasedAccessControl';
-import { userManagementSystem } from './UserManagement';
-import { proofManagementSystem } from './ProofManagement';
-import { systemConfigurationManager } from './SystemConfiguration';
+import rbacSystemInstance from './RoleBasedAccessControl';
+import userManagementSystemInstance from './UserManagement';
+import proofManagementSystemInstance from './ProofManagement'; 
+import systemConfigurationManagerInstance from './SystemConfiguration';
 import { AuditLoggingSystem } from './AuditLogger';
 
-// Export Role-Based Access Control components
-export * from './RoleBasedAccessControl';
-export { default as rbacSystem } from './RoleBasedAccessControl';
+// Re-export all type definitions
+import { RBACSystem, Role, Permission } from './RoleBasedAccessControl';
+import { UserManagementSystem } from './UserManagement';
 
-// Export User Management components
-export * from './UserManagement';
-export { default as userManagementSystem } from './UserManagement';
+// Re-export class and enum definitions
+export { RBACSystem, Role, Permission, UserManagementSystem, AuditLoggingSystem };
 
-// Export Proof Management components
-export * from './ProofManagement';
-export { default as proofManagementSystem } from './ProofManagement';
+// Export types from RBAC
+export type { 
+  UserRole, 
+  ActionLogEntry, 
+  PrivilegedActionRequest
+} from './RoleBasedAccessControl';
 
-// Export System Configuration components
-export * from './SystemConfiguration';
-export { default as systemConfigurationManager } from './SystemConfiguration';
+// Export types from UserManagement
+export type { 
+  User,
+  UserSearchFilters,
+  CreateUserParams,
+  UpdateUserStatusParams
+} from './UserManagement';
 
-// Export Audit Logging components
-export * from './AuditLogger';
-export { default as auditLoggingSystem } from './AuditLogger';
+// Export singleton instances with consistent naming
+export const rbacSystem = rbacSystemInstance;
+export const userManagementSystem = userManagementSystemInstance;
+export const proofManagementSystem = proofManagementSystemInstance;
+export const systemConfigurationManager = systemConfigurationManagerInstance;
+
+// Create an audit logging system instance
+const auditLoggingSystem = new AuditLoggingSystem();
+export { auditLoggingSystem };
 
 // Export admin dashboard interface
 export interface AdminDashboardInterface {
@@ -49,8 +61,5 @@ const adminDashboard: AdminDashboardInterface = {
   systemConfig: systemConfigurationManager,
   auditLogs: AuditLoggingSystem
 };
-
-// Instance of the audit logging system
-const auditLoggingSystem = new AuditLoggingSystem();
 
 export default adminDashboard;

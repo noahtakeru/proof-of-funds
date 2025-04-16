@@ -33,9 +33,9 @@ import { UserPreferences } from './UserPreferences';
 
 // Device capability tiers
 export enum DeviceTier {
-  LowEnd = 'low',       // Severely constrained devices
-  MidRange = 'medium',  // Limited but capable devices
-  HighEnd = 'high'      // Full-featured devices
+  LOW = 'low',       // Severely constrained devices
+  MEDIUM = 'medium',  // Limited but capable devices
+  HIGH = 'high'      // Full-featured devices
 }
 
 // Feature flags for toggling

@@ -8,8 +8,6 @@
 // Core configuration and environment types
 export { 
   EnvironmentType,
-  DeploymentConfig,
-  FeatureFlags,
   baseConfig,
   lowResourceConfig,
   highPerformanceConfig,
@@ -17,22 +15,36 @@ export {
   productionConfig
 } from './DeploymentConfig';
 
+export type { 
+  DeploymentConfig,
+  FeatureFlags
+} from './DeploymentConfig';
+
 // Environment and feature detection
 export {
-  EnvironmentDetector,
+  EnvironmentDetector
+} from './EnvironmentDetector';
+
+export type {
   FeatureDetectionResult
 } from './EnvironmentDetector';
 
 // Deployment management
 export {
-  DeploymentManager, 
+  DeploymentManager
+} from './DeploymentManager';
+
+export type {
   DeploymentManagerOptions,
   DeploymentStatus
 } from './DeploymentManager';
 
 // Health check system
 export {
-  HealthCheck,
+  HealthCheck
+} from './HealthCheck';
+
+export type {
   HealthCheckStatus,
   HealthCheckResult,
   HealthCheckItemResult
@@ -40,37 +52,55 @@ export {
 
 // Cross-platform adapter system
 export {
-  PlatformAdapter,
   PlatformAdapterFactory
+} from './PlatformAdapterFactory';
+
+export type {
+  PlatformAdapter
 } from './PlatformAdapterFactory';
 
 // Deployment strategy selection
 export {
   DeploymentStrategySelector,
-  DeploymentStrategy,
   DeploymentStrategyType
+} from './DeploymentStrategySelector';
+
+export type {
+  DeploymentStrategy
 } from './DeploymentStrategySelector';
 
 // Platform-specific configuration
 export {
-  PlatformConfigurator,
+  PlatformConfigurator
+} from './PlatformConfigurator';
+
+export type {
   PlatformConfigOptions,
   PlatformProfile
 } from './PlatformConfigurator';
 
 // Main cross-platform deployment system
 export {
-  CrossPlatformDeployment,
+  CrossPlatformDeployment
+} from './CrossPlatformDeployment';
+
+export type {
   CrossPlatformDeploymentOptions,
   ResourceConstraints,
   DeploymentStats
 } from './CrossPlatformDeployment';
 
+// Import for function return type
+import { CrossPlatformDeployment as CPD } from './CrossPlatformDeployment';
+import { EnvironmentDetector } from './EnvironmentDetector';
+import { DeploymentStrategyType } from './DeploymentStrategySelector';
+import { EnvironmentType } from './DeploymentConfig';
+
 /**
  * Create and initialize a cross-platform deployment system
  */
-export async function createDeployment(options: any = {}): Promise<CrossPlatformDeployment> {
-  const deployment = new CrossPlatformDeployment(options);
+export async function createDeployment(options: any = {}): Promise<CPD> {
+  const deployment = new CPD(options);
   await deployment.initialize(options);
   return deployment;
 }
@@ -78,7 +108,7 @@ export async function createDeployment(options: any = {}): Promise<CrossPlatform
 /**
  * Detect the current environment and create an optimized deployment
  */
-export async function createOptimizedDeployment(): Promise<CrossPlatformDeployment> {
+export async function createOptimizedDeployment(): Promise<CPD> {
   const detector = new EnvironmentDetector();
   const environment = detector.detectEnvironment();
   const features = detector.detectFeatures();
@@ -96,7 +126,7 @@ export async function createOptimizedDeployment(): Promise<CrossPlatformDeployme
     strategyType = DeploymentStrategyType.FullLocal;
   }
   
-  const deployment = new CrossPlatformDeployment({
+  const deployment = new CPD({
     environment,
     initialStrategy: strategyType,
     autoOptimize: true,

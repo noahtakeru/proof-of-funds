@@ -8,8 +8,10 @@
  * access controls based on user roles and permissions.
  */
 
-import { rbacSystem, Role, Permission, UserRole } from './RoleBasedAccessControl';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import { rbacSystem, Role, Permission, UserRole, ROLE_PERMISSIONS } from './RoleBasedAccessControl';
+import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+
+const { zkErrorLogger } = zkErrorLoggerModule;
 
 // User interface
 export interface User {
@@ -671,7 +673,7 @@ export class UserManagementSystem {
     
     // Add permissions from each role
     for (const role of userRole.roles) {
-      for (const permission of rbacSystem.ROLE_PERMISSIONS[role]) {
+      for (const permission of ROLE_PERMISSIONS[role]) {
         if (!permissions.includes(permission)) {
           permissions.push(permission);
         }

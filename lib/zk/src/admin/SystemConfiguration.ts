@@ -9,7 +9,9 @@
  */
 
 import { rbacSystem, Permission } from './RoleBasedAccessControl';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+
+const { zkErrorLogger } = zkErrorLoggerModule;
 
 // System configuration interface
 export interface SystemConfiguration {

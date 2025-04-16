@@ -14,10 +14,45 @@
  * - Scheduled reporting
  */
 
-// Export all monitoring components
-export * from './SystemMonitor';
-export * from './AlertManager';
-export * from './ExecutiveDashboard';
+// Export specific types from each module to avoid conflicts
+// SystemMonitor exports
+export { 
+  MetricType, 
+  AlertSeverity, 
+  systemMonitor 
+} from './SystemMonitor';
+
+// Export interfaces from SystemMonitor - these are all defined in the file
+export type { 
+  MetricDataPoint as Metric, 
+  MetricDefinition, 
+  AlertDefinition, 
+  AlertEvent, 
+  NotificationChannel
+} from './SystemMonitor';
+
+// AlertManager exports
+export { 
+  AlertStatus, 
+  alertManager 
+} from './AlertManager';
+
+export type { 
+  EscalationPolicy, 
+  NotificationChannel as AlertManagerNotificationChannel,
+  TrackedAlert 
+} from './AlertManager';
+
+// ExecutiveDashboard exports
+export { 
+  ReportFormat, 
+  executiveDashboard 
+} from './ExecutiveDashboard';
+
+export type { 
+  DashboardMetrics, 
+  DashboardReport 
+} from './ExecutiveDashboard';
 
 // Export default singletons
 import systemMonitor from './SystemMonitor';

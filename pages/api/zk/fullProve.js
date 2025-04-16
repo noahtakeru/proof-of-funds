@@ -260,11 +260,11 @@ export default async function handler(req, res) {
     }
 
     // Validate proof input
-    const validationResult = validateProofInput(input, input.proofType);
-    if (!validationResult.valid) {
+    const proofInputValidation = validateProofInput(input, input.proofType);
+    if (!proofInputValidation.valid) {
       return res.status(400).json({
         error: 'Invalid input',
-        message: validationResult.error
+        message: proofInputValidation.error
       });
     }
 

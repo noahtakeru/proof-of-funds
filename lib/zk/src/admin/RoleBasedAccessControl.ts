@@ -14,7 +14,9 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+
+const { zkErrorLogger } = zkErrorLoggerModule;
 
 // Permission constants
 export enum Permission {
@@ -66,75 +68,78 @@ export enum Role {
   SUPER_ADMIN = 'super_admin'
 }
 
+// Define base permissions for each role
+const VIEWER_PERMISSIONS: Permission[] = [
+  Permission.VIEW_USERS,
+  Permission.SEARCH_USERS,
+  Permission.VIEW_PROOFS,
+  Permission.SEARCH_PROOFS,
+  Permission.VIEW_SYSTEM_METRICS,
+  Permission.VIEW_CONTRACTS,
+  Permission.VIEW_WALLETS,
+  Permission.VIEW_ANALYTICS,
+  Permission.VIEW_LOGS
+];
+
+const SUPPORT_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.VERIFY_PROOF
+];
+
+const PROOF_MANAGER_PERMISSIONS: Permission[] = [
+  ...SUPPORT_PERMISSIONS,
+  Permission.INVALIDATE_PROOF
+];
+
+const SYSTEM_MANAGER_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.MODIFY_SYSTEM_CONFIG
+];
+
+const CONTRACT_MANAGER_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.DEPLOY_CONTRACT,
+  Permission.UPGRADE_CONTRACT
+];
+
+const ADMIN_PERMISSIONS: Permission[] = [
+  Permission.VIEW_USERS,
+  Permission.CREATE_USER,
+  Permission.EDIT_USER,
+  Permission.DELETE_USER,
+  Permission.SEARCH_USERS,
+  Permission.VIEW_PROOFS,
+  Permission.VERIFY_PROOF,
+  Permission.INVALIDATE_PROOF,
+  Permission.SEARCH_PROOFS,
+  Permission.VIEW_SYSTEM_METRICS,
+  Permission.MODIFY_SYSTEM_CONFIG,
+  Permission.VIEW_LOGS,
+  Permission.VIEW_CONTRACTS,
+  Permission.DEPLOY_CONTRACT,
+  Permission.UPGRADE_CONTRACT,
+  Permission.VIEW_WALLETS,
+  Permission.CREATE_WALLET,
+  Permission.REMOVE_WALLET,
+  Permission.VIEW_ANALYTICS,
+  Permission.EXPORT_ANALYTICS,
+  Permission.APPROVE_PRIVILEGED_ACTION
+];
+
+const SUPER_ADMIN_PERMISSIONS: Permission[] = [
+  ...ADMIN_PERMISSIONS,
+  Permission.SUPER_ADMIN
+];
+
 // Define role hierarchy and permissions
-const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  [Role.VIEWER]: [
-    Permission.VIEW_USERS,
-    Permission.SEARCH_USERS,
-    Permission.VIEW_PROOFS,
-    Permission.SEARCH_PROOFS,
-    Permission.VIEW_SYSTEM_METRICS,
-    Permission.VIEW_CONTRACTS,
-    Permission.VIEW_WALLETS,
-    Permission.VIEW_ANALYTICS,
-    Permission.VIEW_LOGS
-  ],
-  
-  [Role.SUPPORT]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.VERIFY_PROOF
-  ],
-  
-  [Role.PROOF_MANAGER]: [
-    // Inherits SUPPORT permissions
-    ...ROLE_PERMISSIONS[Role.SUPPORT],
-    Permission.INVALIDATE_PROOF
-  ],
-  
-  [Role.SYSTEM_MANAGER]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.MODIFY_SYSTEM_CONFIG
-  ],
-  
-  [Role.CONTRACT_MANAGER]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.DEPLOY_CONTRACT,
-    Permission.UPGRADE_CONTRACT
-  ],
-  
-  [Role.ADMIN]: [
-    // Has all permissions except super admin
-    Permission.VIEW_USERS,
-    Permission.CREATE_USER,
-    Permission.EDIT_USER,
-    Permission.DELETE_USER,
-    Permission.SEARCH_USERS,
-    Permission.VIEW_PROOFS,
-    Permission.VERIFY_PROOF,
-    Permission.INVALIDATE_PROOF,
-    Permission.SEARCH_PROOFS,
-    Permission.VIEW_SYSTEM_METRICS,
-    Permission.MODIFY_SYSTEM_CONFIG,
-    Permission.VIEW_LOGS,
-    Permission.VIEW_CONTRACTS,
-    Permission.DEPLOY_CONTRACT,
-    Permission.UPGRADE_CONTRACT,
-    Permission.VIEW_WALLETS,
-    Permission.CREATE_WALLET,
-    Permission.REMOVE_WALLET,
-    Permission.VIEW_ANALYTICS,
-    Permission.EXPORT_ANALYTICS,
-    Permission.APPROVE_PRIVILEGED_ACTION
-  ],
-  
-  [Role.SUPER_ADMIN]: [
-    // Has absolutely all permissions
-    ...ROLE_PERMISSIONS[Role.ADMIN],
-    Permission.SUPER_ADMIN
-  ]
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  [Role.VIEWER]: VIEWER_PERMISSIONS,
+  [Role.SUPPORT]: SUPPORT_PERMISSIONS,
+  [Role.PROOF_MANAGER]: PROOF_MANAGER_PERMISSIONS,
+  [Role.SYSTEM_MANAGER]: SYSTEM_MANAGER_PERMISSIONS,
+  [Role.CONTRACT_MANAGER]: CONTRACT_MANAGER_PERMISSIONS,
+  [Role.ADMIN]: ADMIN_PERMISSIONS,
+  [Role.SUPER_ADMIN]: SUPER_ADMIN_PERMISSIONS
 };
 
 // User role interface

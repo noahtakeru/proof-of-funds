@@ -9,7 +9,9 @@
  */
 
 import { rbacSystem, Permission, Role } from './RoleBasedAccessControl';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+
+const { zkErrorLogger } = zkErrorLoggerModule;
 
 // PoF (Proof of Funds) interface
 export interface ProofOfFunds {
