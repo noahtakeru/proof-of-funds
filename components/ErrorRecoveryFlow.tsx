@@ -61,7 +61,7 @@ const ErrorRecoveryFlow: React.FC<ErrorRecoveryFlowProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [recoveryPlan, setRecoveryPlan] = useState<{ title: string; description: string; action: RecoveryAction; actionLabel: string; requiresInput?: boolean; }[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(true);
-  const [customParams, setCustomParams] = useState<any>({});
+  const [customParams, setCustomParams] = useState<Record<string, any>>({});
   const [showDetails, setShowDetails] = useState(showTechnicalDetails);
   
   // Analyze error and create recovery plan
@@ -213,7 +213,7 @@ const ErrorRecoveryFlow: React.FC<ErrorRecoveryFlowProps> = ({
   
   // Set parameter value
   const handleParamChange = (key: string, value: any) => {
-    setCustomParams(prev => ({
+    setCustomParams((prev: Record<string, any>) => ({
       ...prev,
       [key]: value
     }));

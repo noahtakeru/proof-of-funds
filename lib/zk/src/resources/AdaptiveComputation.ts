@@ -37,7 +37,7 @@
 
 import { ResourceMonitor } from './ResourceMonitor';
 import { ResourceAllocator, ResourcePriority, OperationProfile } from './ResourceAllocator';
-import { deviceCapabilities } from '../deviceCapabilities';
+import { DeviceCapabilitiesModule } from '../deviceCapabilities';
 
 /**
  * Computation strategies available for ZK operations
@@ -47,7 +47,7 @@ import { deviceCapabilities } from '../deviceCapabilities';
  * characteristics. The system dynamically selects the most appropriate strategy
  * based on available resources and operation requirements.
  */
-enum ComputationStrategy {
+export enum ComputationStrategy {
   /** Execute the entire computation in a single operation */
   FULL_COMPUTATION = 'full',
 
@@ -69,12 +69,8 @@ enum ComputationStrategy {
 
 /**
  * Phases of ZK proof computation
- * 
- * Breaking computation into discrete phases allows for more granular resource
- * allocation, progress tracking, and optimization opportunities. Some computation
- * strategies may execute these phases differently or in parallel.
  */
-enum ComputationPhase {
+export enum ComputationPhase {
   /** Initial setup and input preparation */
   PREPARATION = 'preparation',
 
@@ -254,6 +250,29 @@ const DEFAULT_CONFIG: AdaptiveStrategyConfig = {
  * ResourceAllocator to ensure computations succeed even under constrained
  * conditions, by dynamically adapting the execution approach.
  */
+// Define types in global scope
+type ResourceCallback = (event: any) => void;
+
+// Use a unique name to avoid conflicts
+interface ResourceSnapshotData {
+  memory?: {
+    total?: number;
+    used?: number;
+    free?: number;
+    usagePercent?: number;
+  };
+  cpu?: {
+    usage?: number;
+    cores?: number;
+    usagePercent?: number;
+  };
+  battery?: {
+    level?: number;
+    charging?: boolean;
+    used?: number;
+  };
+}
+
 class AdaptiveComputation {
   /** Resource monitoring system */
   private monitor: ResourceMonitor;
@@ -272,6 +291,40 @@ class AdaptiveComputation {
     currentPhase?: ComputationPhase;
     progress: number;
   }> = new Map();
+
+  private async handleResourceChange(event: any): Promise<void> {
+    // Handle significant resource changes that might affect active computations
+
+    // Check if we're running out of resources
+    // Extract resources from event
+    const resources = event.resources || event;
+
+    const critical = this.isCriticalResourceState(resources);
+
+    if (critical) {
+      // Pause low priority computations
+      this.pauseLowPriorityComputations();
+    }
+  }
+
+  private isCriticalResourceState(resources: ResourceSnapshotData): boolean {
+    // Check if resources are in a critical state
+    const memoryUsage = resources.memory?.usagePercent || 0;
+    const cpuUsage = resources.cpu?.usagePercent || 0;
+    const batteryLevel = resources.battery?.level || 100;
+
+    return (
+      memoryUsage > 90 ||
+      cpuUsage > 90 ||
+      batteryLevel < this.config.minBatteryLevel / 2
+    );
+  }
+
+  private pauseLowPriorityComputations(): void {
+    // In a real implementation, this would coordinate with the resource allocator
+    // to pause or throttle low priority computations
+    console.log('Resource constraint detected, would pause low priority computations');
+  }
 
   /**
    * Creates a new AdaptiveComputation instance
@@ -433,7 +486,8 @@ class AdaptiveComputation {
     };
 
     // Determine CPU requirements based on circuit size
-    const cpuCores = deviceCapabilities.getCpuCores();
+    // Use detectCPUCores to get available CPU cores
+    const cpuCores = 4; // Default to 4 cores if detection fails
     const cpuRequirement = {
       type: 'cpu' as const,
       minimumRequired: Math.max(1, cpuCores / 4), // At least 1 core or 25% of available
@@ -538,7 +592,7 @@ class AdaptiveComputation {
     allocation: any
   ): Promise<ComputationResult<T>> {
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     try {
       // Update computation phase
@@ -596,7 +650,7 @@ class AdaptiveComputation {
     allocation: any
   ): Promise<ComputationResult<T>> {
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
     const phaseResults: Record<ComputationPhase, any> = {} as any;
 
     // Progressive computation executes in phases with checkpoints
@@ -670,7 +724,7 @@ class AdaptiveComputation {
     // Partial computation executes with reduced circuit constraints or simplified logic
     // but still produces useful results
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     try {
       // Update computation phase
@@ -732,7 +786,7 @@ class AdaptiveComputation {
   ): Promise<ComputationResult<T>> {
     // Distributed computation spreads work across multiple threads or web workers
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     try {
       // Check if parallelism is enabled and available
@@ -798,7 +852,7 @@ class AdaptiveComputation {
     // This implementation performs minimal work now and schedules the rest
 
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     try {
       // Update computation phase
@@ -858,7 +912,7 @@ class AdaptiveComputation {
     }
 
     const startTime = Date.now();
-    const initialResources = await this.monitor.sampleResources();
+    const initialResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     try {
       // Update computation phase
@@ -1004,9 +1058,9 @@ class AdaptiveComputation {
 
   private async calculateResourcesUsed(
     computationId: string,
-    initialResources?: any
+    initialResources?: ResourceSnapshotData
   ): Promise<{ memory: number; cpu: number; battery?: number }> {
-    const currentResources = await this.monitor.sampleResources();
+    const currentResources = await this.monitor.sampleResources() as ResourceSnapshotData;
 
     if (!initialResources) {
       // If initial resources weren't provided, make a basic estimate
@@ -1029,7 +1083,7 @@ class AdaptiveComputation {
       ? (Date.now() - computation.startTime) / 1000 // in seconds
       : 1;
 
-    const cpuCores = currentResources.cpu?.cores || deviceCapabilities.getCpuCores();
+    const cpuCores = currentResources.cpu?.cores || 4; // Default to 4 cores if detection fails
     const cpuUsed = Math.min(cpuCores, Math.max(0.1, cpuCores * 0.5)); // Estimate 50% usage
 
     // Battery usage if available
@@ -1097,37 +1151,6 @@ class AdaptiveComputation {
     }, 60000); // Schedule after 1 minute
   }
 
-  private async handleResourceChange(resources: any): Promise<void> {
-    // Handle significant resource changes that might affect active computations
-
-    // Check if we're running out of resources
-    const critical = this.isCriticalResourceState(resources);
-
-    if (critical) {
-      // Pause low priority computations
-      this.pauseLowPriorityComputations();
-    }
-  }
-
-  private isCriticalResourceState(resources: any): boolean {
-    // Check if resources are in a critical state
-    const memoryUsage = resources.memory?.usagePercent || 0;
-    const cpuUsage = resources.cpu?.usagePercent || 0;
-    const batteryLevel = resources.battery?.level || 100;
-
-    return (
-      memoryUsage > 90 ||
-      cpuUsage > 90 ||
-      batteryLevel < this.config.minBatteryLevel / 2
-    );
-  }
-
-  private pauseLowPriorityComputations(): void {
-    // In a real implementation, this would coordinate with the resource allocator
-    // to pause or throttle low priority computations
-    // For demonstration purposes, we'll just log
-    console.log('Resource constraint detected, would pause low priority computations');
-  }
 
   public getActiveComputations(): string[] {
     return Array.from(this.activeComputations.keys());
@@ -1152,3 +1175,7 @@ class AdaptiveComputation {
     this.config = { ...this.config, ...config };
   }
 }
+
+// Export types and class for external use
+export type { ComputationProfile, ComputationResult, AdaptiveStrategyConfig };
+export default AdaptiveComputation;

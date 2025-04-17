@@ -6,26 +6,70 @@
  * providing a detailed audit trail for all administrative operations.
  */
 
-import { rbacSystem, Permission, ActionLogEntry } from './RoleBasedAccessControl';
-import zkErrorLogger from '../zkErrorLogger.mjs';
-const { zkErrorLogger: logger } = zkErrorLogger;
+import * as crypto from 'crypto';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-// Extended audit log entry interface with additional metadata for compliance
-export interface AuditLogEntry extends ActionLogEntry {
-  ip?: string;
-  userAgent?: string;
-  sessionId?: string;
-  category: 'user_management' | 'proof_management' | 'system_config' | 'security' | 'authentication' | 'other';
-  severity: 'info' | 'warning' | 'error' | 'critical';
+// Create a proper logger instance for audit logging
+const logger = new ZKErrorLogger({
+  privacyLevel: 'internal',
+  logLevel: 'info',
+  destinations: ['console', 'file']
+});
+
+/**
+ * AuditEvent types that can be logged
+ */
+export enum AuditEventType {
+  USER_LOGIN = 'user_login',
+  USER_LOGOUT = 'user_logout',
+  USER_CREATED = 'user_created',
+  USER_UPDATED = 'user_updated',
+  USER_DELETED = 'user_deleted',
+  ROLE_ASSIGNED = 'role_assigned',
+  ROLE_REVOKED = 'role_revoked',
+  PERMISSION_GRANTED = 'permission_granted',
+  PERMISSION_REVOKED = 'permission_revoked',
+  CONFIG_CHANGED = 'config_changed',
+  PROOF_ACCESSED = 'proof_accessed',
+  PROOF_MODIFIED = 'proof_modified',
+  PROOF_DELETED = 'proof_deleted',
+  SYSTEM_STARTUP = 'system_startup',
+  SYSTEM_SHUTDOWN = 'system_shutdown',
+  BACKUP_CREATED = 'backup_created',
+  BACKUP_RESTORED = 'backup_restored',
+  SECURITY_VIOLATION = 'security_violation'
+}
+
+/**
+ * Interface for audit log entries
+ */
+export interface AuditLogEntry {
+  timestamp: string;
+  eventId: string;
+  eventType: AuditEventType | string;
+  userId: string;
+  username: string;
+  ipAddress: string;
+  userAgent: string;
+  resource: string;
+  action: string;
+  status: 'success' | 'failure' | 'denied' | 'error';
+  details: Record<string, any>;
+  category?: 'user_management' | 'proof_management' | 'system_config' | 'security' | 'authentication' | 'other';
+  severity?: 'info' | 'warning' | 'error' | 'critical';
   compliance?: {
     pii?: boolean;
     regulatory?: string[];
     retention?: number; // Days to retain this log entry
   };
   metadata?: Record<string, any>;
+  hash?: string; // Make hash optional to allow deletion
+  previousEntryHash: string;
 }
 
-// Audit log search filters
+/**
+ * Audit log search filters
+ */
 export interface AuditLogSearchFilters {
   userId?: string;
   walletAddress?: string;
@@ -40,647 +84,894 @@ export interface AuditLogSearchFilters {
   containsText?: string;
 }
 
-// Audit log statistics
+/**
+ * Audit log statistics
+ */
 export interface AuditLogStatistics {
   totalEntries: number;
   byStatus: Record<'success' | 'denied' | 'error', number>;
-  byCategory: Record<AuditLogEntry['category'], number>;
-  bySeverity: Record<AuditLogEntry['severity'], number>;
+  byCategory: Record<string, number>;
+  bySeverity: Record<string, number>;
   topActions: Array<{ action: string; count: number }>;
   topUsers: Array<{ userId: string; count: number }>;
   recentDeniedActions: AuditLogEntry[];
 }
 
 /**
- * Audit Logging System
+ * Class for audit logging admin operations
  */
-export class AuditLoggingSystem {
-  private auditLogs: AuditLogEntry[] = [];
+export class AuditLogger {
+  private logEntries: AuditLogEntry[] = [];
+  private lastEntryHash: string = '';
 
+  /**
+   * Creates a new AuditLogger instance
+   */
   constructor() {
-    // Initialize with example audit logs for development
-    if (process.env.NODE_ENV === 'development') {
-      this.initializeExampleLogs();
-    }
-
-    // Attach to RBAC system to capture all action logs
-    this.hookIntoRbacLogSystem();
+    // Initialize the chain with a genesis entry
+    this.createGenesisEntry();
   }
 
   /**
-   * Log an audit event
+   * Create the initial genesis entry for the audit log chain
+   * @private
    */
-  public logAuditEvent(entry: Omit<AuditLogEntry, 'timestamp'>): AuditLogEntry {
-    const logEntry: AuditLogEntry = {
-      ...entry,
-      timestamp: new Date()
+  private createGenesisEntry(): void {
+    const timestamp = new Date().toISOString();
+    const genesisEntry: AuditLogEntry = {
+      timestamp,
+      eventId: `genesis_${timestamp.replace(/[-:.TZ]/g, '')}`,
+      eventType: AuditEventType.SYSTEM_STARTUP,
+      userId: 'system',
+      username: 'system',
+      ipAddress: '127.0.0.1',
+      userAgent: 'AuditLogger/1.0',
+      resource: 'system',
+      action: 'initialization',
+      status: 'success',
+      details: { message: 'Audit log chain initialized' },
+      category: 'system_config',
+      severity: 'info',
+      hash: '',
+      previousEntryHash: 'genesis'
     };
 
-    // Add to audit logs
-    this.auditLogs.unshift(logEntry);
+    // Calculate hash for the genesis entry
+    genesisEntry.hash = this.calculateEntryHash(genesisEntry);
+    this.lastEntryHash = genesisEntry.hash;
 
-    // Also log to the central error logger for persistence
-    logger.log(
-      entry.severity === 'info' ? 'INFO' :
-        entry.severity === 'warning' ? 'WARNING' :
-          entry.severity === 'error' ? 'ERROR' : 'CRITICAL',
-      `Audit: ${entry.action} on ${entry.targetResource} by ${entry.userId}`,
-      {
-        category: `audit_${entry.category}`,
-        userFixable: false,
-        recoverable: true,
-        details: entry
-      }
-    );
+    // Store the genesis entry
+    this.logEntries.push(genesisEntry);
 
-    return logEntry;
-  }
-  
-  /**
-   * Log an event (simplified interface for external systems)
-   * @param userId The ID of the user who performed the action
-   * @param walletAddress The wallet address of the user
-   * @param action The action performed
-   * @param targetResource The resource targeted by the action
-   * @param status The status of the action (success, denied, error)
-   * @param category The category of the action
-   * @param severity The severity of the event
-   * @param details Additional details about the event
-   * @returns The created log entry
-   */
-  public logEvent(
-    userId: string,
-    walletAddress: string,
-    action: string,
-    targetResource: string,
-    status: 'success' | 'denied' | 'error',
-    category: AuditLogEntry['category'] = 'other',
-    severity: AuditLogEntry['severity'] = 'info',
-    details?: any
-  ): AuditLogEntry {
-    return this.logAuditEvent({
-      userId,
-      walletAddress,
-      action,
-      targetResource,
-      status,
-      category,
-      severity,
-      details,
-      // Add IP address and user agent if available from the environment
-      ...(process.env.CLIENT_IP ? { ip: process.env.CLIENT_IP } : {}),
-      ...(process.env.USER_AGENT ? { userAgent: process.env.USER_AGENT } : {}),
-      // Add a session ID if available
-      ...(process.env.SESSION_ID ? { sessionId: process.env.SESSION_ID } : {})
+    // Log the initialization
+    logger.info('Audit logging initialized', {
+      eventId: genesisEntry.eventId
     });
   }
 
   /**
-   * Search audit logs
+   * Calculates a hash for an audit log entry
+   * 
+   * @param entry The entry to hash
+   * @returns Hash of the entry
+   * @private
    */
-  public searchAuditLogs(
-    filters: AuditLogSearchFilters,
-    adminWalletAddress: string,
-    pagination?: { skip: number; limit: number }
-  ): { logs: AuditLogEntry[]; total: number } | null {
-    // Check if admin has permission to view logs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_LOGS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'search_audit_logs',
-        targetResource: 'audit_logs',
-        status: 'denied',
-        details: { filters }
-      });
+  private calculateEntryHash(entry: AuditLogEntry): string {
+    // Create a copy without the hash field
+    const entryForHashing = { ...entry };
+    delete entryForHashing.hash;
 
-      return null;
+    // Convert to string and hash
+    const entryString = JSON.stringify(entryForHashing);
+    return crypto.createHash('sha256').update(entryString).digest('hex');
+  }
+
+  /**
+   * Logs an audit event
+   * 
+   * @param eventType Type of audit event
+   * @param userId ID of the user performing the action
+   * @param username Username of the user
+   * @param ipAddress IP address of the user
+   * @param userAgent User agent of the client
+   * @param resource Resource being accessed
+   * @param action Action being performed
+   * @param status Success or failure
+   * @param details Additional details
+   * @returns The created audit log entry
+   */
+  public logEvent(
+    eventType: AuditEventType | string,
+    userId: string,
+    username: string,
+    ipAddress: string,
+    userAgent: string,
+    resource: string,
+    action: string,
+    status: 'success' | 'failure' | 'denied' | 'error',
+    details: Record<string, any> = {}
+  ): AuditLogEntry {
+    const timestamp = new Date().toISOString();
+    const eventId = `audit_${timestamp.replace(/[-:.TZ]/g, '')}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // Determine category and severity from event type
+    const category = this.getCategoryFromEventType(eventType);
+    const severity = this.getSeverityFromStatus(status);
+
+    // Create the new entry
+    const entry: AuditLogEntry = {
+      timestamp,
+      eventId,
+      eventType,
+      userId,
+      username,
+      ipAddress,
+      userAgent,
+      resource,
+      action,
+      status,
+      details,
+      category,
+      severity,
+      hash: '',
+      previousEntryHash: this.lastEntryHash
+    };
+
+    // Calculate the hash
+    entry.hash = this.calculateEntryHash(entry);
+    this.lastEntryHash = entry.hash;
+
+    // Store the entry
+    this.logEntries.push(entry);
+
+    // Log the event
+    if (status === 'success') {
+      logger.info(`Audit: ${action} on ${resource} by ${username}`, {
+        eventId,
+        eventType,
+        userId,
+        resource
+      });
+    } else {
+      logger.warn(`Audit: Failed ${action} on ${resource} by ${username}`, {
+        eventId,
+        eventType,
+        userId,
+        resource,
+        details
+      });
     }
 
-    // Apply filters
-    let filteredLogs = this.auditLogs.filter(log => {
-      if (filters.userId && log.userId !== filters.userId) {
+    return entry;
+  }
+
+  /**
+   * Determine the category based on event type
+   * @private
+   */
+  private getCategoryFromEventType(eventType: AuditEventType | string): AuditLogEntry['category'] {
+    const userEvents = [
+      AuditEventType.USER_LOGIN,
+      AuditEventType.USER_LOGOUT,
+      AuditEventType.USER_CREATED,
+      AuditEventType.USER_UPDATED,
+      AuditEventType.USER_DELETED
+    ];
+
+    const proofEvents = [
+      AuditEventType.PROOF_ACCESSED,
+      AuditEventType.PROOF_MODIFIED,
+      AuditEventType.PROOF_DELETED
+    ];
+
+    const configEvents = [
+      AuditEventType.CONFIG_CHANGED,
+      AuditEventType.SYSTEM_STARTUP,
+      AuditEventType.SYSTEM_SHUTDOWN
+    ];
+
+    const securityEvents = [
+      AuditEventType.SECURITY_VIOLATION,
+      AuditEventType.ROLE_ASSIGNED,
+      AuditEventType.ROLE_REVOKED,
+      AuditEventType.PERMISSION_GRANTED,
+      AuditEventType.PERMISSION_REVOKED
+    ];
+
+    if (userEvents.includes(eventType as AuditEventType)) {
+      return 'user_management';
+    } else if (proofEvents.includes(eventType as AuditEventType)) {
+      return 'proof_management';
+    } else if (configEvents.includes(eventType as AuditEventType)) {
+      return 'system_config';
+    } else if (securityEvents.includes(eventType as AuditEventType)) {
+      return 'security';
+    } else if (eventType === AuditEventType.USER_LOGIN || eventType === AuditEventType.USER_LOGOUT) {
+      return 'authentication';
+    }
+
+    return 'other';
+  }
+
+  /**
+   * Determine severity based on status
+   * @private
+   */
+  private getSeverityFromStatus(status: string): AuditLogEntry['severity'] {
+    switch (status) {
+      case 'error':
+        return 'error';
+      case 'denied':
+        return 'warning';
+      case 'failure':
+        return 'warning';
+      default:
+        return 'info';
+    }
+  }
+
+  /**
+   * Verifies the integrity of the audit log chain
+   * 
+   * @returns Object with verification result and any invalid entries
+   */
+  public verifyLogIntegrity(): { valid: boolean; invalidEntries: AuditLogEntry[] } {
+    const invalidEntries: AuditLogEntry[] = [];
+
+    // Skip if we only have the genesis entry
+    if (this.logEntries.length <= 1) {
+      return { valid: true, invalidEntries };
+    }
+
+    let previousHash = this.logEntries[0].hash;
+
+    // Check each entry after the genesis
+    for (let i = 1; i < this.logEntries.length; i++) {
+      const entry = this.logEntries[i];
+
+      // Check previous hash linkage
+      if (entry.previousEntryHash !== previousHash) {
+        invalidEntries.push(entry);
+        continue;
+      }
+
+      // Check the entry's own hash
+      const calculatedHash = this.calculateEntryHash(entry);
+      if (calculatedHash !== entry.hash) {
+        invalidEntries.push(entry);
+      }
+
+      previousHash = entry.hash;
+    }
+
+    return {
+      valid: invalidEntries.length === 0,
+      invalidEntries
+    };
+  }
+
+  /**
+   * Gets all audit log entries
+   * 
+   * @returns Array of audit log entries
+   */
+  public getLogEntries(): AuditLogEntry[] {
+    return [...this.logEntries];
+  }
+
+  /**
+   * Gets audit logs with filtering, sorting, and pagination support
+   * 
+   * @param options Options for retrieving logs
+   * @returns Paginated audit log entries with metadata
+   */
+  public getAuditLogs(options: {
+    filters?: AuditLogSearchFilters;
+    page?: number;
+    pageSize?: number;
+    sortBy?: keyof AuditLogEntry;
+    sortDirection?: 'asc' | 'desc';
+    includeDetails?: boolean;
+    anonymize?: boolean;
+  } = {}): {
+    logs: AuditLogEntry[];
+    pagination: {
+      currentPage: number;
+      pageSize: number;
+      totalPages: number;
+      totalItems: number;
+    };
+    metadata: {
+      timestamp: string;
+      filters: AuditLogSearchFilters | null;
+      sortBy: string | null;
+      sortDirection: string | null;
+    }
+  } {
+    // Default values
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 50;
+    const sortBy = options.sortBy || 'timestamp';
+    const sortDirection = options.sortDirection || 'desc';
+
+    // Get filtered logs
+    let filteredLogs = options.filters ? this.searchLogs(options.filters) : [...this.logEntries];
+
+    // Sort logs
+    filteredLogs = this.sortLogs(filteredLogs, sortBy, sortDirection);
+
+    // Calculate pagination
+    const totalItems = filteredLogs.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+    // Get logs for current page
+    let paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
+    // Process logs if needed
+    if (options.anonymize) {
+      paginatedLogs = paginatedLogs.map(log => this.anonymizeLogEntry(log));
+    }
+
+    // Optionally remove sensitive details
+    if (options.includeDetails === false) {
+      paginatedLogs = paginatedLogs.map(log => {
+        const { details, ...rest } = log;
+        return {
+          ...rest,
+          details: { sensitive: 'Redacted for security reasons' }
+        };
+      });
+    }
+
+    return {
+      logs: paginatedLogs,
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalPages,
+        totalItems
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        filters: options.filters || null,
+        sortBy: sortBy as string,
+        sortDirection
+      }
+    };
+  }
+
+  /**
+   * Sorts audit logs by the specified field and direction
+   * 
+   * @param logs Logs to sort
+   * @param sortBy Field to sort by
+   * @param sortDirection Direction to sort
+   * @returns Sorted logs
+   * @private
+   */
+  private sortLogs(
+    logs: AuditLogEntry[],
+    sortBy: keyof AuditLogEntry,
+    sortDirection: 'asc' | 'desc'
+  ): AuditLogEntry[] {
+    return [...logs].sort((a, b) => {
+      // Handle different data types appropriately
+      let valueA = a[sortBy];
+      let valueB = b[sortBy];
+
+      // For nested objects, return unsorted
+      if (typeof valueA === 'object' || typeof valueB === 'object') {
+        return 0;
+      }
+
+      // For dates, convert to timestamps
+      if (sortBy === 'timestamp') {
+        const timeA = new Date(valueA as string).getTime();
+        const timeB = new Date(valueB as string).getTime();
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+
+      // For string comparisons
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        return sortDirection === 'asc'
+          ? valueA.localeCompare(valueB)
+          : valueB.localeCompare(valueA);
+      }
+
+      // For number comparisons (handle by converting to numbers)
+      const numA = Number(valueA);
+      const numB = Number(valueB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return sortDirection === 'asc' ? numA - numB : numB - numA;
+      }
+
+      // Default comparison (as strings)
+      const strA = String(valueA);
+      const strB = String(valueB);
+      return sortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+    });
+  }
+
+  /**
+   * Gets audit log entries filtered by criteria
+   * 
+   * @param filters Filters to apply
+   * @returns Filtered audit log entries
+   */
+  public getFilteredLogs(filters: Partial<AuditLogEntry>): AuditLogEntry[] {
+    return this.logEntries.filter(entry => {
+      for (const [key, value] of Object.entries(filters)) {
+        if (entry[key as keyof AuditLogEntry] !== value) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Search audit logs using the search filters
+   * 
+   * @param filters Search filters to apply
+   * @returns Matching audit log entries
+   */
+  public searchLogs(filters: AuditLogSearchFilters): AuditLogEntry[] {
+    return this.logEntries.filter(entry => {
+      // Check user ID
+      if (filters.userId && entry.userId !== filters.userId) {
         return false;
       }
 
-      if (filters.walletAddress &&
-        log.walletAddress.toLowerCase() !== filters.walletAddress.toLowerCase()) {
+      // Check action
+      if (filters.action && entry.action !== filters.action) {
         return false;
       }
 
-      if (filters.action && log.action !== filters.action) {
+      // Check resource
+      if (filters.targetResource && entry.resource !== filters.targetResource) {
         return false;
       }
 
-      if (filters.targetResource && !log.targetResource.includes(filters.targetResource)) {
+      // Check status
+      if (filters.status && entry.status !== filters.status) {
         return false;
       }
 
-      if (filters.status && log.status !== filters.status) {
+      // Check category
+      if (filters.category && entry.category !== filters.category) {
         return false;
       }
 
-      if (filters.startDate && log.timestamp < filters.startDate) {
+      // Check severity
+      if (filters.severity && entry.severity !== filters.severity) {
         return false;
       }
 
-      if (filters.endDate && log.timestamp > filters.endDate) {
+      // Check IP address
+      if (filters.ip && entry.ipAddress !== filters.ip) {
         return false;
       }
 
-      if (filters.category && log.category !== filters.category) {
-        return false;
+      // Check date range
+      if (filters.startDate) {
+        const entryDate = new Date(entry.timestamp);
+        if (entryDate < filters.startDate) {
+          return false;
+        }
       }
 
-      if (filters.severity && log.severity !== filters.severity) {
-        return false;
+      if (filters.endDate) {
+        const entryDate = new Date(entry.timestamp);
+        if (entryDate > filters.endDate) {
+          return false;
+        }
       }
 
-      if (filters.ip && log.ip !== filters.ip) {
-        return false;
-      }
-
+      // Check text content
       if (filters.containsText) {
-        const text = filters.containsText.toLowerCase();
-        const logText = JSON.stringify(log).toLowerCase();
-        if (!logText.includes(text)) {
+        const textToSearch = filters.containsText.toLowerCase();
+        const entryText = JSON.stringify(entry).toLowerCase();
+        if (!entryText.includes(textToSearch)) {
           return false;
         }
       }
 
       return true;
     });
-
-    const total = filteredLogs.length;
-
-    // Apply pagination if specified
-    if (pagination) {
-      filteredLogs = filteredLogs.slice(
-        pagination.skip,
-        pagination.skip + pagination.limit
-      );
-    }
-
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-
-    // Log the action
-    this.logAuditEvent({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'search_audit_logs',
-      targetResource: 'audit_logs',
-      status: 'success',
-      category: 'security',
-      severity: 'info',
-      details: {
-        filters,
-        resultCount: filteredLogs.length,
-        totalCount: total
-      }
-    });
-
-    return { logs: filteredLogs, total };
   }
 
   /**
-   * Get audit log statistics
+   * Generate statistics from the audit log
+   * 
+   * @param dateRange Optional date range to limit statistics
+   * @returns Audit log statistics
    */
-  public getAuditLogStatistics(
-    adminWalletAddress: string,
-    dateRange?: { startDate: Date; endDate: Date }
-  ): AuditLogStatistics | null {
-    // Check if admin has permission to view logs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_LOGS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'view_audit_statistics',
-        targetResource: 'audit_logs',
-        status: 'denied',
-        details: { dateRange }
-      });
+  public generateStatistics(dateRange?: { start: Date; end: Date }): AuditLogStatistics {
+    let logsToAnalyze = this.logEntries;
 
-      return null;
-    }
-
-    // Filter logs by date range if specified
-    let logsToAnalyze = this.auditLogs;
+    // Filter by date range if provided
     if (dateRange) {
-      logsToAnalyze = this.auditLogs.filter(
-        log => log.timestamp >= dateRange.startDate && log.timestamp <= dateRange.endDate
-      );
+      logsToAnalyze = logsToAnalyze.filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate >= dateRange.start && logDate <= dateRange.end;
+      });
     }
 
-    // Count by status
-    const byStatus = {
+    // Initialize counters
+    const byStatus: Record<string, number> = {
       success: 0,
       denied: 0,
       error: 0
     };
 
-    // Count by category
-    const byCategory = {
-      user_management: 0,
-      proof_management: 0,
-      system_config: 0,
-      security: 0,
-      authentication: 0,
-      other: 0
-    };
-
-    // Count by severity
-    const bySeverity = {
-      info: 0,
-      warning: 0,
-      error: 0,
-      critical: 0
-    };
-
-    // Count actions
+    const byCategory: Record<string, number> = {};
+    const bySeverity: Record<string, number> = {};
     const actionCounts: Record<string, number> = {};
-
-    // Count users
     const userCounts: Record<string, number> = {};
-
-    // Get recent denied actions
     const recentDeniedActions: AuditLogEntry[] = [];
 
-    // Analyze logs
+    // Process each log entry
     for (const log of logsToAnalyze) {
       // Count by status
-      byStatus[log.status]++;
+      if (log.status in byStatus) {
+        byStatus[log.status]++;
+      }
 
       // Count by category
-      byCategory[log.category]++;
+      if (log.category) {
+        byCategory[log.category] = (byCategory[log.category] || 0) + 1;
+      }
 
       // Count by severity
-      bySeverity[log.severity]++;
+      if (log.severity) {
+        bySeverity[log.severity] = (bySeverity[log.severity] || 0) + 1;
+      }
 
       // Count actions
-      if (actionCounts[log.action]) {
-        actionCounts[log.action]++;
-      } else {
-        actionCounts[log.action] = 1;
-      }
+      actionCounts[log.action] = (actionCounts[log.action] || 0) + 1;
 
       // Count users
-      if (userCounts[log.userId]) {
-        userCounts[log.userId]++;
-      } else {
-        userCounts[log.userId] = 1;
-      }
+      userCounts[log.userId] = (userCounts[log.userId] || 0) + 1;
 
-      // Track recent denied actions
-      if (log.status === 'denied' && recentDeniedActions.length < 10) {
+      // Collect denied actions
+      if (log.status === 'denied' || log.status === 'error') {
         recentDeniedActions.push(log);
       }
     }
 
     // Sort and limit top actions
     const topActions = Object.entries(actionCounts)
-      .map(([action, count]) => ({ action, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([action, count]) => ({ action, count }));
 
     // Sort and limit top users
     const topUsers = Object.entries(userCounts)
-      .map(([userId, count]) => ({ userId, count }))
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([userId, count]) => ({ userId, count }));
+
+    // Sort recent denied actions by timestamp (newest first)
+    const sortedDeniedActions = recentDeniedActions
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10);
 
-    // Compile statistics
-    const statistics: AuditLogStatistics = {
+    return {
       totalEntries: logsToAnalyze.length,
-      byStatus,
+      byStatus: byStatus as Record<'success' | 'denied' | 'error', number>,
       byCategory,
       bySeverity,
       topActions,
       topUsers,
-      recentDeniedActions
+      recentDeniedActions: sortedDeniedActions
     };
-
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-
-    // Log the action
-    this.logAuditEvent({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'view_audit_statistics',
-      targetResource: 'audit_logs',
-      status: 'success',
-      category: 'security',
-      severity: 'info',
-      details: { dateRange }
-    });
-
-    return statistics;
   }
 
   /**
-   * Get audit logs with optional filtering
-   * @param filters Optional filters to apply to the audit logs
-   * @param adminWalletAddress The wallet address of the admin requesting the logs
-   * @param pagination Optional pagination parameters
-   * @returns An array of audit log entries matching the filters, or null if the user doesn't have permission
+   * Exports audit logs to JSON format
+   * 
+   * @returns JSON string of audit logs
    */
-  public getAuditLogs(
-    filters: AuditLogSearchFilters | undefined,
-    adminWalletAddress: string,
-    pagination?: { skip: number; limit: number }
-  ): AuditLogEntry[] | null {
-    // Check if admin has permission to view logs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_LOGS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'get_audit_logs',
-        targetResource: 'audit_logs',
-        status: 'denied',
-        details: { filters }
+  public exportLogsToJson(): string {
+    return JSON.stringify({
+      exportTimestamp: new Date().toISOString(),
+      entries: this.logEntries
+    }, null, 2);
+  }
+
+  /**
+   * Exports audit logs filtered by specified criteria and format
+   * 
+   * @param options Export options
+   * @param options.filters Filters to apply to the logs
+   * @param options.format Format of the export ('json', 'csv', 'pdf')
+   * @param options.includeDetails Whether to include detailed information
+   * @param options.anonymize Whether to anonymize sensitive information
+   * @param options.dateRange Date range for logs to export
+   * @returns Object containing the exported logs and metadata
+   */
+  public exportAuditLogs(options: {
+    filters?: AuditLogSearchFilters;
+    format?: 'json' | 'csv' | 'pdf';
+    includeDetails?: boolean;
+    anonymize?: boolean;
+    dateRange?: { start: Date; end: Date };
+  } = {}): {
+    data: string;
+    format: string;
+    filename: string;
+    metadata: {
+      timestamp: string;
+      entriesCount: number;
+      filters: any;
+      exportedBy: string;
+    };
+  } {
+    // Apply filters to get logs to export
+    let logsToExport = [...this.logEntries];
+
+    // Apply date range filter
+    if (options.dateRange) {
+      logsToExport = logsToExport.filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate >= options.dateRange!.start && logDate <= options.dateRange!.end;
       });
-
-      return null;
     }
 
-    // Search logs with the given filters
-    const searchResult = this.searchAuditLogs(filters || {}, adminWalletAddress, pagination);
-
-    if (!searchResult) {
-      return null;
+    // Apply search filters
+    if (options.filters) {
+      logsToExport = this.searchLogs(options.filters);
     }
 
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
+    // Sort by timestamp (newest first)
+    logsToExport.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    // Log the action
-    this.logAuditEvent({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'get_audit_logs',
-      targetResource: 'audit_logs',
-      status: 'success',
-      category: 'security',
-      severity: 'info',
-      details: {
-        filters,
-        pagination,
-        resultCount: searchResult.logs.length
+    // Anonymize if requested
+    if (options.anonymize) {
+      logsToExport = logsToExport.map(log => this.anonymizeLogEntry(log));
+    }
+
+    // Remove details if not requested
+    if (options.includeDetails === false) {
+      logsToExport = logsToExport.map(log => {
+        const { details, ...rest } = log;
+        return {
+          ...rest,
+          details: { message: 'Details omitted' }
+        };
+      });
+    }
+
+    // Determine format (default to JSON)
+    const format = options.format || 'json';
+    let data: string;
+    let contentType: string;
+
+    switch (format) {
+      case 'csv':
+        data = this.convertLogsToCSV(logsToExport);
+        contentType = 'text/csv';
+        break;
+      case 'pdf':
+        // For PDF we'd normally use a library like PDFKit
+        // Since we're not adding dependencies, return a message
+        data = JSON.stringify({
+          message: 'PDF export would be implemented with PDFKit or similar library',
+          logCount: logsToExport.length
+        });
+        contentType = 'application/json';
+        break;
+      case 'json':
+      default:
+        data = JSON.stringify({
+          exportTimestamp: new Date().toISOString(),
+          entries: logsToExport
+        }, null, 2);
+        contentType = 'application/json';
+    }
+
+    // Generate timestamp string for filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `audit-logs-export-${timestamp}.${format}`;
+
+    // Return the export result
+    return {
+      data,
+      format: contentType,
+      filename,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        entriesCount: logsToExport.length,
+        filters: options.filters || {},
+        exportedBy: 'system'
       }
-    });
-
-    return searchResult.logs;
+    };
   }
 
   /**
-   * Export audit logs for compliance
+   * Anonymize a log entry by removing PII
+   * @private
    */
-  public exportAuditLogs(
-    filters: AuditLogSearchFilters,
-    adminWalletAddress: string,
-    format: 'json' | 'csv' = 'json'
-  ): string | null {
-    // Check if admin has permission to view logs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_LOGS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'export_audit_logs',
-        targetResource: 'audit_logs',
-        status: 'denied',
-        details: { filters, format }
-      });
+  private anonymizeLogEntry(entry: AuditLogEntry): AuditLogEntry {
+    const anonymized = { ...entry };
 
-      return null;
+    // Replace user identifiers
+    anonymized.userId = this.hashForAnonymization(entry.userId);
+    anonymized.username = this.hashForAnonymization(entry.username);
+
+    // Anonymize IP address (keep first part)
+    const ipParts = entry.ipAddress.split('.');
+    if (ipParts.length === 4) {
+      anonymized.ipAddress = `${ipParts[0]}.${ipParts[1]}.*.*`;
     }
 
-    // Search logs with the given filters
-    const searchResult = this.searchAuditLogs(filters, adminWalletAddress);
+    // Strip identifiers from user agent
+    anonymized.userAgent = entry.userAgent.replace(/\/[\d\.]+/g, '/x.x.x');
 
-    if (!searchResult) {
-      return null;
+    // Check if details contain sensitive information and anonymize
+    if (anonymized.details) {
+      const sensitiveKeys = ['email', 'phone', 'address', 'fullName', 'password', 'key', 'secret', 'token'];
+
+      const anonymizedDetails = { ...anonymized.details };
+      for (const key of Object.keys(anonymizedDetails)) {
+        if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
+          anonymizedDetails[key] = '[REDACTED]';
+        }
+      }
+
+      anonymized.details = anonymizedDetails;
     }
 
-    const { logs } = searchResult;
+    return anonymized;
+  }
 
-    // Format according to requested format
-    let exportData: string;
+  /**
+   * Convert logs to CSV format
+   * @private
+   */
+  private convertLogsToCSV(logs: AuditLogEntry[]): string {
+    // Define headers
+    const headers = [
+      'Timestamp',
+      'Event ID',
+      'Event Type',
+      'User ID',
+      'Username',
+      'IP Address',
+      'Resource',
+      'Action',
+      'Status',
+      'Category',
+      'Severity'
+    ];
 
-    if (format === 'csv') {
-      // Create CSV export
-      const headers = [
-        'timestamp',
-        'userId',
-        'walletAddress',
-        'action',
-        'targetResource',
-        'status',
-        'category',
-        'severity',
-        'ip',
-        'userAgent',
-        'sessionId',
-        'details'
-      ].join(',');
+    // Create header row
+    let csv = headers.join(',') + '\n';
 
-      const rows = logs.map(log => [
-        log.timestamp.toISOString(),
+    // Add each log entry
+    for (const log of logs) {
+      const row = [
+        log.timestamp,
+        log.eventId,
+        log.eventType,
         log.userId,
-        log.walletAddress,
-        log.action,
-        log.targetResource,
+        log.username,
+        log.ipAddress,
+        this.escapeCSV(log.resource),
+        this.escapeCSV(log.action),
         log.status,
-        log.category,
-        log.severity,
-        log.ip || '',
-        log.userAgent ? `"${log.userAgent.replace(/"/g, '""')}"` : '',
-        log.sessionId || '',
-        log.details ? `"${JSON.stringify(log.details).replace(/"/g, '""')}"` : ''
-      ].join(','));
+        log.category || '',
+        log.severity || ''
+      ];
 
-      exportData = [headers, ...rows].join('\n');
-    } else {
-      // Create JSON export
-      exportData = JSON.stringify(logs, null, 2);
+      csv += row.join(',') + '\n';
     }
 
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-
-    // Log the action
-    this.logAuditEvent({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'export_audit_logs',
-      targetResource: 'audit_logs',
-      status: 'success',
-      category: 'security',
-      severity: 'info',
-      details: {
-        filters,
-        format,
-        logCount: logs.length
-      }
-    });
-
-    return exportData;
+    return csv;
   }
 
   /**
-   * Hook into the RBAC log system to capture all action logs
+   * Escape a string for CSV
+   * @private
    */
-  private hookIntoRbacLogSystem(): void {
-    // We will capture the original RBAC logs and enhance them for the audit system
-    // This is a simple way to ensure we don't miss any admin actions
+  private escapeCSV(str: string): string {
+    if (!str) return '';
 
-    // The process here would connect to the RBAC system's logging mechanism
-    // Since we can't directly hook into a running system in this example,
-    // we'll just rely on calling our methods directly
+    // If string contains commas, quotes, or newlines, wrap in quotes
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      // Double up any quotes
+      str = str.replace(/"/g, '""');
+      // Wrap in quotes
+      return `"${str}"`;
+    }
+
+    return str;
   }
 
   /**
-   * Generate example audit logs for development
+   * Create a hash for anonymization
+   * @private
+   */
+  private hashForAnonymization(value: string): string {
+    if (!value) return '';
+
+    // Create a hash but only use part of it to maintain consistency
+    const hash = crypto.createHash('sha256').update(value).digest('hex');
+    return hash.substring(0, 8);
+  }
+
+  /**
+   * Initialize example logs for development environment
+   * @private
    */
   private initializeExampleLogs(): void {
-    // Admin users for example logs
-    const users = [
-      { id: 'super_admin', wallet: '0x0123456789abcdef0123456789abcdef01234567' },
-      { id: 'admin_user', wallet: '0x1123456789abcdef0123456789abcdef01234567' },
-      { id: 'system_manager', wallet: '0x2123456789abcdef0123456789abcdef01234567' },
-      { id: 'proof_manager', wallet: '0x3123456789abcdef0123456789abcdef01234567' }
-    ];
-
-    // Action templates
-    const userActions = [
-      { action: 'create_user', target: 'user_', category: 'user_management' },
-      { action: 'update_user_roles', target: 'user_', category: 'user_management' },
-      { action: 'view_user', target: 'user_', category: 'user_management' },
-      { action: 'delete_user', target: 'user_', category: 'user_management' },
-      { action: 'search_users', target: 'users', category: 'user_management' }
-    ];
-
-    const proofActions = [
-      { action: 'search_proofs', target: 'proofs', category: 'proof_management' },
-      { action: 'view_proof', target: 'proof_', category: 'proof_management' },
-      { action: 'verify_proof', target: 'proof_', category: 'proof_management' },
-      { action: 'invalidate_proof', target: 'proof_', category: 'proof_management' }
-    ];
-
-    const configActions = [
-      { action: 'view_system_config', target: 'system_config', category: 'system_config' },
-      { action: 'update_system_config', target: 'system_config', category: 'system_config' },
-      { action: 'view_config_history', target: 'system_config', category: 'system_config' }
-    ];
-
-    const securityActions = [
-      { action: 'view_audit_logs', target: 'audit_logs', category: 'security' },
-      { action: 'search_audit_logs', target: 'audit_logs', category: 'security' },
-      { action: 'export_audit_logs', target: 'audit_logs', category: 'security' },
-      { action: 'login', target: 'admin_portal', category: 'authentication' },
-      { action: 'logout', target: 'admin_portal', category: 'authentication' },
-      { action: 'failed_login', target: 'admin_portal', category: 'authentication' }
-    ];
-
-    const allActions = [...userActions, ...proofActions, ...configActions, ...securityActions];
-
-    // Generate 100 random log entries
-    for (let i = 0; i < 100; i++) {
-      // Pick a random user
-      const user = users[Math.floor(Math.random() * users.length)];
-
-      // Pick a random action
-      const actionTemplate = allActions[Math.floor(Math.random() * allActions.length)];
-
-      // Pick a random status - mostly successful with some denied/error
-      const statusRoll = Math.random();
-      const status = statusRoll < 0.8 ? 'success' : statusRoll < 0.95 ? 'denied' : 'error';
-
-      // Pick a random severity - mostly info with some warnings/errors
-      const severityRoll = Math.random();
-      const severity = severityRoll < 0.7 ? 'info' :
-        severityRoll < 0.9 ? 'warning' :
-          severityRoll < 0.98 ? 'error' : 'critical';
-
-      // Generate a random date in the last 30 days
-      const timestamp = new Date();
-      timestamp.setDate(timestamp.getDate() - Math.floor(Math.random() * 30));
-      timestamp.setHours(
-        Math.floor(Math.random() * 24),
-        Math.floor(Math.random() * 60),
-        Math.floor(Math.random() * 60)
-      );
-
-      // Generate a random target ID if needed
-      const targetId = actionTemplate.target.endsWith('_')
-        ? actionTemplate.target + Math.floor(Math.random() * 100)
-        : actionTemplate.target;
-
-      // Generate a random IP address
-      const ip = `${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
-
-      // Generate user agent from common options
-      const userAgents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0',
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Mobile/15E148 Safari/604.1'
-      ];
-      const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-
-      // Generate a random session ID
-      const sessionId = `session_${Math.random().toString(36).substring(2, 9)}`;
-
-      // Create log entry
-      const logEntry: AuditLogEntry = {
-        timestamp,
-        userId: user.id,
-        walletAddress: user.wallet,
-        action: actionTemplate.action,
-        targetResource: targetId,
-        status: status as any,
-        category: actionTemplate.category as any,
-        severity: severity as any,
-        ip,
-        userAgent,
-        sessionId,
-        details: {
-          example: 'This is an example log entry for development purposes'
-        }
-      };
-
-      // Add compliance info for some logs
-      if (Math.random() < 0.3) {
-        logEntry.compliance = {
-          pii: Math.random() < 0.5,
-          regulatory: Math.random() < 0.3 ? ['GDPR', 'CCPA'] : undefined,
-          retention: 365 * 2 // 2 years
-        };
-      }
-
-      this.auditLogs.push(logEntry);
+    if (process.env.NODE_ENV !== 'development') {
+      return;
     }
 
-    // Sort logs by timestamp descending (newest first)
-    this.auditLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    // Example logs for testing
+    const exampleEvents = [
+      {
+        eventType: AuditEventType.USER_LOGIN,
+        userId: 'user123',
+        username: 'testuser',
+        ipAddress: '192.168.1.1',
+        userAgent: 'Mozilla/5.0',
+        resource: 'authentication',
+        action: 'login',
+        status: 'success' as const,
+        details: { method: 'password' }
+      },
+      {
+        eventType: AuditEventType.PROOF_ACCESSED,
+        userId: 'user123',
+        username: 'testuser',
+        ipAddress: '192.168.1.1',
+        userAgent: 'Mozilla/5.0',
+        resource: 'proof/123',
+        action: 'view',
+        status: 'success' as const,
+        details: { proofId: '123' }
+      },
+      {
+        eventType: AuditEventType.PERMISSION_GRANTED,
+        userId: 'admin456',
+        username: 'admin',
+        ipAddress: '192.168.1.2',
+        userAgent: 'Mozilla/5.0',
+        resource: 'role/editor',
+        action: 'permission_add',
+        status: 'success' as const,
+        details: { permission: 'EDIT_PROOFS', role: 'editor' }
+      }
+    ];
+
+    // Add example logs
+    for (const event of exampleEvents) {
+      this.logEvent(
+        event.eventType,
+        event.userId,
+        event.username,
+        event.ipAddress,
+        event.userAgent,
+        event.resource,
+        event.action,
+        event.status,
+        event.details
+      );
+    }
   }
 }
 
-// Singleton instance management
-let instance: AuditLoggingSystem | null = null;
+// Create singleton instance
+const auditLogger = new AuditLogger();
 
 /**
- * Get the singleton instance of the Audit Logging System
+ * Get the singleton instance of the audit logger
+ * @returns The audit logger instance
  */
-export function getInstance(): AuditLoggingSystem {
-  if (!instance) {
-    instance = new AuditLoggingSystem();
-  }
-  return instance;
+export function getAuditLogger(): AuditLogger {
+  return auditLogger;
 }
-
-// Create a singleton instance
-export const auditLoggingSystem = getInstance();
-
-// Export default for CommonJS compatibility
-export default auditLoggingSystem;

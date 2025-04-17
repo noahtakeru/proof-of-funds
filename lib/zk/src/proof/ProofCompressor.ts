@@ -12,8 +12,33 @@ import zkErrorLoggerModule from '../zkErrorLogger.mjs';
 import * as zkProofSerializer from '../zkProofSerializer.mjs';
 import { compress as pako_compress, decompress as pako_decompress } from 'pako';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Get error logger with proper typing
+const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;
+
+/**
+ * Interface defining the structure of a proof container
+ */
+export interface ProofContainer {
+  format?: {
+    version?: string;
+    type?: string;
+  };
+  circuit?: {
+    type?: string;
+    version?: string;
+  };
+  proof?: {
+    data?: any;
+    publicSignals?: any;
+  };
+  metadata?: {
+    createdAt?: number;
+    walletAddress?: string;
+    amount?: number | string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
 
 /**
  * Compression levels for proofs
@@ -59,7 +84,7 @@ export interface CompressionOptions {
 /**
  * Default compression options
  */
-const DEFAULT_COMPRESSION_OPTIONS: CompressionOptions = {
+const DEFAULT_COMPRESSION_OPTIONS: Required<CompressionOptions> = {
   level: CompressionLevel.BALANCED,
   algorithm: CompressionAlgorithm.DEFLATE,
   stripMetadata: false,
@@ -126,7 +151,7 @@ export function compressProof(
 ): CompressionResult {
   const startTime = Date.now();
   const opts = { ...DEFAULT_COMPRESSION_OPTIONS, ...options };
-  
+
   try {
     // Parse the proof if it's a string
     let proofContainer = proof;
@@ -134,24 +159,41 @@ export function compressProof(
       try {
         proofContainer = zkProofSerializer.deserializeProof(proof);
       } catch (error) {
-        throw new InputError(`Invalid proof data: ${error.message}`, {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new InputError(`Invalid proof data: ${errorMessage}`, {
           code: 7001,
           recoverable: false,
-          details: { originalError: error.message }
+          details: { originalError: errorMessage }
         });
       }
     }
 
+    // Define interface for the proof container
+    interface ProofContainer {
+      format?: any;
+      circuit?: any;
+      proof?: {
+        data?: any;
+        publicSignals?: any;
+      };
+      metadata?: any;
+    }
+
+    // Type assertion for the proof container
+    const typedProof = proofContainer as ProofContainer;
+
     // Validate memory limit before proceeding
     const proofJson = JSON.stringify(proofContainer);
     const proofSize = getByteSize(proofJson);
-    if (proofSize > opts.memoryLimit) {
-      throw new InputError(`Proof size exceeds memory limit: ${proofSize} bytes > ${opts.memoryLimit} bytes`, {
+    // Ensure memoryLimit is defined, using nullish coalescing to provide a default
+    const memoryLimit = opts.memoryLimit ?? DEFAULT_COMPRESSION_OPTIONS.memoryLimit;
+    if (proofSize > memoryLimit) {
+      throw new InputError(`Proof size exceeds memory limit: ${proofSize} bytes > ${memoryLimit} bytes`, {
         code: 7011,
         recoverable: false,
-        details: { 
+        details: {
           proofSize,
-          memoryLimit: opts.memoryLimit
+          memoryLimit
         }
       });
     }
@@ -169,11 +211,11 @@ export function compressProof(
     // Serialize and compress
     const serialized = JSON.stringify(optimizedProof);
     const compressed = compressData(serialized, opts.algorithm, opts.level);
-    
+
     // Format the compressed data
     let finalData: string | Uint8Array;
     let format: 'base64' | 'binary';
-    
+
     if (opts.useBinary) {
       finalData = compressed;
       format = 'binary';
@@ -183,10 +225,10 @@ export function compressProof(
     }
 
     // Calculate compression metrics
-    const compressedSize = typeof finalData === 'string' 
-      ? getByteSize(finalData) 
+    const compressedSize = typeof finalData === 'string'
+      ? getByteSize(finalData)
       : finalData.byteLength;
-    
+
     const compressionRatio = originalSize / compressedSize;
     const compressionTime = Date.now() - startTime;
 
@@ -203,9 +245,10 @@ export function compressProof(
       format
     };
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'compressProof',
-      context: { 
+      context: {
         proofType: typeof proof,
         options: opts
       }
@@ -215,10 +258,11 @@ export function compressProof(
       throw error;
     }
 
-    throw new ProofSerializationError(`Failed to compress proof: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofSerializationError(`Failed to compress proof: ${errorMsg}`, {
       code: 2007, // PROOF_COMPRESSION_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -253,23 +297,25 @@ export function decompressProof(
     // Decompress the data
     const decompressed = decompressData(compressedData, algorithm);
     const decompressedJson = new TextDecoder().decode(decompressed);
-    
+
     try {
       return JSON.parse(decompressedJson);
     } catch (parseError) {
+      const parseErrorMessage = parseError instanceof Error ? parseError.message : String(parseError);
       throw new ProofSerializationError('Failed to parse decompressed proof', {
         code: 2008, // PROOF_DECOMPRESSION_ERROR
         recoverable: false,
-        details: { originalError: parseError.message }
+        details: { originalError: parseErrorMessage }
       });
     }
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'decompressProof',
-      context: { 
+      context: {
         compressedType: typeof compressed,
-        compressedSize: typeof compressed === 'string' 
-          ? compressed.length 
+        compressedSize: typeof compressed === 'string'
+          ? compressed.length
           : compressed.byteLength,
         metadata: compressionMetadata
       }
@@ -279,10 +325,11 @@ export function decompressProof(
       throw error;
     }
 
-    throw new ProofSerializationError(`Failed to decompress proof: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofSerializationError(`Failed to decompress proof: ${errorMsg}`, {
       code: 2008, // PROOF_DECOMPRESSION_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -305,12 +352,12 @@ export function createCompressedProofPackage(
   try {
     // Compress the proof
     const compressionResult = compressProof(proof, options);
-    
+
     // Parse the original proof if needed
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-    
+
     // Create metadata for the compressed package
     const compressionMeta: CompressedProofMeta = {
       algorithm: compressionResult.algorithm,
@@ -326,17 +373,18 @@ export function createCompressedProofPackage(
       type: 'compressed-zk-proof',
       version: '1.0.0',
       metadata: compressionMeta,
-      data: typeof compressionResult.data === 'string' 
-        ? compressionResult.data 
+      data: typeof compressionResult.data === 'string'
+        ? compressionResult.data
         : arrayBufferToBase64(compressionResult.data)
     };
 
     // Serialize and return
     return JSON.stringify(compressedPackage);
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'createCompressedProofPackage',
-      context: { 
+      context: {
         proofType: typeof proof,
         options
       }
@@ -346,10 +394,11 @@ export function createCompressedProofPackage(
       throw error;
     }
 
-    throw new ProofSerializationError(`Failed to create compressed proof package: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofSerializationError(`Failed to create compressed proof package: ${errorMsg}`, {
       code: 2007, // PROOF_COMPRESSION_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -370,10 +419,11 @@ export function extractFromCompressedPackage(compressedPackage: string): object 
     try {
       packageObj = JSON.parse(compressedPackage);
     } catch (parseError) {
+      const parseErrorMessage = parseError instanceof Error ? parseError.message : String(parseError);
       throw new InputError('Invalid compressed proof package: not valid JSON', {
         code: 7001,
         recoverable: false,
-        details: { originalError: parseError.message }
+        details: { originalError: parseErrorMessage }
       });
     }
 
@@ -388,13 +438,14 @@ export function extractFromCompressedPackage(compressedPackage: string): object 
 
     // Extract compression metadata
     const metadata = packageObj.metadata as CompressedProofMeta;
-    
+
     // Decompress the proof
     return decompressProof(packageObj.data, metadata);
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'extractFromCompressedPackage',
-      context: { 
+      context: {
         packageSize: compressedPackage?.length
       }
     });
@@ -403,10 +454,11 @@ export function extractFromCompressedPackage(compressedPackage: string): object 
       throw error;
     }
 
-    throw new ProofSerializationError(`Failed to extract from compressed package: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofSerializationError(`Failed to extract from compressed package: ${errorMsg}`, {
       code: 2008, // PROOF_DECOMPRESSION_ERROR
       recoverable: false,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -428,41 +480,55 @@ export function analyzeProofSize(proof: object | string): {
 } {
   try {
     // Parse the proof if it's a string
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-    
+
+    // Define interface for the proof container
+    interface ProofContainer {
+      format?: any;
+      circuit?: any;
+      proof?: {
+        data?: any;
+        publicSignals?: any;
+      };
+      metadata?: any;
+    }
+
+    // Type assertion for the proof container
+    const typedProof = proofContainer as ProofContainer;
+
     // Size breakdown by component
     const breakdown: Record<string, number> = {};
-    
+
     // Analyze each component
-    if (proofContainer.format) {
-      breakdown.format = getByteSize(JSON.stringify(proofContainer.format));
+    if (typedProof.format) {
+      breakdown.format = getByteSize(JSON.stringify(typedProof.format));
     }
-    
-    if (proofContainer.circuit) {
-      breakdown.circuit = getByteSize(JSON.stringify(proofContainer.circuit));
+
+    if (typedProof.circuit) {
+      breakdown.circuit = getByteSize(JSON.stringify(typedProof.circuit));
     }
-    
-    if (proofContainer.proof) {
-      breakdown.proofData = getByteSize(JSON.stringify(proofContainer.proof.data));
-      breakdown.publicSignals = getByteSize(JSON.stringify(proofContainer.proof.publicSignals));
+
+    if (typedProof.proof) {
+      breakdown.proofData = getByteSize(JSON.stringify(typedProof.proof.data));
+      breakdown.publicSignals = getByteSize(JSON.stringify(typedProof.proof.publicSignals));
     }
-    
-    if (proofContainer.metadata) {
-      breakdown.metadata = getByteSize(JSON.stringify(proofContainer.metadata));
+
+    if (typedProof.metadata) {
+      breakdown.metadata = getByteSize(JSON.stringify(typedProof.metadata));
     }
-    
+
     // Calculate total size
-    const totalSize = getByteSize(JSON.stringify(proofContainer));
-    
+    const totalSize = getByteSize(JSON.stringify(typedProof));
+
     // Generate recommendations
     const recommendations: string[] = [];
-    
+
     // Recommend based on component sizes
     const proofDataPercent = (breakdown.proofData / totalSize) * 100;
     const metadataPercent = (breakdown.metadata || 0) / totalSize * 100;
-    
+
     if (proofDataPercent > 80) {
       recommendations.push(
         'Proof data accounts for >80% of total size. Use MAX compression level for best results.'
@@ -472,34 +538,35 @@ export function analyzeProofSize(proof: object | string): {
         'Proof data accounts for >60% of total size. Use BALANCED compression for good results.'
       );
     }
-    
+
     if (metadataPercent > 20) {
       recommendations.push(
         'Metadata accounts for >20% of total size. Consider using stripMetadata option.'
       );
     }
-    
+
     if (totalSize > 1024 * 1024) { // > 1MB
       recommendations.push(
         'Proof is very large (>1MB). Consider using binary format instead of Base64 for storage.'
       );
     }
-    
+
     if (recommendations.length === 0) {
       recommendations.push(
         'Proof size is already well-optimized. Standard compression should be sufficient.'
       );
     }
-    
+
     return {
       totalSize,
       breakdown,
       recommendations
     };
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'analyzeProofSize',
-      context: { 
+      context: {
         proofType: typeof proof
       }
     });
@@ -508,10 +575,11 @@ export function analyzeProofSize(proof: object | string): {
       throw error;
     }
 
-    throw new ProofError(`Failed to analyze proof size: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofError(`Failed to analyze proof size: ${errorMsg}`, {
       code: 2004, // PROOF_INPUT_INVALID
       recoverable: true,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -527,77 +595,80 @@ export function analyzeProofSize(proof: object | string): {
  */
 export function estimateOptimalCompression(
   proof: object | string
-): { 
+): {
   optimalLevel: CompressionLevel;
   estimatedReduction: number;
   compressionOptions: CompressionOptions;
 } {
   try {
     // Parse the proof if it's a string
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-    
+
     const proofJson = JSON.stringify(proofContainer);
     const originalSize = getByteSize(proofJson);
-    
+
     // Test different compression levels
     const testResults: Array<{
       level: CompressionLevel;
       ratio: number;
       timeMs: number;
     }> = [];
-    
+
     // Quick test of multiple compression levels
     for (const level of [
-      CompressionLevel.FAST, 
-      CompressionLevel.BALANCED, 
+      CompressionLevel.FAST,
+      CompressionLevel.BALANCED,
       CompressionLevel.MAX
     ]) {
       const startTime = Date.now();
       const compressedData = compressData(
-        proofJson, 
+        proofJson,
         CompressionAlgorithm.DEFLATE,
         level
       );
       const timeMs = Date.now() - startTime;
       const ratio = originalSize / compressedData.byteLength;
-      
+
       testResults.push({ level, ratio, timeMs });
     }
-    
+
     // Analyze results to find optimal level
     let optimalLevel = CompressionLevel.BALANCED; // Default
     let bestScore = 0;
-    
+
     for (const result of testResults) {
       // Score is a balance of compression ratio and speed
       // Higher ratio and lower time is better
       const score = result.ratio / Math.log(result.timeMs + 1);
-      
+
       if (score > bestScore) {
         bestScore = score;
         optimalLevel = result.level;
       }
     }
-    
+
     // Determine if stripping metadata would be beneficial
     let stripMetadata = false;
-    
-    if (proofContainer.metadata) {
-      const metadataSize = getByteSize(JSON.stringify(proofContainer.metadata));
+
+    // Type assertion to access metadata property
+    const containerWithMetadata = proofContainer as { metadata?: any };
+
+    if (containerWithMetadata.metadata) {
+      const metadataSize = getByteSize(JSON.stringify(containerWithMetadata.metadata));
       const metadataPercent = (metadataSize / originalSize) * 100;
-      
+
       // If metadata is more than 15% of total size, recommend stripping
       stripMetadata = metadataPercent > 15;
     }
-    
+
     // Find the result for the optimal level
     const optimalResult = testResults.find(r => r.level === optimalLevel);
-    const estimatedReduction = optimalResult 
-      ? 1 - (1 / optimalResult.ratio) 
+    const estimatedReduction = optimalResult
+      ? 1 - (1 / optimalResult.ratio)
       : 0.7; // Default to 70% if not found
-    
+
     // Create recommended compression options
     const compressionOptions: CompressionOptions = {
       level: optimalLevel,
@@ -607,16 +678,17 @@ export function estimateOptimalCompression(
       keepFields: stripMetadata ? ['createdAt', 'walletAddress', 'amount'] : [],
       useBinary: originalSize > 500 * 1024 // Use binary for proofs > 500KB
     };
-    
+
     return {
       optimalLevel,
       estimatedReduction,
       compressionOptions
     };
   } catch (error) {
-    zkErrorLogger.logError(error, {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'estimateOptimalCompression',
-      context: { 
+      context: {
         proofType: typeof proof
       }
     });
@@ -625,10 +697,11 @@ export function estimateOptimalCompression(
       throw error;
     }
 
-    throw new ProofError(`Failed to estimate optimal compression: ${error.message}`, {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ProofError(`Failed to estimate optimal compression: ${errorMsg}`, {
       code: 2004, // PROOF_INPUT_INVALID
       recoverable: true,
-      details: { originalError: error.message }
+      details: { originalError: errorMsg }
     });
   }
 }
@@ -646,17 +719,17 @@ export function estimateOptimalCompression(
  * @private
  */
 function stripUnnecessaryMetadata(
-  proofContainer: any, 
+  proofContainer: any,
   keepFields: string[] = []
 ): any {
   // Create a copy of the container
   const optimized = JSON.parse(JSON.stringify(proofContainer));
-  
+
   // If no metadata, just return the copy
   if (!optimized.metadata) {
     return optimized;
   }
-  
+
   // Create minimal metadata with only essential fields
   const essentialFields = [
     // Always keep these critical fields
@@ -666,19 +739,19 @@ function stripUnnecessaryMetadata(
     'amount',
     ...keepFields
   ];
-  
+
   const strippedMetadata: Record<string, any> = {};
-  
+
   // Only keep essential fields
   for (const field of essentialFields) {
     if (optimized.metadata[field] !== undefined) {
       strippedMetadata[field] = optimized.metadata[field];
     }
   }
-  
+
   // Replace metadata with stripped version
   optimized.metadata = strippedMetadata;
-  
+
   return optimized;
 }
 
@@ -699,20 +772,20 @@ function compressData(
   // Convert string to Uint8Array
   const textEncoder = new TextEncoder();
   const dataArray = textEncoder.encode(data);
-  
+
   // Use appropriate compression algorithm
   switch (algorithm) {
     case CompressionAlgorithm.DEFLATE:
       return pako_compress(dataArray, { level });
-      
+
     case CompressionAlgorithm.GZIP:
       return pako_compress(dataArray, { level, gzip: true });
-      
+
     case CompressionAlgorithm.BROTLI:
       // Fallback to DEFLATE if Brotli is not available
       // In a real implementation, we would use the Brotli library
       return pako_compress(dataArray, { level });
-      
+
     default:
       throw new Error(`Unsupported compression algorithm: ${algorithm}`);
   }
@@ -734,14 +807,14 @@ function decompressData(
   switch (algorithm) {
     case CompressionAlgorithm.DEFLATE:
       return pako_decompress(data);
-      
+
     case CompressionAlgorithm.GZIP:
       return pako_decompress(data, { to: 'string' });
-      
+
     case CompressionAlgorithm.BROTLI:
       // Fallback to DEFLATE if Brotli is not available
       return pako_decompress(data);
-      
+
     default:
       throw new Error(`Unsupported decompression algorithm: ${algorithm}`);
   }
@@ -784,17 +857,17 @@ function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
   let binary = '';
   const bytes = new Uint8Array(buffer);
   const len = bytes.byteLength;
-  
+
   for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  
+
   if (typeof btoa !== 'undefined') {
     return btoa(binary);
   } else if (typeof Buffer !== 'undefined') {
     return Buffer.from(binary, 'binary').toString('base64');
   }
-  
+
   throw new Error('Base64 encoding not supported in this environment');
 }
 
@@ -807,7 +880,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
  */
 function base64ToArrayBuffer(base64: string): Uint8Array {
   let binaryString: string;
-  
+
   if (typeof atob !== 'undefined') {
     binaryString = atob(base64);
   } else if (typeof Buffer !== 'undefined') {
@@ -815,13 +888,13 @@ function base64ToArrayBuffer(base64: string): Uint8Array {
   } else {
     throw new Error('Base64 decoding not supported in this environment');
   }
-  
+
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
-  
+
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  
+
   return bytes;
 }

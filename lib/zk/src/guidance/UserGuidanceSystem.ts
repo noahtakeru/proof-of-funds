@@ -8,10 +8,7 @@
  * @module UserGuidanceSystem
  */
 
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
-
-// Get the singleton logger instance
-const { zkErrorLogger } = zkErrorLoggerModule;
+import { logError, logger as zkErrorLogger } from '../utils/error-logging.js';
 
 /**
  * Represents the difficulty level of a guidance step
@@ -117,7 +114,7 @@ export class UserGuidanceSystem {
                 steps: ['zk-performance-tuning', 'zk-security-hardening', 'zk-advanced-circuits']
             });
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Failed to initialize default guidance paths', { error });
+            logError(new Error('Failed to initialize default guidance paths'), { errorDetail: error });
         }
     }
 
@@ -130,7 +127,7 @@ export class UserGuidanceSystem {
     public showGuidance(userId: string, stepId: string): GuidanceStep | null {
         try {
             if (!this.guidanceSteps.has(stepId)) {
-                zkErrorLogger.log('WARNING', 'Guidance step not found', { userId, stepId });
+                logError(new Error('Guidance step not found'), { userId, stepId });
                 return null;
             }
 
@@ -152,7 +149,7 @@ export class UserGuidanceSystem {
 
             return step || null;
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Error showing guidance', { userId, stepId, error });
+            logError(new Error('Error showing guidance'), { userId, stepId, errorDetail: error });
             return null;
         }
     }
@@ -181,7 +178,7 @@ export class UserGuidanceSystem {
                 return true;
             }
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Error dismissing guidance', { userId, stepId, error });
+            logError(new Error('Error dismissing guidance'), { userId, stepId, errorDetail: error });
             return false;
         }
     }
@@ -194,14 +191,14 @@ export class UserGuidanceSystem {
     public registerGuidanceStep(step: GuidanceStep): boolean {
         try {
             if (!step.id || this.guidanceSteps.has(step.id)) {
-                zkErrorLogger.log('WARNING', 'Invalid step ID or step already exists', { stepId: step.id });
+                logError(new Error('Invalid step ID or step already exists'), { stepId: step.id });
                 return false;
             }
 
             this.guidanceSteps.set(step.id, step);
             return true;
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Error registering guidance step', { step, error });
+            logError(new Error('Error registering guidance step'), { step, errorDetail: error });
             return false;
         }
     }
@@ -244,7 +241,7 @@ export class UserGuidanceSystem {
 
             return progress;
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Error tracking user progress', { userId, completedStepId, error });
+            logError(new Error('Error tracking user progress'), { userId, completedStepId, errorDetail: error });
             return {
                 userId,
                 completedSteps: [],
@@ -276,7 +273,7 @@ export class UserGuidanceSystem {
             // Otherwise, recommend based on skill level
             return this.findPathByDifficulty(progress.skillLevel);
         } catch (error) {
-            zkErrorLogger.log('ERROR', 'Error getting recommended path', { userId, error });
+            logError(new Error('Error getting recommended path'), { userId, errorDetail: error });
             return null;
         }
     }

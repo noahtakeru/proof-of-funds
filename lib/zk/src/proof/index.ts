@@ -56,6 +56,33 @@ export type {
  * This default export provides a unified interface for all proof optimization
  * functions, making it easier to use the module.
  */
+import {
+  CompressionLevel,
+  CompressionAlgorithm,
+  compressProof,
+  decompressProof,
+  createCompressedProofPackage,
+  extractFromCompressedPackage,
+  analyzeProofSize,
+  estimateOptimalCompression
+} from './ProofCompressor';
+
+import {
+  serializeOptimized,
+  deserializeOptimized,
+  estimateSizeReduction,
+  createMinimalVerifiableProof
+} from './OptimizedSerializer';
+
+import {
+  ProofComponent,
+  createSelectiveDisclosure,
+  verifyPartialProof,
+  extractVerifiableInfo,
+  createProofReference,
+  verifyProofReference
+} from './SelectiveDisclosure';
+
 export default {
   compression: {
     compress: compressProof,

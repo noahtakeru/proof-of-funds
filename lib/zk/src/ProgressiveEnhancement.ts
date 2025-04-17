@@ -32,14 +32,9 @@ import { DeviceOptimizations, DeviceTier } from './DeviceOptimizations';
 import { UserPreferences } from './UserPreferences';
 
 /**
- * Device capability tiers - explicitly defining here for feature flags implementation
- * This should match the same enum in DeviceOptimizations
+ * Device capability tiers - using the same enum from DeviceOptimizations
+ * We don't redefine it here to avoid conflicts
  */
-export enum DeviceTier {
-  LowEnd = 'low',       // Severely constrained devices
-  MidRange = 'medium',  // Limited but capable devices
-  HighEnd = 'high'      // Full-featured devices
-}
 
 /**
  * Feature flags controlling which capabilities are enabled
@@ -166,19 +161,19 @@ const features: FeatureMap = {
 // UI component variants for different device capabilities
 const uiComponents = {
   'progressIndicator': {
-    [DeviceTier.LowEnd]: 'BasicProgressIndicator',
-    [DeviceTier.MidRange]: 'StandardProgressIndicator',
-    [DeviceTier.HighEnd]: 'AdvancedProgressIndicator'
+    [DeviceTier.LOW]: 'BasicProgressIndicator',
+    [DeviceTier.MEDIUM]: 'StandardProgressIndicator',
+    [DeviceTier.HIGH]: 'AdvancedProgressIndicator'
   },
   'verificationResult': {
-    [DeviceTier.LowEnd]: 'SimpleVerificationResult',
-    [DeviceTier.MidRange]: 'StandardVerificationResult',
-    [DeviceTier.HighEnd]: 'DetailedVerificationResult'
+    [DeviceTier.LOW]: 'SimpleVerificationResult',
+    [DeviceTier.MEDIUM]: 'StandardVerificationResult',
+    [DeviceTier.HIGH]: 'DetailedVerificationResult'
   },
   'errorDisplay': {
-    [DeviceTier.LowEnd]: 'BasicErrorDisplay',
-    [DeviceTier.MidRange]: 'InteractiveErrorDisplay',
-    [DeviceTier.HighEnd]: 'AdvancedErrorDisplay'
+    [DeviceTier.LOW]: 'BasicErrorDisplay',
+    [DeviceTier.MEDIUM]: 'InteractiveErrorDisplay',
+    [DeviceTier.HIGH]: 'AdvancedErrorDisplay'
   }
 };
 
@@ -465,9 +460,9 @@ export class ProgressiveEnhancement {
    */
   private static _compareTiers(tierA: DeviceTier, tierB: DeviceTier): number {
     const tierValues = {
-      [DeviceTier.LowEnd]: 0,
-      [DeviceTier.MidRange]: 1,
-      [DeviceTier.HighEnd]: 2
+      [DeviceTier.LOW]: 0,
+      [DeviceTier.MEDIUM]: 1,
+      [DeviceTier.HIGH]: 2
     };
     
     return tierValues[tierA] - tierValues[tierB];

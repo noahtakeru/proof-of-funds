@@ -14,8 +14,71 @@
  */
 
 import { bigQueryAnalytics } from '../analytics/BigQueryAnalytics';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.mjs';
 import { EventEmitter } from 'events';
+
+// TypeScript-safe logger implementation
+class SafeLogger {
+  // Base log method
+  log(level: string, message: string, data: Record<string, any> = {}): void {
+    console.log(`[${level}] ${message}`, data);
+  }
+
+  // Helper for logging errors
+  logError(error: unknown, context: Record<string, any> = {}): string {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.log('ERROR', errorMessage, context);
+    return 'error-id';
+  }
+
+  // Convenience methods
+  info(message: string, data: Record<string, any> = {}): string {
+    this.log('INFO', message, data);
+    return 'info-id';
+  }
+
+  warn(message: string, data: Record<string, any> = {}): string {
+    this.log('WARN', message, data);
+    return 'warn-id';
+  }
+
+  error(message: string, data: Record<string, any> = {}): string {
+    this.log('ERROR', message, data);
+    return 'error-id';
+  }
+
+  critical(message: string, data: Record<string, any> = {}): string {
+    this.log('CRITICAL', message, data);
+    return 'critical-id';
+  }
+
+  debug(message: string, data: Record<string, any> = {}): string {
+    this.log('DEBUG', message, data);
+    return 'debug-id';
+  }
+}
+
+// Create a safe logger instance we can use throughout the file
+const zkErrorLogger = new SafeLogger();
+
+// Helper function to safely get error message
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Helper function for consistent error logging
+function logError(error: unknown, errorContext: string, additionalData: Record<string, any> = {}): void {
+  const errorMsg = getErrorMessage(error);
+  zkErrorLogger.log('ERROR', errorContext, {
+    category: 'monitoring',
+    userFixable: true,
+    recoverable: true,
+    details: { 
+      error: errorMsg,
+      ...additionalData
+    }
+  });
+}
 
 // Metric types
 export enum MetricType {
@@ -252,12 +315,7 @@ export class SystemMonitor extends EventEmitter {
     
     // Initialize the monitoring system
     this.initialize().catch(error => {
-      zkErrorLogger.log('ERROR', 'Failed to initialize SystemMonitor', {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
+      logError(error, 'Failed to initialize SystemMonitor');
     });
   }
   
@@ -310,13 +368,7 @@ export class SystemMonitor extends EventEmitter {
       
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', 'Failed to initialize SystemMonitor', {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, 'Failed to initialize SystemMonitor');
       return false;
     }
   }
@@ -352,13 +404,7 @@ export class SystemMonitor extends EventEmitter {
       
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to register metric: ${metric.name}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to register metric: ${metric.name}`);
       return false;
     }
   }
@@ -423,24 +469,15 @@ export class SystemMonitor extends EventEmitter {
         bigQueryAnalytics.trackSystemMetrics({
           [metricName.split('.').pop() || metricName]: value
         }).catch(error => {
-          zkErrorLogger.log('ERROR', `Failed to send metric to BigQuery: ${metricName}`, {
-            category: 'monitoring',
-            userFixable: false,
-            recoverable: true,
-            details: { error: error.message }
+          logError(error, `Failed to send metric to BigQuery: ${metricName}`, {
+            userFixable: false
           });
         });
       }
       
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to record metric: ${metricName}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to record metric: ${metricName}`);
       return false;
     }
   }
@@ -464,6 +501,28 @@ export class SystemMonitor extends EventEmitter {
     } = {}
   ): boolean {
     try {
+      // Validate metric name
+      if (!metricName || typeof metricName !== 'string') {
+        zkErrorLogger.log('WARNING', 'Invalid metric name provided to trackMetric', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true,
+          details: { metricName, valueType: typeof value }
+        });
+        return false;
+      }
+
+      // Validate value is a number
+      if (typeof value !== 'number' || isNaN(value)) {
+        zkErrorLogger.log('WARNING', `Invalid value provided for metric: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true,
+          details: { metricName, value, valueType: typeof value }
+        });
+        return false;
+      }
+      
       // Record the metric value
       const recorded = this.recordMetric(metricName, value, labels);
       
@@ -505,15 +564,24 @@ export class SystemMonitor extends EventEmitter {
         }
       }
       
+      // Log successful metric tracking for high-value metrics
+      if (metricName.startsWith('system.') || metricName.startsWith('app.') || value > 100) {
+        zkErrorLogger.log('INFO', `Tracked metric: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: false,
+          recoverable: true,
+          details: {
+            metricName,
+            value,
+            timestamp: new Date().toISOString(),
+            labels: Object.keys(labels).length > 0 ? labels : undefined
+          }
+        });
+      }
+      
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to track metric: ${metricName}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to track metric: ${metricName}`);
       return false;
     }
   }
@@ -661,13 +729,7 @@ export class SystemMonitor extends EventEmitter {
       
       return filteredData;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to get metric history: ${metricName}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to get metric history: ${metricName}`);
       return null;
     }
   }
@@ -744,13 +806,7 @@ export class SystemMonitor extends EventEmitter {
       
       return alertId;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to set threshold alert for ${metricName}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to set threshold alert for ${metricName}`);
       return null;
     }
   }
@@ -860,13 +916,7 @@ export class SystemMonitor extends EventEmitter {
       
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to register alert: ${alert.id}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to register alert: ${alert.id}`);
       return false;
     }
   }
@@ -894,13 +944,7 @@ export class SystemMonitor extends EventEmitter {
       
       return true;
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to register notification channel: ${channel.id}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to register notification channel: ${channel.id}`);
       return false;
     }
   }
@@ -997,13 +1041,7 @@ export class SystemMonitor extends EventEmitter {
         a.timestamp.getTime() - b.timestamp.getTime()
       );
     } catch (error) {
-      zkErrorLogger.log('ERROR', `Failed to get metric data: ${metricName}`, {
-        category: 'monitoring',
-        userFixable: true,
-        recoverable: true,
-        details: { error: error.message }
-      });
-      
+      logError(error, `Failed to get metric data: ${metricName}`);
       return null;
     }
   }
@@ -1098,12 +1136,7 @@ export class SystemMonitor extends EventEmitter {
           // Other metrics are recorded externally when events occur
         }
       } catch (error) {
-        zkErrorLogger.log('ERROR', `Failed to collect metric: ${metricName}`, {
-          category: 'monitoring',
-          userFixable: true,
-          recoverable: true,
-          details: { error: error.message }
-        });
+        logError(error, `Failed to collect metric: ${metricName}`);
       }
     }, metric.interval);
     
@@ -1157,12 +1190,7 @@ export class SystemMonitor extends EventEmitter {
       try {
         this.evaluateAlert(alert);
       } catch (error) {
-        zkErrorLogger.log('ERROR', `Failed to evaluate alert: ${alert.id}`, {
-          category: 'monitoring',
-          userFixable: true,
-          recoverable: true,
-          details: { error: error.message }
-        });
+        logError(error, `Failed to evaluate alert: ${alert.id}`);
       }
     }
   }
@@ -1359,7 +1387,7 @@ export class SystemMonitor extends EventEmitter {
     
     // If no channels specified, use all enabled channels
     const channelsToNotify = channels.length > 0
-      ? channels.map(id => this.notificationChannels.get(id)).filter(Boolean)
+      ? channels.map(id => this.notificationChannels.get(id)).filter((c): c is NotificationChannel => !!c)
       : Array.from(this.notificationChannels.values()).filter(channel => channel.enabled);
     
     // Send notification to each channel
@@ -1367,12 +1395,7 @@ export class SystemMonitor extends EventEmitter {
       try {
         this.sendNotification(channel, alert);
       } catch (error) {
-        zkErrorLogger.log('ERROR', `Failed to send alert notification: ${channel.id}`, {
-          category: 'monitoring',
-          userFixable: true,
-          recoverable: true,
-          details: { error: error.message }
-        });
+        logError(error, `Failed to send alert notification: ${channel.id}`);
       }
     }
   }
@@ -1391,19 +1414,14 @@ export class SystemMonitor extends EventEmitter {
     
     const channels = alertDef.notificationChannels || [];
     const channelsToNotify = channels.length > 0
-      ? channels.map(id => this.notificationChannels.get(id)).filter(Boolean)
+      ? channels.map(id => this.notificationChannels.get(id)).filter((c): c is NotificationChannel => !!c)
       : Array.from(this.notificationChannels.values()).filter(channel => channel.enabled);
     
     for (const channel of channelsToNotify) {
       try {
         this.sendResolutionNotification(channel, alert);
       } catch (error) {
-        zkErrorLogger.log('ERROR', `Failed to send alert resolution notification: ${channel.id}`, {
-          category: 'monitoring',
-          userFixable: true,
-          recoverable: true,
-          details: { error: error.message }
-        });
+        logError(error, `Failed to send alert resolution notification: ${channel.id}`);
       }
     }
   }
@@ -1451,12 +1469,7 @@ export class SystemMonitor extends EventEmitter {
             alert
           })}`);
         } catch (error) {
-          zkErrorLogger.log('ERROR', `Failed to send webhook: ${channel.id}`, {
-            category: 'monitoring',
-            userFixable: true,
-            recoverable: true,
-            details: { error: error.message }
-          });
+          logError(error, `Failed to send webhook: ${channel.id}`);
         }
         break;
         

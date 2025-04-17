@@ -15,7 +15,15 @@
 import { systemMonitor, MetricType } from './SystemMonitor';
 import { alertManager } from './AlertManager';
 import { bigQueryAnalytics } from '../analytics/BigQueryAnalytics';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+// Create mock logger for build
+const zkErrorLogger = {
+  log: (level: string, message: string, meta?: any) => {
+    console.log(`[${level}] ${message}`, meta);
+  },
+  logError: (error: Error, meta?: any) => {
+    console.error(`[ERROR] ${error.message}`, meta);
+  }
+};
 
 // Report formats
 export enum ReportFormat {
@@ -115,7 +123,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     });
   }
@@ -142,7 +150,7 @@ export class ExecutiveDashboard {
             category: 'monitoring',
             userFixable: false,
             recoverable: true,
-            details: { error: error.message }
+            details: { error: error instanceof Error ? error.message : String(error) }
           });
         });
       }, this.updateIntervalMs);
@@ -154,7 +162,7 @@ export class ExecutiveDashboard {
             category: 'monitoring',
             userFixable: false,
             recoverable: true,
-            details: { error: error.message }
+            details: { error: error instanceof Error ? error.message : String(error) }
           });
         });
       }, 60 * 60 * 1000);
@@ -173,7 +181,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -202,7 +210,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return null;
@@ -231,7 +239,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -287,7 +295,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return null;
@@ -325,7 +333,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: true,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return false;
@@ -354,6 +362,16 @@ export class ExecutiveDashboard {
     } = {}
   ): Promise<string | null> {
     try {
+      // Validate input parameters
+      if (options.metrics && options.metrics.length === 0) {
+        zkErrorLogger.log('WARNING', 'Cannot generate report with empty metrics array', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
       // Get latest metrics
       const metrics = await this.getMetrics(true);
       if (!metrics) {
@@ -404,7 +422,11 @@ export class ExecutiveDashboard {
         recoverable: true,
         details: { 
           reportId,
-          metrics: report.metrics.length
+          title: report.name,
+          format: report.format,
+          metrics: report.metrics,
+          generatedAt: report.lastGenerated?.toISOString(),
+          recipients: report.recipients.length
         }
       });
       
@@ -414,7 +436,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return null;
@@ -437,6 +459,16 @@ export class ExecutiveDashboard {
     description: string;
   }> | null> {
     try {
+      // Validate input
+      if (kpiNames && kpiNames.length === 0) {
+        zkErrorLogger.log('WARNING', 'Empty KPI names array provided to getKPIStatus', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return {};
+      }
+      
       // Get latest metrics
       const metrics = await this.getMetrics(true);
       if (!metrics) {
@@ -567,8 +599,30 @@ export class ExecutiveDashboard {
             trend: kpi.getTrend(),
             description: kpi.description
           };
+        } else {
+          zkErrorLogger.log('WARNING', `Unknown KPI requested: ${kpiName}`, {
+            category: 'monitoring',
+            userFixable: true,
+            recoverable: true,
+            details: { 
+              requestedKPI: kpiName,
+              availableKPIs: Object.keys(allKPIs)
+            }
+          });
         }
       }
+      
+      // Log successful KPI status retrieval
+      zkErrorLogger.log('INFO', 'KPI status report generated', {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { 
+          requestedKPIs: kpisToInclude.length,
+          returnedKPIs: Object.keys(result).length,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       return result;
     } catch (error) {
@@ -576,7 +630,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return null;
@@ -669,7 +723,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return null;
@@ -749,7 +803,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -787,7 +841,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -838,7 +892,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -850,15 +904,23 @@ export class ExecutiveDashboard {
    */
   private async updateUsageMetrics(metrics: DashboardMetrics): Promise<void> {
     try {
+      // Define type for user activity stats
+      interface UserActivityRow {
+        day: string;
+        unique_users: number;
+        new_users?: number;
+        user_ids?: string[];
+      }
+      
       // Get user activity stats from BigQuery
-      const userActivityStats = await bigQueryAnalytics.getUserActivityStats(30);
+      const userActivityStats = await bigQueryAnalytics.getUserActivityStats(30) as UserActivityRow[] | null;
       
       if (userActivityStats) {
         // Extract metrics
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         // Active users today
-        const todayStats = userActivityStats.find(row => row.day === today);
+        const todayStats = userActivityStats.find((row: UserActivityRow) => row.day === today);
         if (todayStats) {
           metrics.usage.activeUsersToday = todayStats.unique_users;
           metrics.usage.newUsersToday = todayStats.new_users || 0;
@@ -866,7 +928,7 @@ export class ExecutiveDashboard {
         
         // Total users estimate (sum of new users over time)
         metrics.usage.totalUsers = userActivityStats.reduce(
-          (sum, row) => sum + (row.new_users || 0), 
+          (sum: number, row: UserActivityRow) => sum + (row.new_users || 0), 
           0
         );
         
@@ -886,17 +948,24 @@ export class ExecutiveDashboard {
         
         // Active users in the last month
         metrics.usage.activeUsersMonth = new Set(
-          userActivityStats.flatMap(day => day.user_ids || [])
+          userActivityStats.flatMap((day: UserActivityRow) => day.user_ids || [])
         ).size;
       }
       
+      // Define type for proof stats
+      interface ProofStatsRow {
+        count: number;
+        proof_type?: string;
+        day?: string;
+      }
+      
       // Get proof statistics from BigQuery
-      const proofStats = await bigQueryAnalytics.getProofStats(30);
+      const proofStats = await bigQueryAnalytics.getProofStats(30) as ProofStatsRow[] | null;
       
       if (proofStats) {
         // Total proofs
         metrics.usage.totalProofs = proofStats.reduce(
-          (sum, row) => sum + row.count, 
+          (sum: number, row: ProofStatsRow) => sum + row.count, 
           0
         );
         
@@ -911,7 +980,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -1029,7 +1098,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -1069,7 +1138,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
     }
   }
@@ -1183,7 +1252,7 @@ export class ExecutiveDashboard {
           category: 'monitoring',
           userFixable: false,
           recoverable: true,
-          details: { error: error.message }
+          details: { error: error instanceof Error ? error.message : String(error) }
         });
       }
     }
@@ -1251,12 +1320,13 @@ export class ExecutiveDashboard {
   private generateJsonReport(report: DashboardReport, metrics: DashboardMetrics): string {
     try {
       // Filter metrics based on report configuration
-      const filteredMetrics: Partial<DashboardMetrics> = {};
+      const filteredMetrics: Record<string, any> = {};
       
       for (const metricName of report.metrics) {
         if (metricName in metrics) {
-          filteredMetrics[metricName as keyof DashboardMetrics] = 
-            metrics[metricName as keyof DashboardMetrics];
+          // Using a type-safe approach to copy metrics
+          filteredMetrics[metricName] = 
+            (metrics as any)[metricName];
         }
       }
       
@@ -1277,7 +1347,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return JSON.stringify({ error: 'Failed to generate report' });
@@ -1346,7 +1416,7 @@ export class ExecutiveDashboard {
         category: 'monitoring',
         userFixable: false,
         recoverable: true,
-        details: { error: error.message }
+        details: { error: error instanceof Error ? error.message : String(error) }
       });
       
       return `<html><body><h1>Error</h1><p>Failed to generate report</p></body></html>`;

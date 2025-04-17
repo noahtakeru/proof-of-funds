@@ -14,7 +14,15 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { zkErrorLogger } from '../zkErrorLogger.mjs';
+import * as crypto from 'crypto';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
+
+// Create logger instance for RBAC operations
+const logger = new ZKErrorLogger({
+  logLevel: 'info',
+  privacyLevel: 'internal',
+  destinations: ['console', 'file']
+});
 
 // Permission constants
 export enum Permission {
@@ -24,32 +32,32 @@ export enum Permission {
   EDIT_USER = 'edit:user',
   DELETE_USER = 'delete:user',
   SEARCH_USERS = 'search:users',
-  
+
   // Proof management permissions
   VIEW_PROOFS = 'view:proofs',
   VERIFY_PROOF = 'verify:proof',
   INVALIDATE_PROOF = 'invalidate:proof',
   SEARCH_PROOFS = 'search:proofs',
-  
+
   // System administration permissions
   VIEW_SYSTEM_METRICS = 'view:system_metrics',
   MODIFY_SYSTEM_CONFIG = 'modify:system_config',
   VIEW_LOGS = 'view:logs',
-  
+
   // Contract management permissions
   VIEW_CONTRACTS = 'view:contracts',
   DEPLOY_CONTRACT = 'deploy:contract',
   UPGRADE_CONTRACT = 'upgrade:contract',
-  
+
   // Wallet management permissions
   VIEW_WALLETS = 'view:wallets',
   CREATE_WALLET = 'create:wallet',
   REMOVE_WALLET = 'remove:wallet',
-  
+
   // Analytics permissions
   VIEW_ANALYTICS = 'view:analytics',
   EXPORT_ANALYTICS = 'export:analytics',
-  
+
   // Special permissions
   SUPER_ADMIN = 'super:admin',
   APPROVE_PRIVILEGED_ACTION = 'approve:privileged_action'
@@ -66,75 +74,78 @@ export enum Role {
   SUPER_ADMIN = 'super_admin'
 }
 
+// Define base permissions for each role
+const VIEWER_PERMISSIONS: Permission[] = [
+  Permission.VIEW_USERS,
+  Permission.SEARCH_USERS,
+  Permission.VIEW_PROOFS,
+  Permission.SEARCH_PROOFS,
+  Permission.VIEW_SYSTEM_METRICS,
+  Permission.VIEW_CONTRACTS,
+  Permission.VIEW_WALLETS,
+  Permission.VIEW_ANALYTICS,
+  Permission.VIEW_LOGS
+];
+
+const SUPPORT_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.VERIFY_PROOF
+];
+
+const PROOF_MANAGER_PERMISSIONS: Permission[] = [
+  ...SUPPORT_PERMISSIONS,
+  Permission.INVALIDATE_PROOF
+];
+
+const SYSTEM_MANAGER_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.MODIFY_SYSTEM_CONFIG
+];
+
+const CONTRACT_MANAGER_PERMISSIONS: Permission[] = [
+  ...VIEWER_PERMISSIONS,
+  Permission.DEPLOY_CONTRACT,
+  Permission.UPGRADE_CONTRACT
+];
+
+const ADMIN_PERMISSIONS: Permission[] = [
+  Permission.VIEW_USERS,
+  Permission.CREATE_USER,
+  Permission.EDIT_USER,
+  Permission.DELETE_USER,
+  Permission.SEARCH_USERS,
+  Permission.VIEW_PROOFS,
+  Permission.VERIFY_PROOF,
+  Permission.INVALIDATE_PROOF,
+  Permission.SEARCH_PROOFS,
+  Permission.VIEW_SYSTEM_METRICS,
+  Permission.MODIFY_SYSTEM_CONFIG,
+  Permission.VIEW_LOGS,
+  Permission.VIEW_CONTRACTS,
+  Permission.DEPLOY_CONTRACT,
+  Permission.UPGRADE_CONTRACT,
+  Permission.VIEW_WALLETS,
+  Permission.CREATE_WALLET,
+  Permission.REMOVE_WALLET,
+  Permission.VIEW_ANALYTICS,
+  Permission.EXPORT_ANALYTICS,
+  Permission.APPROVE_PRIVILEGED_ACTION
+];
+
+const SUPER_ADMIN_PERMISSIONS: Permission[] = [
+  ...ADMIN_PERMISSIONS,
+  Permission.SUPER_ADMIN
+];
+
 // Define role hierarchy and permissions
-const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  [Role.VIEWER]: [
-    Permission.VIEW_USERS,
-    Permission.SEARCH_USERS,
-    Permission.VIEW_PROOFS,
-    Permission.SEARCH_PROOFS,
-    Permission.VIEW_SYSTEM_METRICS,
-    Permission.VIEW_CONTRACTS,
-    Permission.VIEW_WALLETS,
-    Permission.VIEW_ANALYTICS,
-    Permission.VIEW_LOGS
-  ],
-  
-  [Role.SUPPORT]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.VERIFY_PROOF
-  ],
-  
-  [Role.PROOF_MANAGER]: [
-    // Inherits SUPPORT permissions
-    ...ROLE_PERMISSIONS[Role.SUPPORT],
-    Permission.INVALIDATE_PROOF
-  ],
-  
-  [Role.SYSTEM_MANAGER]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.MODIFY_SYSTEM_CONFIG
-  ],
-  
-  [Role.CONTRACT_MANAGER]: [
-    // Inherits VIEWER permissions
-    ...ROLE_PERMISSIONS[Role.VIEWER],
-    Permission.DEPLOY_CONTRACT,
-    Permission.UPGRADE_CONTRACT
-  ],
-  
-  [Role.ADMIN]: [
-    // Has all permissions except super admin
-    Permission.VIEW_USERS,
-    Permission.CREATE_USER,
-    Permission.EDIT_USER,
-    Permission.DELETE_USER,
-    Permission.SEARCH_USERS,
-    Permission.VIEW_PROOFS,
-    Permission.VERIFY_PROOF,
-    Permission.INVALIDATE_PROOF,
-    Permission.SEARCH_PROOFS,
-    Permission.VIEW_SYSTEM_METRICS,
-    Permission.MODIFY_SYSTEM_CONFIG,
-    Permission.VIEW_LOGS,
-    Permission.VIEW_CONTRACTS,
-    Permission.DEPLOY_CONTRACT,
-    Permission.UPGRADE_CONTRACT,
-    Permission.VIEW_WALLETS,
-    Permission.CREATE_WALLET,
-    Permission.REMOVE_WALLET,
-    Permission.VIEW_ANALYTICS,
-    Permission.EXPORT_ANALYTICS,
-    Permission.APPROVE_PRIVILEGED_ACTION
-  ],
-  
-  [Role.SUPER_ADMIN]: [
-    // Has absolutely all permissions
-    ...ROLE_PERMISSIONS[Role.ADMIN],
-    Permission.SUPER_ADMIN
-  ]
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  [Role.VIEWER]: VIEWER_PERMISSIONS,
+  [Role.SUPPORT]: SUPPORT_PERMISSIONS,
+  [Role.PROOF_MANAGER]: PROOF_MANAGER_PERMISSIONS,
+  [Role.SYSTEM_MANAGER]: SYSTEM_MANAGER_PERMISSIONS,
+  [Role.CONTRACT_MANAGER]: CONTRACT_MANAGER_PERMISSIONS,
+  [Role.ADMIN]: ADMIN_PERMISSIONS,
+  [Role.SUPER_ADMIN]: SUPER_ADMIN_PERMISSIONS
 };
 
 // User role interface
@@ -183,7 +194,7 @@ export class RBACSystem extends EventEmitter {
   private userRoles: UserRole[] = [];
   private actionLog: ActionLogEntry[] = [];
   private privilegedActions: PrivilegedActionRequest[] = [];
-  
+
   constructor() {
     super();
     // Initialize with a default super admin if none exists
@@ -195,7 +206,7 @@ export class RBACSystem extends EventEmitter {
       });
     }
   }
-  
+
   /**
    * Add a user role to the system
    */
@@ -204,7 +215,7 @@ export class RBACSystem extends EventEmitter {
     const existingUserIndex = this.userRoles.findIndex(
       ur => ur.walletAddress.toLowerCase() === userRole.walletAddress.toLowerCase()
     );
-    
+
     if (existingUserIndex >= 0) {
       // Update existing user
       this.userRoles[existingUserIndex] = {
@@ -216,10 +227,10 @@ export class RBACSystem extends EventEmitter {
       // Add new user
       this.userRoles.push(userRole);
     }
-    
+
     return true;
   }
-  
+
   /**
    * Assign a role to a user
    * @param walletAddress The wallet address of the user
@@ -238,17 +249,17 @@ export class RBACSystem extends EventEmitter {
         status: 'denied',
         details: { role }
       });
-      
+
       return false;
     }
-    
+
     // Find the user role
     const userRole = this.getUserRole(walletAddress);
-    
+
     // Security check: prevent non-super-admins from modifying super-admin roles
     const adminRole = this.getUserRole(adminWalletAddress);
-    if (role === Role.SUPER_ADMIN && 
-        adminRole && !adminRole.roles.includes(Role.SUPER_ADMIN)) {
+    if (role === Role.SUPER_ADMIN &&
+      adminRole && !adminRole.roles.includes(Role.SUPER_ADMIN)) {
       this.logAction({
         userId: adminRole.userId,
         walletAddress: adminWalletAddress,
@@ -259,23 +270,23 @@ export class RBACSystem extends EventEmitter {
           reason: 'Cannot assign super admin role without super admin privileges'
         }
       });
-      
+
       return false;
     }
-    
+
     if (userRole) {
       // If user already has the role, no need to add it again
       if (userRole.roles.includes(role)) {
         return true;
       }
-      
+
       // Add the role to the user
       const updatedRoles = [...userRole.roles, role];
       this.addUserRole({
         ...userRole,
         roles: updatedRoles
       });
-      
+
       // Log the action
       this.logAction({
         userId: adminRole?.userId || 'unknown',
@@ -285,7 +296,7 @@ export class RBACSystem extends EventEmitter {
         status: 'success',
         details: { role, updatedRoles }
       });
-      
+
       return true;
     } else {
       // User doesn't exist, create a new user with the role
@@ -295,7 +306,7 @@ export class RBACSystem extends EventEmitter {
         walletAddress,
         roles: [role]
       });
-      
+
       // Log the action
       this.logAction({
         userId: adminRole?.userId || 'unknown',
@@ -305,11 +316,11 @@ export class RBACSystem extends EventEmitter {
         status: 'success',
         details: { role, newUser: true }
       });
-      
+
       return true;
     }
   }
-  
+
   /**
    * Remove a user role from the system
    */
@@ -318,38 +329,38 @@ export class RBACSystem extends EventEmitter {
     this.userRoles = this.userRoles.filter(
       ur => ur.walletAddress.toLowerCase() !== walletAddress.toLowerCase()
     );
-    
+
     return this.userRoles.length < initialLength;
   }
-  
+
   /**
    * Check if a user has a specific permission
    */
   public hasPermission(walletAddress: string, permission: Permission): boolean {
     const userRole = this.getUserRole(walletAddress);
     if (!userRole) return false;
-    
+
     // Check if user has super admin permission
     const hasSuperAdmin = userRole.roles.includes(Role.SUPER_ADMIN) ||
       (userRole.customPermissions && userRole.customPermissions.includes(Permission.SUPER_ADMIN));
-    
+
     if (hasSuperAdmin) return true;
-    
+
     // Check role-based permissions
     for (const role of userRole.roles) {
       if (ROLE_PERMISSIONS[role].includes(permission)) {
         return true;
       }
     }
-    
+
     // Check custom permissions
     if (userRole.customPermissions && userRole.customPermissions.includes(permission)) {
       return true;
     }
-    
+
     return false;
   }
-  
+
   /**
    * Get a user's role by wallet address
    */
@@ -358,7 +369,7 @@ export class RBACSystem extends EventEmitter {
       ur => ur.walletAddress.toLowerCase() === walletAddress.toLowerCase()
     );
   }
-  
+
   /**
    * Log an admin action for audit purposes
    */
@@ -367,25 +378,22 @@ export class RBACSystem extends EventEmitter {
       ...entry,
       timestamp: new Date()
     };
-    
+
     this.actionLog.push(logEntry);
-    
+
     // Emit event for real-time monitoring
     this.emit('audit', logEntry);
-    
+
     // Also log to the central error logger for persistence
-    zkErrorLogger.log(
-      entry.status === 'success' ? 'INFO' : entry.status === 'denied' ? 'WARNING' : 'ERROR',
+    const logLevel = entry.status === 'success' ? 'info' : entry.status === 'denied' ? 'warn' : 'error';
+    logger[logLevel](
       `Admin action: ${entry.action} on ${entry.targetResource} by ${entry.userId}`,
       {
-        category: 'admin_action',
-        userFixable: false,
-        recoverable: true,
-        details: entry
+        actionLog: entry
       }
     );
   }
-  
+
   /**
    * Get action logs with optional filtering
    */
@@ -398,7 +406,7 @@ export class RBACSystem extends EventEmitter {
     endDate?: Date;
   }): ActionLogEntry[] {
     if (!filters) return [...this.actionLog];
-    
+
     return this.actionLog.filter(entry => {
       if (filters.userId && entry.userId !== filters.userId) return false;
       if (filters.walletAddress && entry.walletAddress.toLowerCase() !== filters.walletAddress.toLowerCase()) return false;
@@ -409,32 +417,32 @@ export class RBACSystem extends EventEmitter {
       return true;
     });
   }
-  
+
   /**
    * Request a privileged action that requires approval
    */
   public requestPrivilegedAction(request: Omit<PrivilegedActionRequest, 'id' | 'timestamp' | 'status'>): string {
     const id = `req_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    
+
     const actionRequest: PrivilegedActionRequest = {
       id,
       timestamp: new Date(),
       status: 'pending',
       ...request
     };
-    
+
     this.privilegedActions.push(actionRequest);
-    
+
     return id;
   }
-  
+
   /**
    * Approve a privileged action request
    */
   public approvePrivilegedAction(requestId: string, approverWallet: string): boolean {
     const request = this.privilegedActions.find(req => req.id === requestId);
     if (!request || request.status !== 'pending') return false;
-    
+
     // Check if approver has permission
     if (!this.hasPermission(approverWallet, Permission.APPROVE_PRIVILEGED_ACTION)) {
       this.logAction({
@@ -447,15 +455,15 @@ export class RBACSystem extends EventEmitter {
       });
       return false;
     }
-    
+
     // Get approver user if possible
     const approver = this.getUserRole(approverWallet);
-    
+
     // Update request status
     request.status = 'approved';
     request.approvedBy = approver ? approver.userId : approverWallet;
     request.approvedAt = new Date();
-    
+
     // Log the approval
     this.logAction({
       userId: approver ? approver.userId : 'unknown',
@@ -465,17 +473,17 @@ export class RBACSystem extends EventEmitter {
       status: 'success',
       details: { requestId, originalAction: request.action }
     });
-    
+
     return true;
   }
-  
+
   /**
    * Reject a privileged action request
    */
   public rejectPrivilegedAction(requestId: string, rejectorWallet: string): boolean {
     const request = this.privilegedActions.find(req => req.id === requestId);
     if (!request || request.status !== 'pending') return false;
-    
+
     // Check if rejector has permission
     if (!this.hasPermission(rejectorWallet, Permission.APPROVE_PRIVILEGED_ACTION)) {
       this.logAction({
@@ -488,15 +496,15 @@ export class RBACSystem extends EventEmitter {
       });
       return false;
     }
-    
+
     // Get rejector user if possible
     const rejector = this.getUserRole(rejectorWallet);
-    
+
     // Update request status
     request.status = 'rejected';
     request.rejectedBy = rejector ? rejector.userId : rejectorWallet;
     request.rejectedAt = new Date();
-    
+
     // Log the rejection
     this.logAction({
       userId: rejector ? rejector.userId : 'unknown',
@@ -506,10 +514,10 @@ export class RBACSystem extends EventEmitter {
       status: 'success',
       details: { requestId, originalAction: request.action }
     });
-    
+
     return true;
   }
-  
+
   /**
    * Get privileged action requests with optional filtering
    */
@@ -520,7 +528,7 @@ export class RBACSystem extends EventEmitter {
     action?: string;
   }): PrivilegedActionRequest[] {
     if (!filters) return [...this.privilegedActions];
-    
+
     return this.privilegedActions.filter(request => {
       if (filters.requestorId && request.requestorId !== filters.requestorId) return false;
       if (filters.requestorWallet && request.requestorWallet.toLowerCase() !== filters.requestorWallet.toLowerCase()) return false;
@@ -529,21 +537,21 @@ export class RBACSystem extends EventEmitter {
       return true;
     });
   }
-  
+
   /**
    * Get all users with their roles
    */
   public getAllUserRoles(): UserRole[] {
     return [...this.userRoles];
   }
-  
+
   /**
    * Check if a wallet is an admin
    */
   public isAdmin(walletAddress: string): boolean {
     const userRole = this.getUserRole(walletAddress);
     if (!userRole) return false;
-    
+
     return userRole.roles.includes(Role.ADMIN) || userRole.roles.includes(Role.SUPER_ADMIN);
   }
 }

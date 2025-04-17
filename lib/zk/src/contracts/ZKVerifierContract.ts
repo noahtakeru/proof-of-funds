@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers';
 import { ContractInterface } from './ContractInterface';
-import { ProofData, TransactionOptions, VerificationResult } from '../types';
+import { ProofData, TransactionOptions, VerificationResult, TransactionResult } from '../types';
 
 /**
  * Interface for ZK Verifier smart contract
@@ -121,9 +121,8 @@ export class ZKVerifierContract extends ContractInterface {
     circuitId: string,
     verificationKey: string,
     options: TransactionOptions = {}
-  ): Promise<ethers.ContractTransaction> {
-    const result = await this.sendTransaction('setVerificationKey', options, circuitId, verificationKey);
-    return result.transaction;
+  ): Promise<TransactionResult> {
+    return await this.sendTransaction('setVerificationKey', options, circuitId, verificationKey);
   }
   
   /**
