@@ -12,8 +12,8 @@ import zkErrorLoggerModule from '../zkErrorLogger.mjs';
 import * as zkProofSerializer from '../zkProofSerializer.mjs';
 import { compress as pako_compress, decompress as pako_decompress } from 'pako';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Get error logger with proper typing
+const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;
 
 /**
  * Interface defining the structure of a proof container
@@ -167,7 +167,7 @@ export function compressProof(
         });
       }
     }
-    
+
     // Define interface for the proof container
     interface ProofContainer {
       format?: any;
@@ -178,7 +178,7 @@ export function compressProof(
       };
       metadata?: any;
     }
-    
+
     // Type assertion for the proof container
     const typedProof = proofContainer as ProofContainer;
 
@@ -483,7 +483,7 @@ export function analyzeProofSize(proof: object | string): {
     const proofContainer = typeof proof === 'string'
       ? zkProofSerializer.deserializeProof(proof)
       : proof;
-      
+
     // Define interface for the proof container
     interface ProofContainer {
       format?: any;
@@ -494,7 +494,7 @@ export function analyzeProofSize(proof: object | string): {
       };
       metadata?: any;
     }
-    
+
     // Type assertion for the proof container
     const typedProof = proofContainer as ProofContainer;
 
@@ -651,10 +651,10 @@ export function estimateOptimalCompression(
 
     // Determine if stripping metadata would be beneficial
     let stripMetadata = false;
-    
+
     // Type assertion to access metadata property
     const containerWithMetadata = proofContainer as { metadata?: any };
-    
+
     if (containerWithMetadata.metadata) {
       const metadataSize = getByteSize(JSON.stringify(containerWithMetadata.metadata));
       const metadataPercent = (metadataSize / originalSize) * 100;

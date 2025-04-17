@@ -12,8 +12,8 @@ import zkErrorLoggerModule from '../zkErrorLogger.mjs';
 import * as zkProofSerializer from '../zkProofSerializer.mjs';
 import { PROOF_TYPES } from '../zkProofSerializer.mjs';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Get error logger with proper typing
+const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;
 
 /**
  * Components of a proof that can be selectively disclosed
@@ -101,12 +101,12 @@ export function createSelectiveDisclosure(
     }
 
     // Parse the proof if it's a string
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-      
+
     // Type assertion to access format property
-    const typedProofContainer = proofContainer as { 
+    const typedProofContainer = proofContainer as {
       format?: { version?: string };
       proof?: { data?: any; publicSignals?: any };
       metadata?: any;
@@ -130,18 +130,18 @@ export function createSelectiveDisclosure(
             partialProof.proof = { data: typedProofContainer.proof.data };
           }
           break;
-          
+
         case ProofComponent.PUBLIC_SIGNALS:
           if (typedProofContainer.proof?.publicSignals) {
             if (!partialProof.proof) partialProof.proof = {};
             partialProof.proof.publicSignals = typedProofContainer.proof.publicSignals;
           }
           break;
-          
+
         case ProofComponent.WALLET_ADDRESS:
           if (typedProofContainer.metadata?.walletAddress) {
             if (!partialProof.metadata) partialProof.metadata = {};
-            
+
             if (options.obscureWalletAddress) {
               partialProof.metadata.walletAddress = obscureWalletAddress(
                 typedProofContainer.metadata.walletAddress
@@ -151,34 +151,34 @@ export function createSelectiveDisclosure(
             }
           }
           break;
-          
+
         case ProofComponent.AMOUNT:
           if (typedProofContainer.metadata?.amount !== undefined) {
             if (!partialProof.metadata) partialProof.metadata = {};
             partialProof.metadata.amount = typedProofContainer.metadata.amount;
           }
           break;
-          
+
         case ProofComponent.TIMESTAMP:
           if (typedProofContainer.metadata?.createdAt) {
             if (!partialProof.metadata) partialProof.metadata = {};
             partialProof.metadata.createdAt = typedProofContainer.metadata.createdAt;
           }
           break;
-          
+
         case ProofComponent.PROOF_TYPE:
           if (typedProofContainer.circuit?.type) {
-            partialProof.circuit = { 
+            partialProof.circuit = {
               type: typedProofContainer.circuit.type,
               version: typedProofContainer.circuit.version
             };
           }
           break;
-          
+
         case ProofComponent.METADATA:
           if (typedProofContainer.metadata) {
             partialProof.metadata = { ...typedProofContainer.metadata };
-            
+
             // Obscure wallet address if needed
             if (options.obscureWalletAddress && partialProof.metadata.walletAddress) {
               partialProof.metadata.walletAddress = obscureWalletAddress(
@@ -210,7 +210,7 @@ export function createSelectiveDisclosure(
       disclosureTimestamp: Date.now(),
       purposeDescription: options.purposeDescription
     };
-    
+
     partialProof._disclosureMetadata = disclosureMetadata;
 
     return {
@@ -222,7 +222,7 @@ export function createSelectiveDisclosure(
     const errorMessage = error instanceof Error ? error.message : String(error);
     zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'createSelectiveDisclosure',
-      context: { 
+      context: {
         proofType: typeof proof,
         options
       }
@@ -261,9 +261,9 @@ export function verifyPartialProof(
       throw new InputError('Invalid inputs: partialProof and verificationHash are required', {
         code: 7001,
         recoverable: false,
-        details: { 
-          hasPartialProof: !!partialProof, 
-          hasVerificationHash: !!verificationHash 
+        details: {
+          hasPartialProof: !!partialProof,
+          hasVerificationHash: !!verificationHash
         }
       });
     }
@@ -300,7 +300,7 @@ export function verifyPartialProof(
     const errorMessage = error instanceof Error ? error.message : String(error);
     zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'verifyPartialProof',
-      context: { 
+      context: {
         partialProofType: typeof partialProof,
         verificationHashLength: verificationHash?.length
       }
@@ -339,7 +339,7 @@ export function extractVerifiableInfo(partialProof: object): {
     }
 
     const proof = partialProof as any;
-    
+
     // Extract verifiable information
     const result = {
       proofType: proof.circuit?.type,
@@ -352,7 +352,7 @@ export function extractVerifiableInfo(partialProof: object): {
 
     // Check if proof can be cryptographically verified
     result.canVerifyCryptographically = !!(
-      proof.proof?.data && 
+      proof.proof?.data &&
       proof.proof?.publicSignals &&
       proof.circuit?.type
     );
@@ -411,14 +411,14 @@ export function createProofReference(
 } {
   try {
     // Parse the proof if it's a string
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-      
+
     // Type assertion for proof container
-    const typedProofContainer = proofContainer as { 
+    const typedProofContainer = proofContainer as {
       circuit?: { type: string; version?: string };
-      metadata?: { createdAt?: number; [key: string]: any };
+      metadata?: { createdAt?: number;[key: string]: any };
     };
 
     // Validate proof
@@ -433,14 +433,14 @@ export function createProofReference(
     // Extract minimal information
     const proofType = typedProofContainer.circuit.type;
     const createdAt = typedProofContainer.metadata?.createdAt || Date.now();
-    
+
     // Generate unique reference using hash
     const proofStr = JSON.stringify(proofContainer);
     const referenceHash = simpleHash(proofStr);
-    
+
     // Create reference string (format: type-timestamp-hash)
     const reference = `${proofType}-${createdAt}-${referenceHash}`;
-    
+
     // Create metadata
     const metadata = {
       proofType,
@@ -448,13 +448,13 @@ export function createProofReference(
       referenceCreatedAt: Date.now(),
       description
     };
-    
+
     return { reference, metadata };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     zkErrorLogger.logError(new Error(errorMessage), {
       operation: 'createProofReference',
-      context: { 
+      context: {
         proofType: typeof proof,
         description
       }
@@ -488,14 +488,14 @@ export function verifyProofReference(
 ): boolean {
   try {
     // Parse the proof if it's a string
-    const proofContainer = typeof proof === 'string' 
-      ? zkProofSerializer.deserializeProof(proof) 
+    const proofContainer = typeof proof === 'string'
+      ? zkProofSerializer.deserializeProof(proof)
       : proof;
-      
+
     // Type assertion for proof container
-    const typedProofContainer = proofContainer as { 
+    const typedProofContainer = proofContainer as {
       circuit?: { type: string; version?: string };
-      metadata?: { createdAt?: number; [key: string]: any };
+      metadata?: { createdAt?: number;[key: string]: any };
     };
 
     // Parse reference parts
@@ -503,24 +503,24 @@ export function verifyProofReference(
     if (parts.length !== 3) {
       return false;
     }
-    
+
     const [refType, refTimestamp, refHash] = parts;
-    
+
     // Check proof type
     if (refType !== typedProofContainer.circuit?.type) {
       return false;
     }
-    
+
     // Check timestamp if present in the proof
-    if (typedProofContainer.metadata?.createdAt && 
-        refTimestamp !== String(typedProofContainer.metadata.createdAt)) {
+    if (typedProofContainer.metadata?.createdAt &&
+      refTimestamp !== String(typedProofContainer.metadata.createdAt)) {
       return false;
     }
-    
+
     // Generate hash from the proof
     const proofStr = JSON.stringify(proofContainer);
     const calculatedHash = simpleHash(proofStr);
-    
+
     // Compare hashes
     return refHash === calculatedHash;
   } catch (error) {
@@ -551,18 +551,18 @@ function redactSensitiveValues(proof: any, redactionSymbol: string): void {
     'email',
     'phone'
   ];
-  
+
   // Recursively redact sensitive fields
   function redactObject(obj: any): void {
     if (!obj || typeof obj !== 'object') {
       return;
     }
-    
+
     if (Array.isArray(obj)) {
       obj.forEach(item => redactObject(item));
       return;
     }
-    
+
     for (const key of Object.keys(obj)) {
       if (sensitiveFields.includes(key)) {
         obj[key] = redactionSymbol;
@@ -571,7 +571,7 @@ function redactSensitiveValues(proof: any, redactionSymbol: string): void {
       }
     }
   }
-  
+
   redactObject(proof);
 }
 
@@ -584,11 +584,11 @@ function redactSensitiveValues(proof: any, redactionSymbol: string): void {
  */
 function obscureWalletAddress(address: string): string {
   if (!address) return '';
-  
+
   // Keep first 6 and last a characters
   const prefix = address.slice(0, 6);
   const suffix = address.slice(-4);
-  
+
   return `${prefix}...${suffix}`;
 }
 
@@ -604,10 +604,10 @@ function calculateVerificationHash(fullProof: any, partialProof: any): string {
   // Create a deterministic representation of both proofs
   const fullProofStr = JSON.stringify(fullProof);
   const partialProofStr = JSON.stringify(partialProof);
-  
+
   // Combine with a separator
   const combined = `${fullProofStr}|${partialProofStr}`;
-  
+
   // Generate hash
   return simpleHash(combined);
 }
@@ -627,7 +627,7 @@ function validatePartialProofStructure(partialProof: any): void {
       details: { format: partialProof.format }
     });
   }
-  
+
   // Check for disclosure metadata
   if (!partialProof._disclosureMetadata) {
     throw new InputError('Missing disclosure metadata', {
@@ -636,7 +636,7 @@ function validatePartialProofStructure(partialProof: any): void {
       details: { partialProof }
     });
   }
-  
+
   // If proof data is present, public signals should also be present for verification
   if (partialProof.proof?.data && !partialProof.proof.publicSignals) {
     throw new InputError('Incomplete proof data: public signals missing', {
@@ -645,10 +645,10 @@ function validatePartialProofStructure(partialProof: any): void {
       details: { proof: partialProof.proof }
     });
   }
-  
+
   // Proof type should be valid if present
-  if (partialProof.circuit?.type && 
-      !Object.values(PROOF_TYPES).includes(partialProof.circuit.type)) {
+  if (partialProof.circuit?.type &&
+    !Object.values(PROOF_TYPES).includes(partialProof.circuit.type)) {
     throw new InputError(`Invalid proof type: ${partialProof.circuit.type}`, {
       code: 7003,
       recoverable: false,
@@ -673,7 +673,7 @@ function simpleHash(str: string): string {
     hash = ((hash << 5) - hash) + char;
     hash |= 0; // Convert to 32bit integer
   }
-  
+
   // Convert to hex string and ensure positive
   const hexHash = (hash >>> 0).toString(16);
   return hexHash.padStart(8, '0');

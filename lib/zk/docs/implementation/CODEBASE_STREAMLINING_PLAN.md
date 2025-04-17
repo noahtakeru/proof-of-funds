@@ -4,12 +4,25 @@
 
 This document outlines our plan to streamline the ZK infrastructure codebase, focusing on reducing unnecessary complexity while preserving and enhancing real functionality. Our goal is to create a more maintainable, testable, and production-ready codebase that prioritizes working code over theoretical frameworks.
 
+## Current Issues and Challenges
+
+- Over-engineering in multiple components, with some files exceeding 2,000 lines
+- "Test-driven implementation" approach taken too far, with sophisticated test frameworks checking for methods that contain mostly mock implementations
+- Core components like GasManager have grown by 30%+ in line count while primarily adding complexity around the edges rather than improving core functionality
+- Heavy reliance on mocks (673 instances of "mock" terms) creating a false sense of progress
+- Overengineered components with extensive inheritance hierarchies
+- Complex error handling systems that add verbosity without proportional value
+
 ## Core Philosophy
 
 - Focus on implementing real, production-ready functionality
 - Eliminate unnecessary complexity and abstraction
 - Prioritize testable, working code over planning documents
 - Ensure all components have real implementations, not placeholders
+- Break large modules into smaller, focused components
+- Use composition over inheritance for adapter patterns
+- Reduce parameter count in methods (target 3-4 max)
+- Document distinction between implemented vs. placeholder functionality
 
 ## 1. Component Analysis
 
@@ -104,14 +117,17 @@ This document outlines our plan to streamline the ZK infrastructure codebase, fo
 
 1. **Size Limits**
    - Maximum 100-150 lines per file for new implementations
-   - Maximum 300 lines for complex functionality
-   - No more than 10 methods per class
+   - Maximum 500-700 lines for complex functionality (reduced from existing files exceeding 2,000 lines)
+   - No more than 7-8 methods per class
+   - Methods should have at most 3-4 parameters
 
 2. **Architecture Principles**
    - Single responsibility per class/module
    - Direct implementations over abstract factories
-   - Proper error handling with specific error types
+   - Simplify error handling (consolidate error types and use standard patterns)
+   - Use composition over inheritance
    - Minimize inheritance depth (max 2 levels)
+   - Favor functional approaches where appropriate
 
 3. **Practical Focus**
    - Implement solutions that solve immediate problems
@@ -125,26 +141,39 @@ This document outlines our plan to streamline the ZK infrastructure codebase, fo
    - Document parameters, return values, and error conditions
    - Include usage examples for complex functions
    - Document public API methods thoroughly
+   - Clearly distinguish between fully implemented and placeholder functionality
 
 2. **Usage Documentation**
    - Focus on how code should be used, not internal details
    - Provide clear examples for key functionality
    - Document error scenarios and recovery
+   - Include performance considerations and resource requirements
 
 3. **Implementation Notes**
    - Explain complex algorithms or cryptographic operations
    - Document performance implications
    - Note browser compatibility concerns
+   - Explicitly document any remaining mocks in MOCKS.md
+
+4. **Mock Reduction Strategy**
+   - Identify and prioritize critical paths that need real implementation
+   - Replace complex mock implementations with minimal working implementations
+   - Document remaining mocks clearly with planned replacement timelines
 
 ## 5. Specific Files to Simplify
 
 ### High Priority
 
 1. **src/GasManager.js**
+   - Break into smaller, focused modules:
+     - GasEstimator.js - Focus on gas estimation logic
+     - GasPriceMonitor.js - Handle price fetching and monitoring
+     - GasOptimizer.js - Handle optimization strategies
    - Reduce complexity by 60%
    - Focus on core gas estimation functionality
    - Remove excessive optimization strategies
    - Maintain CoinGecko API integration
+   - Set maximum file size target to 500-700 lines per module
 
 2. **src/deployment/PlatformAdapterFactory.js**
    - Convert to direct implementation
@@ -214,22 +243,32 @@ This document outlines our plan to streamline the ZK infrastructure codebase, fo
    - 40-50% reduction in total lines of code
    - 60-70% reduction in abstraction layers
    - 50% reduction in number of files
+   - No files exceeding 700 lines of code
 
 2. **Test Coverage**
    - 80%+ test coverage for core functionality
    - 100% coverage for critical cryptographic operations
    - All circuits tested with real constraints
+   - Reduced test complexity with focus on functionality over structure
 
 3. **Performance Improvements**
    - 30%+ reduction in proof generation time
    - 50%+ reduction in browser memory usage
    - Improved mobile device compatibility
+   - Reduced initialization time for core components
 
 4. **Codebase Maintainability**
    - Improved code readability
    - Reduced complexity metrics
    - Simplified dependency graph
    - Clear documentation coverage
+   - Reduced parameter count in public methods
+   - Simpler interfaces with fewer inheritance layers
+
+5. **Mock Reduction**
+   - 80%+ reduction in mock implementations for critical paths
+   - Clear documentation for remaining mocks
+   - Real implementations for all user-facing functionality
 
 ## Conclusion
 

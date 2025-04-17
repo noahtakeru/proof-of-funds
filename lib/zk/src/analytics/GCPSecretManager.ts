@@ -14,30 +14,31 @@
 // Mock SecretManagerServiceClient for development/build purposes
 // In production, this would be imported from '@google-cloud/secret-manager'
 class SecretManagerServiceClient {
-  accessSecretVersion(options?: any) { 
+  accessSecretVersion(options?: any) {
     return Promise.resolve([{
       payload: {
         data: {
           toString: () => 'mocked-secret-value'
         }
       }
-    }]); 
+    }]);
   }
   getSecret(options?: any) { return Promise.resolve([{}]); }
   createSecret(options?: any) { return Promise.resolve([{}]); }
   addSecretVersion(options?: any) { return Promise.resolve([{}]); }
   deleteSecret(options?: any) { return Promise.resolve([{}]); }
-  listSecrets(options?: any) { 
+  listSecrets(options?: any) {
     return Promise.resolve([[{
       name: 'projects/mock-project/secrets/mock-secret',
       labels: { type: 'api_key', description: 'Mock secret' },
       createTime: { seconds: Date.now() / 1000 }
-    }]]); 
+    }]]);
   }
 }
 
 import zkErrorLoggerModule from '../zkErrorLogger.mjs';
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Properly type the import using type assertion
+const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;
 
 // Secret type enum
 export enum SecretType {
@@ -71,7 +72,7 @@ export class GCPSecretManager {
   private projectId: string;
   private secretMetadata: Map<string, SecretMetadata> = new Map();
   private environment: 'development' | 'staging' | 'production';
-  
+
   /**
    * Constructs a new GCP Secret Manager instance
    * 
@@ -80,12 +81,12 @@ export class GCPSecretManager {
    */
   constructor(
     projectId: string = process.env.GOOGLE_CLOUD_PROJECT_ID || '',
-    environment: 'development' | 'staging' | 'production' = 
+    environment: 'development' | 'staging' | 'production' =
       (process.env.NODE_ENV as any) || 'development'
   ) {
     this.projectId = projectId;
     this.environment = environment;
-    
+
     try {
       // Initialize the Secret Manager client
       if (projectId) {
@@ -114,7 +115,7 @@ export class GCPSecretManager {
       });
     }
   }
-  
+
   /**
    * Get a secret value by name
    * 
@@ -130,26 +131,26 @@ export class GCPSecretManager {
       });
       return null;
     }
-    
+
     try {
       // Format the secret name with environment prefix
       const formattedSecretName = this.formatSecretName(secretName);
-      
+
       // Access the latest version of the secret
       const [version] = await this.client.accessSecretVersion({
         name: `projects/${this.projectId}/secrets/${formattedSecretName}/versions/latest`
       });
-      
+
       // Extract and return the secret payload
       const payload = version.payload?.data?.toString() || null;
-      
+
       // Update access timestamp
       const metadata = this.secretMetadata.get(formattedSecretName);
       if (metadata) {
         metadata.lastAccessed = new Date();
         this.secretMetadata.set(formattedSecretName, metadata);
       }
-      
+
       return payload;
     } catch (error: any) {
       zkErrorLogger.log('ERROR', `Failed to retrieve secret: ${secretName}`, {
@@ -161,7 +162,7 @@ export class GCPSecretManager {
       return null;
     }
   }
-  
+
   /**
    * Store a new secret or update an existing one
    * 
@@ -183,11 +184,11 @@ export class GCPSecretManager {
       });
       return false;
     }
-    
+
     try {
       // Format the secret name with environment prefix
       const formattedSecretName = this.formatSecretName(secretName);
-      
+
       // Check if the secret already exists
       let secretExists = false;
       try {
@@ -198,7 +199,7 @@ export class GCPSecretManager {
       } catch (error: any) {
         // Secret doesn't exist yet, we'll create it
       }
-      
+
       // Create the secret if it doesn't exist
       if (!secretExists) {
         await this.client.createSecret({
@@ -215,7 +216,7 @@ export class GCPSecretManager {
           }
         });
       }
-      
+
       // Add the new version of the secret
       await this.client.addSecretVersion({
         parent: `projects/${this.projectId}/secrets/${formattedSecretName}`,
@@ -223,11 +224,11 @@ export class GCPSecretManager {
           data: Buffer.from(secretValue)
         }
       });
-      
+
       // Update or create metadata
       const existingMetadata = this.secretMetadata.get(formattedSecretName);
       const now = new Date();
-      
+
       this.secretMetadata.set(formattedSecretName, {
         name: formattedSecretName,
         type: metadata?.type || existingMetadata?.type || SecretType.OTHER,
@@ -239,7 +240,7 @@ export class GCPSecretManager {
         environment: this.environment,
         accessRestrictions: metadata?.accessRestrictions || existingMetadata?.accessRestrictions
       });
-      
+
       return true;
     } catch (error: any) {
       zkErrorLogger.log('ERROR', `Failed to store secret: ${secretName}`, {
@@ -251,7 +252,7 @@ export class GCPSecretManager {
       return false;
     }
   }
-  
+
   /**
    * Delete a secret
    * 
@@ -267,19 +268,19 @@ export class GCPSecretManager {
       });
       return false;
     }
-    
+
     try {
       // Format the secret name with environment prefix
       const formattedSecretName = this.formatSecretName(secretName);
-      
+
       // Delete the secret
       await this.client.deleteSecret({
         name: `projects/${this.projectId}/secrets/${formattedSecretName}`
       });
-      
+
       // Remove metadata
       this.secretMetadata.delete(formattedSecretName);
-      
+
       return true;
     } catch (error: any) {
       zkErrorLogger.log('ERROR', `Failed to delete secret: ${secretName}`, {
@@ -291,7 +292,7 @@ export class GCPSecretManager {
       return false;
     }
   }
-  
+
   /**
    * List all secrets for the current environment
    * 
@@ -306,13 +307,13 @@ export class GCPSecretManager {
       });
       return [];
     }
-    
+
     try {
       // Load latest metadata if not already loaded
       if (this.secretMetadata.size === 0) {
         await this.loadSecretMetadata();
       }
-      
+
       // Return all metadata entries for the current environment
       return Array.from(this.secretMetadata.values())
         .filter(metadata => metadata.environment === this.environment);
@@ -326,7 +327,7 @@ export class GCPSecretManager {
       return [];
     }
   }
-  
+
   /**
    * Rotate a secret by generating a new version
    * 
@@ -337,21 +338,21 @@ export class GCPSecretManager {
   public async rotateSecret(secretName: string, newValue: string): Promise<boolean> {
     // Rotating a secret is the same as storing a new version
     const result = await this.storeSecret(secretName, newValue);
-    
+
     if (result) {
       // Update rotation timestamp
       const formattedSecretName = this.formatSecretName(secretName);
       const metadata = this.secretMetadata.get(formattedSecretName);
-      
+
       if (metadata) {
         metadata.lastRotated = new Date();
         this.secretMetadata.set(formattedSecretName, metadata);
       }
     }
-    
+
     return result;
   }
-  
+
   /**
    * Format a secret name with environment prefix
    * 
@@ -361,11 +362,11 @@ export class GCPSecretManager {
   private formatSecretName(baseName: string): string {
     // Remove any existing environment prefix
     const cleanName = baseName.replace(/^(development|staging|production)_/, '');
-    
+
     // Add current environment prefix
     return `${this.environment}_${cleanName}`;
   }
-  
+
   /**
    * Load metadata for all secrets
    */
@@ -373,20 +374,20 @@ export class GCPSecretManager {
     if (!this.client || !this.projectId) {
       return;
     }
-    
+
     try {
       // List all secrets in the project
       const [secrets] = await this.client.listSecrets({
         parent: `projects/${this.projectId}`
       });
-      
+
       // Process each secret
       for (const secret of secrets) {
         if (!secret.name) continue;
-        
+
         // Extract secret ID from the full name
         const secretId = secret.name.split('/').pop() || '';
-        
+
         // Extract environment from prefix
         let environment: 'development' | 'staging' | 'production' = 'development';
         if (secretId.startsWith('production_')) {
@@ -396,10 +397,10 @@ export class GCPSecretManager {
         } else if (secretId.startsWith('development_')) {
           environment = 'development';
         }
-        
+
         // Extract type from labels
         const type = (secret.labels?.type as SecretType) || SecretType.OTHER;
-        
+
         // Create metadata entry
         this.secretMetadata.set(secretId, {
           name: secretId,

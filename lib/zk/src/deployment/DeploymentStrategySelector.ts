@@ -6,9 +6,95 @@
  */
 
 import { EnvironmentType, DeploymentConfig } from './DeploymentConfig';
-import { DeploymentStrategy, DeploymentStrategyType } from './DeploymentStrategy';
 import { PlatformAdapterFactory, PlatformAdapter } from './PlatformAdapterFactory';
 import { EnvironmentDetector } from './EnvironmentDetector';
+
+/**
+ * Types of deployment strategies that can be selected
+ */
+export enum DeploymentStrategyType {
+    /** Automatically determine the best strategy based on environment and capabilities */
+    AUTOMATIC = 'automatic',
+
+    /** Execute all operations locally without server assistance */
+    FullLocal = 'full_local',
+
+    /** Split operations between local and server execution */
+    Hybrid = 'hybrid',
+
+    /** Offload all operations to the server */
+    ServerSide = 'server_side',
+
+    /** Optimize for low-resource environments */
+    LowResource = 'low_resource',
+
+    /** Optimize for high-performance environments */
+    HighPerformance = 'high_performance'
+}
+
+/**
+ * Platform-specific optimizations that can be applied
+ */
+export interface PlatformOptimizations {
+    /** Use shared memory when available */
+    useSharedMemory?: boolean;
+
+    /** Reduce quality of operations to improve performance */
+    reduceQuality?: boolean;
+
+    /** Minimize memory usage at the cost of performance */
+    minimizeMemoryUsage?: boolean;
+
+    /** Disable parallelism to reduce resource usage */
+    disableParallelism?: boolean;
+
+    /** Maximize parallelism for better performance */
+    maximizeParallelism?: boolean;
+
+    /** Precompute values to improve performance */
+    precomputeValues?: boolean;
+
+    /** Custom optimizations for specific platforms */
+    [key: string]: any;
+}
+
+/**
+ * Deployment strategy configuration
+ */
+export interface DeploymentStrategy {
+    /** The type of strategy */
+    type: DeploymentStrategyType;
+
+    /** Whether to use worker threads for parallel processing */
+    useWorkerThreads: boolean;
+
+    /** Number of worker threads to use */
+    workerThreadCount: number;
+
+    /** Whether to use WebAssembly for improved performance */
+    useWebAssembly: boolean;
+
+    /** Whether to use local caching */
+    useLocalCache: boolean;
+
+    /** Whether to offload operations to the server */
+    offloadToServer: boolean;
+
+    /** Percentage of operations to offload to the server (0-100) */
+    serverOffloadPercentage: number;
+
+    /** Memory limit in MB */
+    memoryLimitMB: number;
+
+    /** Whether to enable compression for transfers */
+    enableCompression: boolean;
+
+    /** Whether to aggressively clean up resources */
+    aggressiveCleanup: boolean;
+
+    /** Platform-specific optimizations */
+    platformOptimizations: PlatformOptimizations;
+}
 
 /**
  * Default deployment strategies for different environments
