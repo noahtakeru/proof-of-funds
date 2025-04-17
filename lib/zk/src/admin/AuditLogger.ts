@@ -360,6 +360,141 @@ export class AuditLogger {
   }
 
   /**
+   * Gets audit logs with filtering, sorting, and pagination support
+   * 
+   * @param options Options for retrieving logs
+   * @returns Paginated audit log entries with metadata
+   */
+  public getAuditLogs(options: {
+    filters?: AuditLogSearchFilters;
+    page?: number;
+    pageSize?: number;
+    sortBy?: keyof AuditLogEntry;
+    sortDirection?: 'asc' | 'desc';
+    includeDetails?: boolean;
+    anonymize?: boolean;
+  } = {}): {
+    logs: AuditLogEntry[];
+    pagination: {
+      currentPage: number;
+      pageSize: number;
+      totalPages: number;
+      totalItems: number;
+    };
+    metadata: {
+      timestamp: string;
+      filters: AuditLogSearchFilters | null;
+      sortBy: string | null;
+      sortDirection: string | null;
+    }
+  } {
+    // Default values
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 50;
+    const sortBy = options.sortBy || 'timestamp';
+    const sortDirection = options.sortDirection || 'desc';
+
+    // Get filtered logs
+    let filteredLogs = options.filters ? this.searchLogs(options.filters) : [...this.logEntries];
+
+    // Sort logs
+    filteredLogs = this.sortLogs(filteredLogs, sortBy, sortDirection);
+
+    // Calculate pagination
+    const totalItems = filteredLogs.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+    // Get logs for current page
+    let paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
+    // Process logs if needed
+    if (options.anonymize) {
+      paginatedLogs = paginatedLogs.map(log => this.anonymizeLogEntry(log));
+    }
+
+    // Optionally remove sensitive details
+    if (options.includeDetails === false) {
+      paginatedLogs = paginatedLogs.map(log => {
+        const { details, ...rest } = log;
+        return {
+          ...rest,
+          details: { sensitive: 'Redacted for security reasons' }
+        };
+      });
+    }
+
+    return {
+      logs: paginatedLogs,
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalPages,
+        totalItems
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        filters: options.filters || null,
+        sortBy: sortBy as string,
+        sortDirection
+      }
+    };
+  }
+
+  /**
+   * Sorts audit logs by the specified field and direction
+   * 
+   * @param logs Logs to sort
+   * @param sortBy Field to sort by
+   * @param sortDirection Direction to sort
+   * @returns Sorted logs
+   * @private
+   */
+  private sortLogs(
+    logs: AuditLogEntry[],
+    sortBy: keyof AuditLogEntry,
+    sortDirection: 'asc' | 'desc'
+  ): AuditLogEntry[] {
+    return [...logs].sort((a, b) => {
+      // Handle different data types appropriately
+      let valueA = a[sortBy];
+      let valueB = b[sortBy];
+
+      // For nested objects, return unsorted
+      if (typeof valueA === 'object' || typeof valueB === 'object') {
+        return 0;
+      }
+
+      // For dates, convert to timestamps
+      if (sortBy === 'timestamp') {
+        const timeA = new Date(valueA as string).getTime();
+        const timeB = new Date(valueB as string).getTime();
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+
+      // For string comparisons
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        return sortDirection === 'asc'
+          ? valueA.localeCompare(valueB)
+          : valueB.localeCompare(valueA);
+      }
+
+      // For number comparisons (handle by converting to numbers)
+      const numA = Number(valueA);
+      const numB = Number(valueB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return sortDirection === 'asc' ? numA - numB : numB - numA;
+      }
+
+      // Default comparison (as strings)
+      const strA = String(valueA);
+      const strB = String(valueB);
+      return sortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+    });
+  }
+
+  /**
    * Gets audit log entries filtered by criteria
    * 
    * @param filters Filters to apply
@@ -545,7 +680,7 @@ export class AuditLogger {
       entries: this.logEntries
     }, null, 2);
   }
-  
+
   /**
    * Exports audit logs filtered by specified criteria and format
    * 
@@ -563,20 +698,20 @@ export class AuditLogger {
     includeDetails?: boolean;
     anonymize?: boolean;
     dateRange?: { start: Date; end: Date };
-  } = {}): { 
-    data: string; 
-    format: string; 
-    filename: string; 
-    metadata: { 
-      timestamp: string; 
-      entriesCount: number; 
-      filters: any; 
+  } = {}): {
+    data: string;
+    format: string;
+    filename: string;
+    metadata: {
+      timestamp: string;
+      entriesCount: number;
+      filters: any;
       exportedBy: string;
     };
   } {
     // Apply filters to get logs to export
     let logsToExport = [...this.logEntries];
-    
+
     // Apply date range filter
     if (options.dateRange) {
       logsToExport = logsToExport.filter(log => {
@@ -584,20 +719,20 @@ export class AuditLogger {
         return logDate >= options.dateRange!.start && logDate <= options.dateRange!.end;
       });
     }
-    
+
     // Apply search filters
     if (options.filters) {
       logsToExport = this.searchLogs(options.filters);
     }
-    
+
     // Sort by timestamp (newest first)
     logsToExport.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    
+
     // Anonymize if requested
     if (options.anonymize) {
       logsToExport = logsToExport.map(log => this.anonymizeLogEntry(log));
     }
-    
+
     // Remove details if not requested
     if (options.includeDetails === false) {
       logsToExport = logsToExport.map(log => {
@@ -608,12 +743,12 @@ export class AuditLogger {
         };
       });
     }
-    
+
     // Determine format (default to JSON)
     const format = options.format || 'json';
     let data: string;
     let contentType: string;
-    
+
     switch (format) {
       case 'csv':
         data = this.convertLogsToCSV(logsToExport);
@@ -636,11 +771,11 @@ export class AuditLogger {
         }, null, 2);
         contentType = 'application/json';
     }
-    
+
     // Generate timestamp string for filename
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `audit-logs-export-${timestamp}.${format}`;
-    
+
     // Return the export result
     return {
       data,
@@ -654,44 +789,44 @@ export class AuditLogger {
       }
     };
   }
-  
+
   /**
    * Anonymize a log entry by removing PII
    * @private
    */
   private anonymizeLogEntry(entry: AuditLogEntry): AuditLogEntry {
     const anonymized = { ...entry };
-    
+
     // Replace user identifiers
     anonymized.userId = this.hashForAnonymization(entry.userId);
     anonymized.username = this.hashForAnonymization(entry.username);
-    
+
     // Anonymize IP address (keep first part)
     const ipParts = entry.ipAddress.split('.');
     if (ipParts.length === 4) {
       anonymized.ipAddress = `${ipParts[0]}.${ipParts[1]}.*.*`;
     }
-    
+
     // Strip identifiers from user agent
     anonymized.userAgent = entry.userAgent.replace(/\/[\d\.]+/g, '/x.x.x');
-    
+
     // Check if details contain sensitive information and anonymize
     if (anonymized.details) {
       const sensitiveKeys = ['email', 'phone', 'address', 'fullName', 'password', 'key', 'secret', 'token'];
-      
+
       const anonymizedDetails = { ...anonymized.details };
       for (const key of Object.keys(anonymizedDetails)) {
         if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
           anonymizedDetails[key] = '[REDACTED]';
         }
       }
-      
+
       anonymized.details = anonymizedDetails;
     }
-    
+
     return anonymized;
   }
-  
+
   /**
    * Convert logs to CSV format
    * @private
@@ -711,10 +846,10 @@ export class AuditLogger {
       'Category',
       'Severity'
     ];
-    
+
     // Create header row
     let csv = headers.join(',') + '\n';
-    
+
     // Add each log entry
     for (const log of logs) {
       const row = [
@@ -730,20 +865,20 @@ export class AuditLogger {
         log.category || '',
         log.severity || ''
       ];
-      
+
       csv += row.join(',') + '\n';
     }
-    
+
     return csv;
   }
-  
+
   /**
    * Escape a string for CSV
    * @private
    */
   private escapeCSV(str: string): string {
     if (!str) return '';
-    
+
     // If string contains commas, quotes, or newlines, wrap in quotes
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
       // Double up any quotes
@@ -751,17 +886,17 @@ export class AuditLogger {
       // Wrap in quotes
       return `"${str}"`;
     }
-    
+
     return str;
   }
-  
+
   /**
    * Create a hash for anonymization
    * @private
    */
   private hashForAnonymization(value: string): string {
     if (!value) return '';
-    
+
     // Create a hash but only use part of it to maintain consistency
     const hash = crypto.createHash('sha256').update(value).digest('hex');
     return hash.substring(0, 8);
