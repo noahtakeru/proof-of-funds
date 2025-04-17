@@ -6,57 +6,27 @@
  */
 
 import { EnvironmentType, DeploymentConfig } from './DeploymentConfig';
+import { DeploymentStrategy, DeploymentStrategyType } from './DeploymentStrategy';
 import { PlatformAdapterFactory, PlatformAdapter } from './PlatformAdapterFactory';
 import { EnvironmentDetector } from './EnvironmentDetector';
-
-/**
- * Deployment strategy types
- */
-export enum DeploymentStrategyType {
-  /** Full local execution */
-  FullLocal = 'full-local',
-  /** Hybrid approach with local and server components */
-  Hybrid = 'hybrid',
-  /** Offload computation to server */
-  ServerSide = 'server-side',
-  /** Minimal resource usage approach */
-  LowResource = 'low-resource',
-  /** Maximum performance approach */
-  HighPerformance = 'high-performance'
-}
-
-/**
- * Deployment strategy configuration
- */
-export interface DeploymentStrategy {
-  /** Strategy type */
-  type: DeploymentStrategyType;
-  /** Whether to use worker threads */
-  useWorkerThreads: boolean;
-  /** Number of worker threads to use (0 = disabled) */
-  workerThreadCount: number;
-  /** Whether to use WebAssembly */
-  useWebAssembly: boolean;
-  /** Whether to use local storage/caching */
-  useLocalCache: boolean;
-  /** Whether to offload computation to server */
-  offloadToServer: boolean;
-  /** Percentage of work to offload to server (0-100) */
-  serverOffloadPercentage: number;
-  /** Memory limit in MB (0 = unlimited) */
-  memoryLimitMB: number;
-  /** Whether to enable compression */
-  enableCompression: boolean;
-  /** Whether to enable aggressive resource cleanup */
-  aggressiveCleanup: boolean;
-  /** Platform-specific optimizations */
-  platformOptimizations: Record<string, boolean>;
-}
 
 /**
  * Default deployment strategies for different environments
  */
 const DEFAULT_STRATEGIES: Record<DeploymentStrategyType, DeploymentStrategy> = {
+  [DeploymentStrategyType.AUTOMATIC]: {
+    type: DeploymentStrategyType.AUTOMATIC,
+    useWorkerThreads: true,
+    workerThreadCount: 2,
+    useWebAssembly: true,
+    useLocalCache: true,
+    offloadToServer: true,
+    serverOffloadPercentage: 30,
+    memoryLimitMB: 512,
+    enableCompression: true,
+    aggressiveCleanup: false,
+    platformOptimizations: {}
+  },
   [DeploymentStrategyType.FullLocal]: {
     type: DeploymentStrategyType.FullLocal,
     useWorkerThreads: true,
@@ -139,15 +109,18 @@ export class DeploymentStrategySelector {
   private platformAdapter: PlatformAdapter;
   private detector: EnvironmentDetector;
   private activeStrategy: DeploymentStrategy | null = null;
-  
+  private environmentType: EnvironmentType;
+
   /**
    * Create a new DeploymentStrategySelector
+   * @param environmentType Optional environment type to use for strategy selection
    */
-  constructor() {
+  constructor(environmentType?: EnvironmentType) {
     this.detector = new EnvironmentDetector();
+    this.environmentType = environmentType || this.detector.detectEnvironment();
     this.platformAdapter = PlatformAdapterFactory.getInstance().getPlatformAdapter();
   }
-  
+
   /**
    * Initialize the strategy selector and platform adapter
    */
@@ -160,17 +133,17 @@ export class DeploymentStrategySelector {
       return false;
     }
   }
-  
+
   /**
    * Select the optimal deployment strategy based on environment and config
    */
   public selectStrategy(config: DeploymentConfig): DeploymentStrategy {
     const environment = this.detector.detectEnvironment();
     const features = this.detector.detectFeatures();
-    
+
     // Determine base strategy type based on environment and capabilities
     let baseStrategyType: DeploymentStrategyType;
-    
+
     if (!features.supportsWebAssembly) {
       // If WebAssembly is not supported, offload to server
       baseStrategyType = DeploymentStrategyType.ServerSide;
@@ -186,66 +159,80 @@ export class DeploymentStrategySelector {
     } else if (environment === EnvironmentType.Node) {
       // Node.js environment typically has good resources
       baseStrategyType = DeploymentStrategyType.FullLocal;
+
+      // Check if running in test environment (special case for tests)
+      if (typeof process !== 'undefined' &&
+        process.env &&
+        (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID)) {
+        // Always use FullLocal in tests unless explicitly overridden
+        baseStrategyType = DeploymentStrategyType.FullLocal;
+      }
     } else {
       // Default to hybrid approach for other cases
       baseStrategyType = DeploymentStrategyType.Hybrid;
     }
-    
+
     // Get the base strategy
-    const baseStrategy = {...DEFAULT_STRATEGIES[baseStrategyType]};
-    
+    const baseStrategy = { ...DEFAULT_STRATEGIES[baseStrategyType] };
+
     // Customize strategy based on detected capabilities
     this.customizeStrategyForEnvironment(baseStrategy, environment, features);
-    
+
     // Apply any configuration overrides
     this.applyConfigOverrides(baseStrategy, config);
-    
+
     // Store as active strategy
     this.activeStrategy = baseStrategy;
-    
+
     return baseStrategy;
   }
-  
+
   /**
    * Get the current active strategy
    */
   public getActiveStrategy(): DeploymentStrategy | null {
     return this.activeStrategy;
   }
-  
+
   /**
    * Switch to a different deployment strategy
    */
   public switchStrategy(strategyType: DeploymentStrategyType, customizations?: Partial<DeploymentStrategy>): DeploymentStrategy {
-    const baseStrategy = {...DEFAULT_STRATEGIES[strategyType]};
-    
+    // Verify the strategy type exists
+    if (!DEFAULT_STRATEGIES[strategyType]) {
+      console.warn(`Unknown strategy type: ${strategyType}, falling back to FullLocal`);
+      strategyType = DeploymentStrategyType.FullLocal;
+    }
+
+    const baseStrategy = { ...DEFAULT_STRATEGIES[strategyType] };
+
     // Apply any customizations
     if (customizations) {
       Object.assign(baseStrategy, customizations);
     }
-    
+
     // Store as active strategy
     this.activeStrategy = baseStrategy;
-    
+
     return baseStrategy;
   }
-  
+
   /**
    * Create a custom deployment strategy
    */
   public createCustomStrategy(options: Partial<DeploymentStrategy>): DeploymentStrategy {
     // Start with full local as base
-    const strategy = {...DEFAULT_STRATEGIES[DeploymentStrategyType.FullLocal]};
-    
+    const strategy = { ...DEFAULT_STRATEGIES[DeploymentStrategyType.FullLocal] };
+
     // Apply custom options
     Object.assign(strategy, options);
-    
+
     // Override type to custom
     strategy.type = options.type || DeploymentStrategyType.FullLocal;
-    
+
     return strategy;
   }
-  
+
   /**
    * Convert a deployment strategy to deployment configuration
    */
@@ -271,10 +258,10 @@ export class DeploymentStrategySelector {
         localStorage: strategy.useLocalCache
       }
     };
-    
+
     return config;
   }
-  
+
   /**
    * Customize the strategy based on environment and features
    */
@@ -289,11 +276,11 @@ export class DeploymentStrategySelector {
         features.cpuCores - 1, // Leave one core for main thread
         strategy.workerThreadCount
       );
-      
+
       // Ensure at least one worker if threads are enabled
       strategy.workerThreadCount = Math.max(1, strategy.workerThreadCount);
     }
-    
+
     // Adjust memory limit based on device capabilities
     if (environment === EnvironmentType.Mobile) {
       // Mobile devices typically have less memory
@@ -302,42 +289,42 @@ export class DeploymentStrategySelector {
       // Node.js environments typically have more memory
       strategy.memoryLimitMB = Math.max(strategy.memoryLimitMB, 1024);
     }
-    
+
     // Adjust for WebAssembly support
     strategy.useWebAssembly = features.supportsWebAssembly;
-    
+
     // Adjust local cache usage based on available storage
     if (environment === EnvironmentType.Browser || environment === EnvironmentType.Mobile) {
       strategy.useLocalCache = features.supportsIndexedDB || features.supportsLocalStorage;
     }
-    
+
     // Network connectivity affects server offload strategy
     if (features.hasNetwork === false) {
       strategy.offloadToServer = false;
       strategy.serverOffloadPercentage = 0;
     }
-    
+
     // Platform-specific optimizations
     switch (environment) {
       case EnvironmentType.Browser:
         strategy.platformOptimizations.useSharedMemory = features.supportsSharedArrayBuffer;
         break;
-        
+
       case EnvironmentType.Mobile:
         strategy.platformOptimizations.reduceQuality = true;
         strategy.platformOptimizations.optimizeBatteryUsage = true;
         break;
-        
+
       case EnvironmentType.Node:
         strategy.platformOptimizations.useNativeModules = true;
         break;
-        
+
       case EnvironmentType.Worker:
         strategy.platformOptimizations.optimizeForComputation = true;
         break;
     }
   }
-  
+
   /**
    * Apply configuration overrides to strategy
    */
@@ -347,17 +334,17 @@ export class DeploymentStrategySelector {
       strategy.useWorkerThreads = config.workerThreads > 0;
       strategy.workerThreadCount = config.workerThreads;
     }
-    
+
     // Apply memory limit
     if (config.memoryLimit !== undefined) {
       strategy.memoryLimitMB = config.memoryLimit;
     }
-    
+
     // Apply local cache settings
     if (config.useLocalCache !== undefined) {
       strategy.useLocalCache = config.useLocalCache;
     }
-    
+
     // Apply server fallback settings
     if (config.fallbackToServer !== undefined) {
       strategy.offloadToServer = config.fallbackToServer;
@@ -367,7 +354,7 @@ export class DeploymentStrategySelector {
         strategy.serverOffloadPercentage = 0;
       }
     }
-    
+
     // Apply shared memory optimization if supported
     if (config.features?.sharedArrayBuffer !== undefined) {
       strategy.platformOptimizations.useSharedMemory = config.features.sharedArrayBuffer;

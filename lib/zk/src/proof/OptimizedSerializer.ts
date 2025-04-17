@@ -8,12 +8,15 @@
  */
 
 import { InputError, ProofError, ProofSerializationError } from '../zkErrorHandler.mjs';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 import * as zkProofSerializer from '../zkProofSerializer.mjs';
 import { CompressionAlgorithm, CompressionLevel, compressProof, decompressProof } from './ProofCompressor';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create logger instance
+const logger = new ZKErrorLogger({
+  logLevel: 'info',
+  privacyLevel: 'internal'
+});
 
 /**
  * Field encoding strategies for more compact representation
@@ -133,6 +136,13 @@ export function serializeOptimized(
         proofContainer = zkProofSerializer.deserializeProof(proof);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.logError(new Error(errorMessage), {
+          operation: 'serializeOptimized',
+          context: {
+            proofType: typeof proof,
+            options: opts
+          }
+        });
         throw new InputError(`Invalid proof data: ${errorMessage}`, {
           code: 7001,
           recoverable: false,
@@ -185,7 +195,7 @@ export function serializeOptimized(
     return encoded;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    zkErrorLogger.logError(new Error(errorMessage), {
+    logger.logError(new Error(errorMessage), {
       operation: 'serializeOptimized',
       context: {
         proofType: typeof proof,
@@ -272,7 +282,7 @@ export function deserializeOptimized(
     return decoded;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    zkErrorLogger.logError(new Error(errorMessage), {
+    logger.logError(new Error(errorMessage), {
       operation: 'deserializeOptimized',
       context: {
         serializedLength: serialized?.length,
@@ -397,7 +407,7 @@ export function estimateSizeReduction(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    zkErrorLogger.logError(new Error(errorMessage), {
+    logger.logError(new Error(errorMessage), {
       operation: 'estimateSizeReduction',
       context: {
         proofType: typeof proof
@@ -460,7 +470,7 @@ export function createMinimalVerifiableProof(proof: object | string): object {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    zkErrorLogger.logError(new Error(errorMessage), {
+    logger.logError(new Error(errorMessage), {
       operation: 'createMinimalVerifiableProof',
       context: {
         proofType: typeof proof

@@ -14,19 +14,19 @@ import { EnvironmentDetector } from './EnvironmentDetector';
 export interface PlatformAdapter {
   /** Platform identifier */
   readonly platform: EnvironmentType;
-  
+
   /** Initialize the platform adapter */
   initialize(): Promise<boolean>;
-  
+
   /** Check if a specific feature is supported by the platform */
   supportsFeature(featureName: string): boolean;
-  
+
   /** Get platform-specific implementation of a component */
   getImplementation<T>(componentName: string): T;
-  
+
   /** Execute platform-specific optimization strategies */
   optimizeForPlatform(): Promise<void>;
-  
+
   /** Clean up resources used by the platform adapter */
   cleanup(): Promise<void>;
 }
@@ -38,12 +38,12 @@ export class PlatformAdapterFactory {
   private static instance: PlatformAdapterFactory;
   private detector: EnvironmentDetector;
   private adapters: Map<EnvironmentType, PlatformAdapter>;
-  
+
   private constructor() {
     this.detector = new EnvironmentDetector();
     this.adapters = new Map();
   }
-  
+
   /**
    * Get the singleton instance of the factory
    */
@@ -53,21 +53,45 @@ export class PlatformAdapterFactory {
     }
     return PlatformAdapterFactory.instance;
   }
-  
+
+  /**
+   * Create adapter for the current platform
+   */
+  public static createForCurrentPlatform(): any {
+    const adapter = new (require('./DeploymentAdapter').DeploymentAdapter)();
+    return adapter;
+  }
+
+  /**
+   * Create adapter for a specific platform
+   */
+  public static createForPlatform(platform: EnvironmentType): any {
+    const adapter = new (require('./DeploymentAdapter').DeploymentAdapter)();
+    (adapter as any).environment = platform;
+    return adapter;
+  }
+
+  /**
+   * Create adapter with a custom configuration
+   */
+  public static createWithConfiguration(config: any): any {
+    return new (require('./DeploymentAdapter').DeploymentAdapter)(config);
+  }
+
   /**
    * Create or retrieve a platform adapter for the current environment
    */
   public getPlatformAdapter(): PlatformAdapter {
     const environment = this.detector.detectEnvironment();
-    
+
     // Return cached adapter if available
     if (this.adapters.has(environment)) {
       return this.adapters.get(environment)!;
     }
-    
+
     // Create appropriate adapter for the detected environment
     let adapter: PlatformAdapter;
-    
+
     switch (environment) {
       case EnvironmentType.Browser:
         adapter = new BrowserPlatformAdapter();
@@ -84,13 +108,13 @@ export class PlatformAdapterFactory {
       default:
         adapter = new FallbackPlatformAdapter();
     }
-    
+
     // Cache the adapter for future use
     this.adapters.set(environment, adapter);
-    
+
     return adapter;
   }
-  
+
   /**
    * Create a specific platform adapter (useful for testing)
    */
@@ -118,7 +142,7 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
   protected features: Map<string, boolean> = new Map();
   protected implementations: Map<string, any> = new Map();
   protected initialized: boolean = false;
-  
+
   /**
    * Initialize the platform adapter
    */
@@ -126,7 +150,7 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
     if (this.initialized) {
       return true;
     }
-    
+
     try {
       await this.detectFeatures();
       await this.registerImplementations();
@@ -137,27 +161,27 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
       return false;
     }
   }
-  
+
   /**
    * Check if a specific feature is supported
    */
   public supportsFeature(featureName: string): boolean {
     return this.features.get(featureName) === true;
   }
-  
+
   /**
    * Get platform-specific implementation of a component
    */
   public getImplementation<T>(componentName: string): T {
     const implementation = this.implementations.get(componentName);
-    
+
     if (!implementation) {
       throw new Error(`Implementation for '${componentName}' not found in ${this.platform} adapter`);
     }
-    
+
     return implementation as T;
   }
-  
+
   /**
    * Execute platform-specific optimization strategies
    */
@@ -165,7 +189,7 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
     // Base implementation does nothing
     // Subclasses should override this method
   }
-  
+
   /**
    * Clean up resources
    */
@@ -173,12 +197,12 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
     // Base implementation does nothing
     // Subclasses should override this method
   }
-  
+
   /**
    * Detect features available on this platform
    */
   protected abstract detectFeatures(): Promise<void>;
-  
+
   /**
    * Register platform-specific implementations
    */
@@ -190,7 +214,7 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
  */
 class BrowserPlatformAdapter extends BasePlatformAdapter {
   public readonly platform = EnvironmentType.Browser;
-  
+
   /**
    * Detect browser-specific features
    */
@@ -206,7 +230,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
     this.features.set('webCrypto', typeof window.crypto !== 'undefined' && typeof window.crypto.subtle !== 'undefined');
     this.features.set('webGL', this.detectWebGL());
   }
-  
+
   /**
    * Register browser-specific implementations
    */
@@ -235,7 +259,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
         }
       });
     }
-    
+
     // Register browser-specific threading implementation
     if (this.supportsFeature('webWorkers')) {
       this.implementations.set('threading', {
@@ -250,7 +274,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
         }
       });
     }
-    
+
     // Register browser-specific crypto implementation
     if (this.supportsFeature('webCrypto')) {
       this.implementations.set('crypto', {
@@ -263,7 +287,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
       });
     }
   }
-  
+
   /**
    * Execute browser-specific optimizations
    */
@@ -272,7 +296,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
     if (typeof document !== 'undefined' && document.hidden) {
       // Document not visible, can reduce rendering work
     }
-    
+
     // Check network conditions
     if (typeof navigator !== 'undefined' && 'connection' in navigator) {
       const conn = (navigator as any).connection;
@@ -280,13 +304,13 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
         // User has requested reduced data usage
         // Implement data-saving strategies
       }
-      
+
       if (conn && (conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g')) {
         // Very slow connection, optimize accordingly
       }
     }
   }
-  
+
   /**
    * Detect SharedArrayBuffer support
    */
@@ -302,7 +326,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
       return false;
     }
   }
-  
+
   /**
    * Detect localStorage support
    */
@@ -317,7 +341,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
       return false;
     }
   }
-  
+
   /**
    * Detect WebGL support
    */
@@ -339,7 +363,7 @@ class BrowserPlatformAdapter extends BasePlatformAdapter {
  */
 class NodePlatformAdapter extends BasePlatformAdapter {
   public readonly platform = EnvironmentType.Node;
-  
+
   /**
    * Detect Node.js-specific features
    */
@@ -355,7 +379,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
     this.features.set('workerThreads', this.detectWorkerThreads());
     this.features.set('nodeCrypto', this.detectNodeCrypto());
   }
-  
+
   /**
    * Register Node.js-specific implementations
    */
@@ -394,7 +418,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
         }
       }
     });
-    
+
     // Register Node.js-specific threading implementation
     if (this.supportsFeature('workerThreads')) {
       this.implementations.set('threading', {
@@ -409,7 +433,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
         }
       });
     }
-    
+
     // Register Node.js-specific crypto implementation
     if (this.supportsFeature('nodeCrypto')) {
       this.implementations.set('crypto', {
@@ -421,7 +445,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
       });
     }
   }
-  
+
   /**
    * Execute Node.js-specific optimizations
    */
@@ -432,7 +456,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
       const os = require('os');
       const totalMem = os.totalmem();
       const freeMem = os.freemem();
-      
+
       if (freeMem < totalMem * 0.2) {
         // System is low on memory, reduce memory usage
         // Implement memory conservation strategies
@@ -441,7 +465,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
       // Ignore errors if os module is unavailable
     }
   }
-  
+
   /**
    * Detect worker_threads support
    */
@@ -453,7 +477,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
       return false;
     }
   }
-  
+
   /**
    * Detect crypto module support
    */
@@ -472,7 +496,7 @@ class NodePlatformAdapter extends BasePlatformAdapter {
  */
 class MobilePlatformAdapter extends BasePlatformAdapter {
   public readonly platform = EnvironmentType.Mobile;
-  
+
   /**
    * Detect mobile-specific features
    */
@@ -481,12 +505,12 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
     // and then add mobile-specific features
     const browserDetector = new BrowserPlatformAdapter();
     await browserDetector.initialize();
-    
+
     // Copy browser features
     for (const [key, value] of (browserDetector as any).features.entries()) {
       this.features.set(key, value);
     }
-    
+
     // Add mobile-specific features
     this.features.set('batteryAPI', this.detectBatteryAPI());
     this.features.set('vibration', typeof navigator !== 'undefined' && 'vibrate' in navigator);
@@ -494,7 +518,7 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
     this.features.set('deviceOrientation', typeof window !== 'undefined' && 'DeviceOrientationEvent' in window);
     this.features.set('reactNative', typeof navigator !== 'undefined' && navigator.product === 'ReactNative');
   }
-  
+
   /**
    * Register mobile-specific implementations
    */
@@ -502,14 +526,14 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
     // Mobile environments typically extend browser implementations
     const browserAdapter = new BrowserPlatformAdapter();
     await browserAdapter.initialize();
-    
+
     // Copy browser implementations
     for (const [key, value] of (browserAdapter as any).implementations.entries()) {
       this.implementations.set(key, value);
     }
-    
+
     // Add or override with mobile-specific implementations
-    
+
     // Register mobile-specific battery-aware implementation
     if (this.supportsFeature('batteryAPI')) {
       this.implementations.set('powerManagement', {
@@ -526,7 +550,7 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
             return { level: 1, charging: true }; // Default to full battery if API unavailable
           }
         },
-        
+
         async optimizeForBatteryLevel(): Promise<void> {
           try {
             // @ts-ignore - navigator.getBattery() is not in all TypeScript definitions
@@ -541,59 +565,59 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
         }
       });
     }
-    
+
     // Register mobile-specific networking implementation
     this.implementations.set('networking', {
       // Mobile networking implementation with awareness of data limits
       async fetchWithDataSaving(url: string, options?: RequestInit): Promise<Response> {
         // Check if the user is on a metered connection
         const isMetered = this.isMeteredConnection();
-        
+
         if (isMetered) {
           // On metered connection, implement data-saving strategies
           // For example, reduce quality or use compression
           if (!options) options = {};
           if (!options.headers) options.headers = {};
-          
+
           // Add header to request lower quality data if supported by the server
           (options.headers as any)['Save-Data'] = 'on';
         }
-        
+
         return fetch(url, options);
       },
-      
+
       isMeteredConnection(): boolean {
-        if (typeof navigator !== 'undefined' && 
-            'connection' in navigator && 
-            (navigator as any).connection && 
-            (navigator as any).connection.metered !== undefined) {
+        if (typeof navigator !== 'undefined' &&
+          'connection' in navigator &&
+          (navigator as any).connection &&
+          (navigator as any).connection.metered !== undefined) {
           return (navigator as any).connection.metered;
         }
         return false; // Unknown if metered
       }
     });
   }
-  
+
   /**
    * Execute mobile-specific optimizations
    */
   public async optimizeForPlatform(): Promise<void> {
     // Implement mobile-specific optimizations
-    
+
     // Check battery status and optimize accordingly
     if (this.supportsFeature('batteryAPI')) {
       const powerManagement = this.getImplementation<any>('powerManagement');
       await powerManagement.optimizeForBatteryLevel();
     }
-    
+
     // Check for low memory conditions
-    if (typeof performance !== 'undefined' && 
-        (performance as any).memory && 
-        (performance as any).memory.usedJSHeapSize > 0.8 * (performance as any).memory.jsHeapSizeLimit) {
+    if (typeof performance !== 'undefined' &&
+      (performance as any).memory &&
+      (performance as any).memory.usedJSHeapSize > 0.8 * (performance as any).memory.jsHeapSizeLimit) {
       // Memory pressure detected, implement memory-saving strategies
     }
   }
-  
+
   /**
    * Detect Battery API support
    */
@@ -607,7 +631,7 @@ class MobilePlatformAdapter extends BasePlatformAdapter {
  */
 class WorkerPlatformAdapter extends BasePlatformAdapter {
   public readonly platform = EnvironmentType.Worker;
-  
+
   /**
    * Detect Web Worker-specific features
    */
@@ -621,12 +645,12 @@ class WorkerPlatformAdapter extends BasePlatformAdapter {
     this.features.set('localStorage', false);
     this.features.set('transferableObjects', true);
     // Check if this is a worker context - we can't directly access importScripts in TypeScript
-    this.features.set('workboxAvailable', typeof self !== 'undefined' && 
-                                         typeof window === 'undefined' && 
-                                         self.constructor && 
-                                         self.constructor.name === 'DedicatedWorkerGlobalScope');
+    this.features.set('workboxAvailable', typeof self !== 'undefined' &&
+      typeof window === 'undefined' &&
+      self.constructor &&
+      self.constructor.name === 'DedicatedWorkerGlobalScope');
   }
-  
+
   /**
    * Register Web Worker-specific implementations
    */
@@ -637,12 +661,12 @@ class WorkerPlatformAdapter extends BasePlatformAdapter {
       sendMessage(message: any): void {
         self.postMessage(message);
       },
-      
+
       onMessage(callback: (message: any) => void): void {
         self.onmessage = (e) => callback(e.data);
       }
     });
-    
+
     // Register worker-specific storage implementation
     if (this.supportsFeature('indexedDB')) {
       this.implementations.set('storage', {
@@ -650,102 +674,102 @@ class WorkerPlatformAdapter extends BasePlatformAdapter {
         async store(key: string, value: any): Promise<void> {
           return new Promise((resolve, reject) => {
             const request = indexedDB.open('worker-cache', 1);
-            
+
             request.onupgradeneeded = () => {
               const db = request.result;
               if (!db.objectStoreNames.contains('keyval')) {
                 db.createObjectStore('keyval');
               }
             };
-            
+
             request.onsuccess = () => {
               const db = request.result;
               const tx = db.transaction('keyval', 'readwrite');
               const store = tx.objectStore('keyval');
               store.put(value, key);
-              
+
               tx.oncomplete = () => {
                 db.close();
                 resolve();
               };
-              
+
               tx.onerror = () => {
                 db.close();
                 reject(new Error('Failed to store data'));
               };
             };
-            
+
             request.onerror = () => reject(request.error);
           });
         },
-        
+
         async retrieve(key: string): Promise<any> {
           return new Promise((resolve, reject) => {
             const request = indexedDB.open('worker-cache', 1);
-            
+
             request.onupgradeneeded = () => {
               const db = request.result;
               if (!db.objectStoreNames.contains('keyval')) {
                 db.createObjectStore('keyval');
               }
             };
-            
+
             request.onsuccess = () => {
               const db = request.result;
               const tx = db.transaction('keyval', 'readonly');
               const store = tx.objectStore('keyval');
               const valueRequest = store.get(key);
-              
+
               valueRequest.onsuccess = () => {
                 db.close();
                 resolve(valueRequest.result);
               };
-              
+
               valueRequest.onerror = () => {
                 db.close();
                 reject(valueRequest.error);
               };
             };
-            
+
             request.onerror = () => reject(request.error);
           });
         },
-        
+
         async remove(key: string): Promise<void> {
           return new Promise((resolve, reject) => {
             const request = indexedDB.open('worker-cache', 1);
-            
+
             request.onsuccess = () => {
               const db = request.result;
               const tx = db.transaction('keyval', 'readwrite');
               const store = tx.objectStore('keyval');
               store.delete(key);
-              
+
               tx.oncomplete = () => {
                 db.close();
                 resolve();
               };
-              
+
               tx.onerror = () => {
                 db.close();
                 reject(new Error('Failed to remove data'));
               };
             };
-            
+
             request.onerror = () => reject(request.error);
           });
         }
       });
     }
   }
-  
+
   /**
    * Execute Web Worker-specific optimizations
    */
   public async optimizeForPlatform(): Promise<void> {
     // Worker-specific optimizations
     // For example, optimize for CPU-intensive tasks
-    
+
     // Workers shouldn't manipulate DOM and should focus on computation
     // No specific optimizations needed for base case
   }
@@ -756,7 +780,7 @@ class WorkerPlatformAdapter extends BasePlatformAdapter {
  */
 class FallbackPlatformAdapter extends BasePlatformAdapter {
   public readonly platform = EnvironmentType.Unknown;
-  
+
   /**
    * Detect basic features that should work in most JavaScript environments
    */
@@ -765,7 +789,7 @@ class FallbackPlatformAdapter extends BasePlatformAdapter {
     this.features.set('json', typeof JSON !== 'undefined');
     this.features.set('promises', typeof Promise !== 'undefined');
     this.features.set('timeouts', typeof setTimeout !== 'undefined');
-    
+
     // Conservative feature detection
     this.features.set('webWorkers', false);
     this.features.set('indexedDB', false);
@@ -774,7 +798,7 @@ class FallbackPlatformAdapter extends BasePlatformAdapter {
     this.features.set('secureContext', false);
     this.features.set('localStorage', false);
   }
-  
+
   /**
    * Register minimal implementations that should work in most environments
    */
@@ -783,33 +807,33 @@ class FallbackPlatformAdapter extends BasePlatformAdapter {
     this.implementations.set('storage', {
       // Simple in-memory storage
       memoryStore: new Map<string, any>(),
-      
+
       async store(key: string, value: any): Promise<void> {
         this.memoryStore.set(key, value);
       },
-      
+
       async retrieve(key: string): Promise<any> {
         return this.memoryStore.get(key);
       },
-      
+
       async remove(key: string): Promise<void> {
         this.memoryStore.delete(key);
       }
     });
-    
+
     // Fallback synchronous execution implementation
     this.implementations.set('threading', {
       // Fallback with no actual threading
       async spawnWorker(scriptPath: string, data: any): Promise<any> {
         // No worker support, execute synchronously
         console.warn('Worker threads not supported in this environment');
-        
+
         // Mock implementation that just returns the input
         return data;
       }
     });
   }
-  
+
   /**
    * No specific optimizations for unknown environments
    */

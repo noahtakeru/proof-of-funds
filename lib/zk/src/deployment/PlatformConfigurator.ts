@@ -8,7 +8,7 @@
 
 import { EnvironmentType, DeploymentConfig } from './DeploymentConfig';
 import { EnvironmentDetector } from './EnvironmentDetector';
-import { DeploymentStrategyType } from './DeploymentStrategySelector';
+import { DeploymentStrategyType } from './DeploymentStrategy';
 
 /**
  * Platform-specific configuration options
@@ -52,7 +52,7 @@ export interface PlatformProfile {
 export class PlatformConfigurator {
   private detector: EnvironmentDetector;
   private platformProfiles: Map<EnvironmentType, PlatformProfile>;
-  
+
   /**
    * Create a new PlatformConfigurator
    */
@@ -61,19 +61,78 @@ export class PlatformConfigurator {
     this.platformProfiles = new Map();
     this.initializePlatformProfiles();
   }
-  
+
   /**
    * Generate optimal configuration for a specific platform
    */
+  public createDefaultConfiguration(): any {
+    return {
+      defaultStrategy: 'hybrid',
+      optimizeFor: 'balanced',
+      workerThreads: 2,
+      memoryLimit: 512,
+      useLocalCache: true,
+      offlineSupport: false,
+      fallbackToServer: true,
+      serverEndpoint: 'https://api.proof-of-funds.example.com/v1',
+      healthCheckIntervalMs: 60000,
+      proofGenerationTimeoutMs: 60000,
+      logLevel: 'info'
+    };
+  }
+
+  public optimizeForEnvironment(environment: EnvironmentType): any {
+    const baseConfig = this.createDefaultConfiguration();
+
+    switch (environment) {
+      case EnvironmentType.Browser:
+        return {
+          ...baseConfig,
+          useServiceWorker: true,
+          offlineSupport: true,
+          workerThreads: 2,
+          memoryLimit: 256
+        };
+
+      case EnvironmentType.Node:
+        return {
+          ...baseConfig,
+          useServiceWorker: false,
+          maxConcurrency: 4,
+          memoryLimit: 1024,
+          workerThreads: 4
+        };
+
+      case EnvironmentType.Mobile:
+        return {
+          ...baseConfig,
+          optimizeFor: 'battery',
+          useServiceWorker: false,
+          workerThreads: 1,
+          memoryLimit: 128
+        };
+
+      default:
+        return baseConfig;
+    }
+  }
+
+  public mergeConfigurations(baseConfig: any, additionalConfig: any): any {
+    return {
+      ...baseConfig,
+      ...additionalConfig
+    };
+  }
+
   public generateConfig(options: PlatformConfigOptions): DeploymentConfig {
     const { platform, strategyType } = options;
-    
+
     // Get base configuration for the platform
     const baseConfig = this.getBasePlatformConfig(platform);
-    
+
     // Apply strategy-specific adjustments
     const strategyConfig = this.applyStrategyConfig(baseConfig, strategyType);
-    
+
     // Apply optimization flags
     let optimizedConfig = strategyConfig;
     if (options.optimizePerformance) {
@@ -88,7 +147,7 @@ export class PlatformConfigurator {
     if (options.optimizeMemory) {
       optimizedConfig = this.optimizeForMemory(optimizedConfig);
     }
-    
+
     // Apply any custom settings
     if (options.customSettings) {
       optimizedConfig = {
@@ -100,34 +159,34 @@ export class PlatformConfigurator {
         }
       };
     }
-    
+
     return optimizedConfig;
   }
-  
+
   /**
    * Get platform profile containing capabilities and limitations
    */
   public getPlatformProfile(platform: EnvironmentType): PlatformProfile | undefined {
     return this.platformProfiles.get(platform);
   }
-  
+
   /**
    * Get all available platform profiles
    */
   public getAllPlatformProfiles(): PlatformProfile[] {
     return Array.from(this.platformProfiles.values());
   }
-  
+
   /**
    * Detect current platform capabilities and generate profile
    */
   public detectCurrentPlatform(): { platform: EnvironmentType, profile: PlatformProfile } {
     const platform = this.detector.detectEnvironment();
     const features = this.detector.detectFeatures();
-    
+
     // Get base profile for the platform
     const baseProfile = this.platformProfiles.get(platform) || this.platformProfiles.get(EnvironmentType.Unknown)!;
-    
+
     // Update capabilities based on detection
     const updatedProfile: PlatformProfile = {
       ...baseProfile,
@@ -144,10 +203,10 @@ export class PlatformConfigurator {
         networkAvailable: features.hasNetwork
       }
     };
-    
+
     return { platform, profile: updatedProfile };
   }
-  
+
   /**
    * Initialize platform profiles with capabilities and limitations
    */
@@ -179,7 +238,7 @@ export class PlatformConfigurator {
         'SharedArrayBuffer requires COOP/COEP headers'
       ]
     });
-    
+
     // Node.js profile
     this.platformProfiles.set(EnvironmentType.Node, {
       name: 'Node.js',
@@ -205,7 +264,7 @@ export class PlatformConfigurator {
         'No service workers'
       ]
     });
-    
+
     // Mobile profile
     this.platformProfiles.set(EnvironmentType.Mobile, {
       name: 'Mobile Browser/App',
@@ -235,7 +294,7 @@ export class PlatformConfigurator {
         'Background processing limitations'
       ]
     });
-    
+
     // Web Worker profile
     this.platformProfiles.set(EnvironmentType.Worker, {
       name: 'Web Worker',
@@ -260,7 +319,7 @@ export class PlatformConfigurator {
         'No access to some browser APIs'
       ]
     });
-    
+
     // Unknown/fallback profile
     this.platformProfiles.set(EnvironmentType.Unknown, {
       name: 'Unknown Environment',
@@ -282,13 +341,13 @@ export class PlatformConfigurator {
       ]
     });
   }
-  
+
   /**
    * Get base configuration for a platform
    */
   private getBasePlatformConfig(platform: EnvironmentType): DeploymentConfig {
     const profile = this.platformProfiles.get(platform);
-    
+
     // Start with default configuration
     const baseConfig: DeploymentConfig = {
       workerThreads: 2,
@@ -311,7 +370,7 @@ export class PlatformConfigurator {
         localStorage: true
       }
     };
-    
+
     // Apply profile-specific recommended settings if available
     if (profile?.recommendedSettings) {
       return {
@@ -323,10 +382,10 @@ export class PlatformConfigurator {
         }
       };
     }
-    
+
     return baseConfig;
   }
-  
+
   /**
    * Apply strategy-specific configuration
    */
@@ -341,7 +400,7 @@ export class PlatformConfigurator {
           offlineSupport: true,
           fallbackToServer: false
         };
-        
+
       case DeploymentStrategyType.Hybrid:
         return {
           ...config,
@@ -350,7 +409,7 @@ export class PlatformConfigurator {
           offlineSupport: false,
           fallbackToServer: true
         };
-        
+
       case DeploymentStrategyType.ServerSide:
         return {
           ...config,
@@ -360,7 +419,7 @@ export class PlatformConfigurator {
           offlineSupport: false,
           fallbackToServer: true
         };
-        
+
       case DeploymentStrategyType.LowResource:
         return {
           ...config,
@@ -371,7 +430,7 @@ export class PlatformConfigurator {
           fallbackToServer: true,
           proofGenerationTimeoutMs: 120000
         };
-        
+
       case DeploymentStrategyType.HighPerformance:
         return {
           ...config,
@@ -386,122 +445,122 @@ export class PlatformConfigurator {
             sharedArrayBuffer: true
           }
         };
-        
+
       default:
         return config;
     }
   }
-  
+
   /**
    * Optimize configuration for performance
    */
   private optimizeForPerformance(config: DeploymentConfig, platform: EnvironmentType): DeploymentConfig {
     const optimized = { ...config };
-    
+
     // Increase worker threads for parallel processing
     if (platform !== EnvironmentType.Worker) {
       optimized.workerThreads = platform === EnvironmentType.Mobile ? 2 : 4;
     }
-    
+
     // Increase memory limit
     optimized.memoryLimit = platform === EnvironmentType.Mobile ? 512 : 1024;
-    
+
     // Enable shared memory if possible
     optimized.features = {
       ...optimized.features,
       sharedArrayBuffer: platform !== EnvironmentType.Mobile
     };
-    
+
     // Use local processing when possible
     optimized.fallbackToServer = false;
-    
+
     // Reduce timeouts for faster feedback
     optimized.proofGenerationTimeoutMs = 30000;
     optimized.healthCheckIntervalMs = 120000; // Less frequent health checks
-    
+
     return optimized;
   }
-  
+
   /**
    * Optimize configuration for battery life (mobile)
    */
   private optimizeForBattery(config: DeploymentConfig): DeploymentConfig {
     const optimized = { ...config };
-    
+
     // Reduce worker threads to save power
     optimized.workerThreads = 0;
-    
+
     // Reduce memory usage
     optimized.memoryLimit = 128;
-    
+
     // Offload computation to server when possible
     optimized.fallbackToServer = true;
-    
+
     // Disable features that consume battery
     optimized.features = {
       ...optimized.features,
       serviceWorker: false,
       sharedArrayBuffer: false
     };
-    
+
     // Increase timeouts to allow for power-saving modes
     optimized.proofGenerationTimeoutMs = 180000;
     optimized.healthCheckIntervalMs = 300000;
-    
+
     return optimized;
   }
-  
+
   /**
    * Optimize configuration for network usage
    */
   private optimizeForNetwork(config: DeploymentConfig): DeploymentConfig {
     const optimized = { ...config };
-    
+
     // Enable local cache to reduce network requests
     optimized.useLocalCache = true;
-    
+
     // Enable offline support
     optimized.offlineSupport = true;
-    
+
     // Only fall back to server when absolutely necessary
     optimized.fallbackToServer = true;
-    
+
     // Use service worker if available for caching
     optimized.features = {
       ...optimized.features,
       serviceWorker: config.features.serviceWorker
     };
-    
+
     // Reduce telemetry
     optimized.telemetryEndpoint = undefined;
-    
+
     // Less frequent health checks
     optimized.healthCheckIntervalMs = 300000;
-    
+
     return optimized;
   }
-  
+
   /**
    * Optimize configuration for memory usage
    */
   private optimizeForMemory(config: DeploymentConfig): DeploymentConfig {
     const optimized = { ...config };
-    
+
     // Reduce worker threads to save memory
     optimized.workerThreads = 0;
-    
+
     // Reduce memory limit
     optimized.memoryLimit = 128;
-    
+
     // Disable features that consume memory
     optimized.features = {
       ...optimized.features,
       sharedArrayBuffer: false
     };
-    
+
     // Offload to server when possible
     optimized.fallbackToServer = true;
-    
+
     return optimized;
   }
 }

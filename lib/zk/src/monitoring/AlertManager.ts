@@ -311,6 +311,17 @@ export class AlertManager extends EventEmitter {
     tags?: string[];
   }): string | null {
     try {
+      // Validate required fields
+      if (!alert.metricName || !alert.message) {
+        zkErrorLogger.log('WARNING', 'Cannot create alert with missing required fields', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true,
+          details: { alert }
+        });
+        return null;
+      }
+      
       // Generate a unique ID for the alert
       const alertId = `manual-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
@@ -336,6 +347,20 @@ export class AlertManager extends EventEmitter {
       if (alert.tags && alert.tags.length > 0) {
         this.addTagsToAlert(alertId, alert.tags);
       }
+      
+      // Log the alert creation explicitly
+      zkErrorLogger.log('INFO', `Manual alert created: ${alertId}`, {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: {
+          alertId,
+          metricName: alert.metricName,
+          severity: alert.severity,
+          message: alert.message,
+          source: alert.source || 'manual'
+        }
+      });
       
       return alertId;
     } catch (error) {

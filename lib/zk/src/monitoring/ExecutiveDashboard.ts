@@ -362,6 +362,16 @@ export class ExecutiveDashboard {
     } = {}
   ): Promise<string | null> {
     try {
+      // Validate input parameters
+      if (options.metrics && options.metrics.length === 0) {
+        zkErrorLogger.log('WARNING', 'Cannot generate report with empty metrics array', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return null;
+      }
+      
       // Get latest metrics
       const metrics = await this.getMetrics(true);
       if (!metrics) {
@@ -412,7 +422,11 @@ export class ExecutiveDashboard {
         recoverable: true,
         details: { 
           reportId,
-          metrics: report.metrics.length
+          title: report.name,
+          format: report.format,
+          metrics: report.metrics,
+          generatedAt: report.lastGenerated?.toISOString(),
+          recipients: report.recipients.length
         }
       });
       
@@ -445,6 +459,16 @@ export class ExecutiveDashboard {
     description: string;
   }> | null> {
     try {
+      // Validate input
+      if (kpiNames && kpiNames.length === 0) {
+        zkErrorLogger.log('WARNING', 'Empty KPI names array provided to getKPIStatus', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true
+        });
+        return {};
+      }
+      
       // Get latest metrics
       const metrics = await this.getMetrics(true);
       if (!metrics) {
@@ -575,8 +599,30 @@ export class ExecutiveDashboard {
             trend: kpi.getTrend(),
             description: kpi.description
           };
+        } else {
+          zkErrorLogger.log('WARNING', `Unknown KPI requested: ${kpiName}`, {
+            category: 'monitoring',
+            userFixable: true,
+            recoverable: true,
+            details: { 
+              requestedKPI: kpiName,
+              availableKPIs: Object.keys(allKPIs)
+            }
+          });
         }
       }
+      
+      // Log successful KPI status retrieval
+      zkErrorLogger.log('INFO', 'KPI status report generated', {
+        category: 'monitoring',
+        userFixable: false,
+        recoverable: true,
+        details: { 
+          requestedKPIs: kpisToInclude.length,
+          returnedKPIs: Object.keys(result).length,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       return result;
     } catch (error) {

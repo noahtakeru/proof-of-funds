@@ -501,6 +501,28 @@ export class SystemMonitor extends EventEmitter {
     } = {}
   ): boolean {
     try {
+      // Validate metric name
+      if (!metricName || typeof metricName !== 'string') {
+        zkErrorLogger.log('WARNING', 'Invalid metric name provided to trackMetric', {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true,
+          details: { metricName, valueType: typeof value }
+        });
+        return false;
+      }
+
+      // Validate value is a number
+      if (typeof value !== 'number' || isNaN(value)) {
+        zkErrorLogger.log('WARNING', `Invalid value provided for metric: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: true,
+          recoverable: true,
+          details: { metricName, value, valueType: typeof value }
+        });
+        return false;
+      }
+      
       // Record the metric value
       const recorded = this.recordMetric(metricName, value, labels);
       
@@ -540,6 +562,21 @@ export class SystemMonitor extends EventEmitter {
             this.recordMetric(`${metricName}.p95`, p95, baseLabels);
           }
         }
+      }
+      
+      // Log successful metric tracking for high-value metrics
+      if (metricName.startsWith('system.') || metricName.startsWith('app.') || value > 100) {
+        zkErrorLogger.log('INFO', `Tracked metric: ${metricName}`, {
+          category: 'monitoring',
+          userFixable: false,
+          recoverable: true,
+          details: {
+            metricName,
+            value,
+            timestamp: new Date().toISOString(),
+            labels: Object.keys(labels).length > 0 ? labels : undefined
+          }
+        });
       }
       
       return true;

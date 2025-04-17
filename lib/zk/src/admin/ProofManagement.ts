@@ -1,63 +1,89 @@
 /**
- * Admin Proof Management System
+ * Proof Management Module
  * 
- * This module provides comprehensive proof management functionality for the admin dashboard,
- * including proof searching, verification, invalidation, and analytics.
- * 
- * The implementation uses the Role-Based Access Control (RBAC) system to enforce
- * access controls based on user roles and permissions.
+ * Provides administrative functionality for managing ZK proofs,
+ * including creation, validation, and archiving.
  */
 
-import { rbacSystem, Permission, Role } from './RoleBasedAccessControl';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { SystemConfiguration } from './SystemConfiguration.js';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create a logger instance
+const logger = new ZKErrorLogger({
+  logLevel: 'info',
+  privacyLevel: 'internal'
+});
 
-// PoF (Proof of Funds) interface
-export interface ProofOfFunds {
+/**
+ * Proof status enum
+ */
+export enum ProofStatus {
+  DRAFT = 'draft',
+  SUBMITTED = 'submitted',
+  VERIFIED = 'verified',
+  REJECTED = 'rejected',
+  ARCHIVED = 'archived',
+  EXPIRED = 'expired'
+}
+
+/**
+ * Proof type enum
+ */
+export enum ProofType {
+  STANDARD = 'standard',
+  THRESHOLD = 'threshold',
+  MAXIMUM = 'maximum',
+  COMPOSITE = 'composite'
+}
+
+/**
+ * Interface for proof metadata
+ */
+export interface ProofMetadata {
   id: string;
-  proofHash: string;
-  proofType: 'standard' | 'threshold' | 'maximum' | 'zk';
-  walletAddress: string;
-  network: string;
+  title: string;
+  description?: string;
   createdAt: Date;
-  expiresAt: Date;
-  status: 'valid' | 'expired' | 'invalidated' | 'pending';
-  verificationStatus: 'verified' | 'unverified' | 'failed';
+  updatedAt: Date;
+  createdBy: string;
+  status: ProofStatus;
+  type: ProofType;
+  version: string;
+  expiresAt?: Date;
+  tags?: string[];
+  isPublic: boolean;
   verificationCount: number;
   lastVerifiedAt?: Date;
-  invalidatedReason?: string;
-  invalidatedBy?: string;
-  invalidatedAt?: Date;
-  metadata?: Record<string, any>;
-  proof?: any;
-  publicSignals?: any[];
 }
 
-// Proof search filters
+/**
+ * Interface for proof search filters
+ */
 export interface ProofSearchFilters {
-  proofHash?: string;
-  proofType?: 'standard' | 'threshold' | 'maximum' | 'zk';
-  walletAddress?: string;
-  network?: string;
-  status?: 'valid' | 'expired' | 'invalidated' | 'pending';
-  verificationStatus?: 'verified' | 'unverified' | 'failed';
-  createdAfter?: Date;
-  createdBefore?: Date;
-  expiresAfter?: Date;
-  expiresBefore?: Date;
+  userId?: string;
+  status?: ProofStatus[];
+  type?: ProofType[];
+  tags?: string[];
+  startDate?: Date;
+  endDate?: Date;
+  isPublic?: boolean;
+  keyword?: string;
 }
 
-// Proof verification result
+/**
+ * Proof verification result
+ */
 export interface ProofVerificationResult {
   proofId: string;
   isValid: boolean;
   verifiedBy: string;
   verifiedAt: Date;
-  details?: any;
+  details?: Record<string, any>;
 }
 
-// Proof statistics interface
+/**
+ * Proof statistics interface
+ */
 export interface ProofStatistics {
   total: number;
   byType: Record<string, number>;
@@ -74,584 +100,726 @@ export interface ProofStatistics {
     maxDays: number;
     minDays: number;
   };
-  creationTrend: Array<{
-    date: Date;
-    count: number;
-  }>;
+  creationTrend: Array<{ date: Date; count: number }>;
 }
 
 /**
- * Proof Management System
+ * Handles proof management operations
  */
-export class ProofManagementSystem {
-  private proofs: ProofOfFunds[] = [];
-  
-  constructor() {
-    // Initialize with example proofs for development
+export class ProofManagement {
+  private systemConfig: SystemConfiguration;
+  private proofs: Map<string, ProofMetadata> = new Map();
+
+  /**
+   * Creates a new ProofManagement instance
+   * 
+   * @param systemConfig System configuration instance
+   */
+  constructor(systemConfig: SystemConfiguration) {
+    this.systemConfig = systemConfig;
+
+    // Initialize with example data in development mode
     if (process.env.NODE_ENV === 'development') {
       this.initializeExampleProofs();
     }
   }
-  
+
   /**
-   * Find proofs by search criteria
+   * Creates a new proof
+   * 
+   * @param userId ID of user creating the proof
+   * @param title Proof title
+   * @param description Proof description
+   * @param type Proof type
+   * @param isPublic Whether the proof is public
+   * @param tags Optional tags
+   * @returns The created proof metadata
    */
-  public findProofs(
-    filters: ProofSearchFilters,
-    adminWalletAddress: string,
-    pagination?: { skip: number; limit: number }
-  ): { proofs: ProofOfFunds[]; total: number } | null {
-    // Check if admin has permission to search proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.SEARCH_PROOFS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'search_proofs',
-        targetResource: 'proofs',
-        status: 'denied',
-        details: { filters }
-      });
-      
+  public createProof(
+    userId: string,
+    title: string,
+    description: string | undefined,
+    type: ProofType,
+    isPublic: boolean,
+    tags?: string[]
+  ): ProofMetadata {
+    // Validate inputs
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+    if (!title) {
+      throw new Error('Title is required');
+    }
+    if (!Object.values(ProofType).includes(type)) {
+      throw new Error(`Invalid proof type: ${type}`);
+    }
+
+    // Create unique ID
+    const timestamp = new Date();
+    const id = `proof_${timestamp.getTime()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Create proof metadata
+    const proofMetadata: ProofMetadata = {
+      id,
+      title,
+      description,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      createdBy: userId,
+      status: ProofStatus.DRAFT,
+      type,
+      version: '1.0.0', // Use hardcoded version until SystemConfiguration is implemented
+      tags: tags || [],
+      isPublic,
+      verificationCount: 0
+    };
+
+    // Save proof
+    this.proofs.set(id, proofMetadata);
+
+    // Log the creation
+    logger.info(`Proof created: ${id}`, {
+      userId,
+      proofId: id,
+      proofType: type
+    });
+
+    return proofMetadata;
+  }
+
+  /**
+   * Updates proof metadata
+   * 
+   * @param proofId ID of the proof to update
+   * @param userId ID of user making the update
+   * @param updates Updates to apply
+   * @returns The updated proof metadata
+   */
+  public updateProof(
+    proofId: string,
+    userId: string,
+    updates: Partial<Pick<ProofMetadata, 'title' | 'description' | 'tags' | 'isPublic'>>
+  ): ProofMetadata {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Get existing proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
+      throw new Error(`Proof not found: ${proofId}`);
+    }
+
+    // Check if user is allowed to update
+    if (proof.createdBy !== userId && !this.isAdmin(userId)) {
+      throw new Error('User is not authorized to update this proof');
+    }
+
+    // Apply updates
+    const updatedProof = {
+      ...proof,
+      ...updates,
+      updatedAt: new Date()
+    };
+
+    // Save updated proof
+    this.proofs.set(proofId, updatedProof);
+
+    // Log the update
+    logger.info(`Proof updated: ${proofId}`, {
+      userId,
+      proofId
+    });
+
+    return updatedProof;
+  }
+
+  /**
+   * Updates proof status
+   * 
+   * @param proofId ID of the proof
+   * @param userId ID of user changing status
+   * @param status New status
+   * @returns The updated proof metadata
+   */
+  public updateProofStatus(
+    proofId: string,
+    userId: string,
+    status: ProofStatus
+  ): ProofMetadata {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+    if (!Object.values(ProofStatus).includes(status)) {
+      throw new Error(`Invalid proof status: ${status}`);
+    }
+
+    // Get existing proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
+      throw new Error(`Proof not found: ${proofId}`);
+    }
+
+    // Check if user is allowed to update status
+    const isOwner = proof.createdBy === userId;
+    const isAdmin = this.isAdmin(userId);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('User is not authorized to update this proof status');
+    }
+
+    // Some status changes are restricted to admins
+    const restrictedStatusChanges = [
+      ProofStatus.VERIFIED,
+      ProofStatus.REJECTED,
+      ProofStatus.ARCHIVED
+    ];
+
+    if (restrictedStatusChanges.includes(status) && !isAdmin) {
+      throw new Error(`Only administrators can set proof status to ${status}`);
+    }
+
+    // Apply update
+    const updatedProof = {
+      ...proof,
+      status,
+      updatedAt: new Date()
+    };
+
+    // If verifying, update verification stats
+    if (status === ProofStatus.VERIFIED) {
+      updatedProof.verificationCount += 1;
+      updatedProof.lastVerifiedAt = new Date();
+    }
+
+    // Save updated proof
+    this.proofs.set(proofId, updatedProof);
+
+    // Log the status change
+    logger.info(`Proof status changed: ${proofId} -> ${status}`, {
+      userId,
+      proofId,
+      oldStatus: proof.status,
+      newStatus: status
+    });
+
+    return updatedProof;
+  }
+
+  /**
+   * Gets a proof by ID
+   * 
+   * @param proofId ID of the proof
+   * @param userId ID of user making the request
+   * @returns The proof metadata or null if not found
+   */
+  public getProof(proofId: string, userId: string): ProofMetadata | null {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Get proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
       return null;
     }
+
+    // Check access
+    const isOwner = proof.createdBy === userId;
+    const isAdmin = this.isAdmin(userId);
+    const isPublic = proof.isPublic;
+
+    if (!isOwner && !isAdmin && !isPublic) {
+      logger.warn(`Unauthorized proof access attempt: ${proofId}`, {
+        userId,
+        proofId
+      });
+      return null;
+    }
+
+    // Log access
+    logger.info(`Proof accessed: ${proofId}`, {
+      userId,
+      proofId
+    });
+
+    return proof;
+  }
+  
+  /**
+   * Gets a proof by ID for administrative purposes
+   * This is a special method for admin interfaces where userId validation is handled separately
+   * 
+   * @param proofId ID of the proof to retrieve
+   * @returns The proof metadata or null if not found
+   */
+  public getProofById(proofId: string): ProofMetadata | null {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+
+    // Get proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
+      return null;
+    }
+
+    // Log admin access
+    logger.info(`Admin accessed proof: ${proofId}`, {
+      proofId,
+      access: 'admin'
+    });
+
+    return proof;
+  }
+  
+  /**
+   * Finds proofs based on criteria
+   * 
+   * @param criteria Search criteria
+   * @param options Pagination and sorting options
+   * @returns Array of matching proofs
+   */
+  public findProofs(
+    criteria: {
+      ids?: string[];
+      statuses?: ProofStatus[];
+      types?: ProofType[];
+      userIds?: string[];
+      keywords?: string[];
+      tags?: string[];
+      fromDate?: Date;
+      toDate?: Date;
+      isPublic?: boolean;
+    },
+    options: {
+      limit?: number;
+      offset?: number;
+      sortBy?: keyof ProofMetadata;
+      sortOrder?: 'asc' | 'desc';
+    } = {}
+  ): { proofs: ProofMetadata[]; total: number } {
+    // Get all proofs
+    const allProofs = Array.from(this.proofs.values());
     
     // Apply filters
-    let filteredProofs = this.proofs.filter(proof => {
-      if (filters.proofHash && !proof.proofHash.includes(filters.proofHash)) {
+    const filteredProofs = allProofs.filter(proof => {
+      // Filter by IDs
+      if (criteria.ids && criteria.ids.length > 0 && !criteria.ids.includes(proof.id)) {
         return false;
       }
       
-      if (filters.proofType && proof.proofType !== filters.proofType) {
+      // Filter by statuses
+      if (criteria.statuses && criteria.statuses.length > 0 && !criteria.statuses.includes(proof.status)) {
         return false;
       }
       
-      if (filters.walletAddress && 
-          !proof.walletAddress.toLowerCase().includes(filters.walletAddress.toLowerCase())) {
+      // Filter by types
+      if (criteria.types && criteria.types.length > 0 && !criteria.types.includes(proof.type)) {
         return false;
       }
       
-      if (filters.network && proof.network !== filters.network) {
+      // Filter by user IDs
+      if (criteria.userIds && criteria.userIds.length > 0 && !criteria.userIds.includes(proof.createdBy)) {
         return false;
       }
       
-      if (filters.status && proof.status !== filters.status) {
+      // Filter by tags
+      if (criteria.tags && criteria.tags.length > 0) {
+        const proofTags = proof.tags || [];
+        const hasAnyTag = criteria.tags.some(tag => proofTags.includes(tag));
+        if (!hasAnyTag) {
+          return false;
+        }
+      }
+      
+      // Filter by date range
+      if (criteria.fromDate && proof.createdAt < criteria.fromDate) {
+        return false;
+      }
+      if (criteria.toDate && proof.createdAt > criteria.toDate) {
         return false;
       }
       
-      if (filters.verificationStatus && proof.verificationStatus !== filters.verificationStatus) {
+      // Filter by visibility
+      if (criteria.isPublic !== undefined && proof.isPublic !== criteria.isPublic) {
         return false;
       }
       
-      if (filters.createdAfter && proof.createdAt < filters.createdAfter) {
-        return false;
-      }
-      
-      if (filters.createdBefore && proof.createdAt > filters.createdBefore) {
-        return false;
-      }
-      
-      if (filters.expiresAfter && proof.expiresAt < filters.expiresAfter) {
-        return false;
-      }
-      
-      if (filters.expiresBefore && proof.expiresAt > filters.expiresBefore) {
-        return false;
+      // Filter by keywords (in title, description, tags)
+      if (criteria.keywords && criteria.keywords.length > 0) {
+        const proofText = [
+          proof.title,
+          proof.description || '',
+          ...(proof.tags || [])
+        ].join(' ').toLowerCase();
+        
+        const hasAnyKeyword = criteria.keywords.some(keyword => 
+          proofText.includes(keyword.toLowerCase())
+        );
+        
+        if (!hasAnyKeyword) {
+          return false;
+        }
       }
       
       return true;
     });
     
+    // Get total count before pagination
     const total = filteredProofs.length;
     
-    // Apply pagination if specified
-    if (pagination) {
-      filteredProofs = filteredProofs.slice(
-        pagination.skip,
-        pagination.skip + pagination.limit
-      );
+    // Sort if requested
+    if (options.sortBy) {
+      filteredProofs.sort((a, b) => {
+        const aValue = a[options.sortBy as keyof ProofMetadata];
+        const bValue = b[options.sortBy as keyof ProofMetadata];
+        
+        // Handle different types of values
+        let comparison = 0;
+        if (aValue instanceof Date && bValue instanceof Date) {
+          comparison = aValue.getTime() - bValue.getTime();
+        } else if (typeof aValue === 'string' && typeof bValue === 'string') {
+          comparison = aValue.localeCompare(bValue);
+        } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+          comparison = aValue - bValue;
+        } else if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+          comparison = aValue === bValue ? 0 : (aValue ? 1 : -1);
+        }
+        
+        // Apply sort order
+        return options.sortOrder === 'desc' ? -comparison : comparison;
+      });
     }
     
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
+    // Apply pagination if requested
+    let paginatedProofs = filteredProofs;
+    if (options.limit !== undefined) {
+      const offset = options.offset || 0;
+      paginatedProofs = filteredProofs.slice(offset, offset + options.limit);
+    }
     
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'search_proofs',
-      targetResource: 'proofs',
-      status: 'success',
-      details: {
-        filters,
-        resultCount: filteredProofs.length,
-        totalCount: total
-      }
+    // Log the operation
+    logger.info(`Found ${paginatedProofs.length} proofs matching criteria (total: ${total})`, {
+      operation: 'findProofs',
+      filters: Object.keys(criteria).length,
+      total
     });
     
-    return { proofs: filteredProofs, total };
-  }
-  
-  /**
-   * Get a proof by ID
-   */
-  public getProofById(
-    proofId: string,
-    adminWalletAddress: string
-  ): ProofOfFunds | null {
-    // Check if admin has permission to view proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_PROOFS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'view_proof',
-        targetResource: proofId,
-        status: 'denied'
-      });
-      
-      return null;
-    }
-    
-    const proof = this.proofs.find(p => p.id === proofId);
-    
-    if (!proof) {
-      return null;
-    }
-    
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-    
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'view_proof',
-      targetResource: proofId,
-      status: 'success'
-    });
-    
-    return proof;
-  }
-  
-  /**
-   * Get proofs by wallet address
-   */
-  public getProofsByWallet(
-    walletAddress: string,
-    adminWalletAddress: string,
-    pagination?: { skip: number; limit: number }
-  ): { proofs: ProofOfFunds[]; total: number } | null {
-    // Check if admin has permission to search proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.SEARCH_PROOFS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'search_proofs_by_wallet',
-        targetResource: walletAddress,
-        status: 'denied'
-      });
-      
-      return null;
-    }
-    
-    // Filter proofs by wallet address
-    let filteredProofs = this.proofs.filter(
-      p => p.walletAddress.toLowerCase() === walletAddress.toLowerCase()
-    );
-    
-    const total = filteredProofs.length;
-    
-    // Apply pagination if specified
-    if (pagination) {
-      filteredProofs = filteredProofs.slice(
-        pagination.skip,
-        pagination.skip + pagination.limit
-      );
-    }
-    
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-    
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'search_proofs_by_wallet',
-      targetResource: walletAddress,
-      status: 'success',
-      details: {
-        resultCount: filteredProofs.length,
-        totalCount: total
-      }
-    });
-    
-    return { proofs: filteredProofs, total };
-  }
-  
-  /**
-   * Verify a proof
-   */
-  public verifyProof(
-    proofId: string,
-    adminWalletAddress: string
-  ): ProofVerificationResult | null {
-    // Check if admin has permission to verify proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VERIFY_PROOF)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'verify_proof',
-        targetResource: proofId,
-        status: 'denied'
-      });
-      
-      return null;
-    }
-    
-    // Find the proof
-    const proofIndex = this.proofs.findIndex(p => p.id === proofId);
-    
-    if (proofIndex === -1) {
-      return null;
-    }
-    
-    const proof = this.proofs[proofIndex];
-    
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-    const adminId = adminRole?.userId || 'unknown';
-    
-    // Mock successful verification (in a real implementation, this would actually verify the proof)
-    const isValid = true;
-    const verificationResult: ProofVerificationResult = {
-      proofId,
-      isValid,
-      verifiedBy: adminId,
-      verifiedAt: new Date(),
-      details: {
-        verificationType: 'admin',
-        verifierWallet: adminWalletAddress
-      }
+    return {
+      proofs: paginatedProofs,
+      total
     };
-    
-    // Update the proof with verification result
-    this.proofs[proofIndex] = {
-      ...proof,
-      verificationStatus: isValid ? 'verified' : 'failed',
-      verificationCount: proof.verificationCount + 1,
-      lastVerifiedAt: new Date()
-    };
-    
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminId,
-      walletAddress: adminWalletAddress,
-      action: 'verify_proof',
-      targetResource: proofId,
-      status: 'success',
-      details: {
-        isValid,
-        verificationCount: proof.verificationCount + 1
-      }
-    });
-    
-    return verificationResult;
   }
   
   /**
-   * Invalidate a proof
+   * Invalidates a proof
+   * 
+   * @param proofId ID of the proof to invalidate
+   * @param userId ID of user performing the invalidation (must be admin)
+   * @param reason Reason for invalidation
+   * @returns The updated proof metadata
    */
   public invalidateProof(
     proofId: string,
-    reason: string,
-    adminWalletAddress: string
-  ): boolean {
-    // Check if admin has permission to invalidate proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.INVALIDATE_PROOF)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'invalidate_proof',
-        targetResource: proofId,
-        status: 'denied',
-        details: { reason }
-      });
-      
-      return false;
+    userId: string,
+    reason: string
+  ): ProofMetadata {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+    if (!userId) {
+      throw new Error('User ID is required');
     }
     
-    // Find the proof
-    const proofIndex = this.proofs.findIndex(p => p.id === proofId);
-    
-    if (proofIndex === -1) {
-      return false;
+    // Check admin privileges
+    if (!this.isAdmin(userId)) {
+      throw new Error('Only administrators can invalidate proofs');
     }
     
-    const proof = this.proofs[proofIndex];
+    // Get existing proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
+      throw new Error(`Proof not found: ${proofId}`);
+    }
     
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-    const adminId = adminRole?.userId || 'unknown';
-    
-    // Update the proof
-    this.proofs[proofIndex] = {
+    // Update status to REJECTED
+    const updatedProof = {
       ...proof,
-      status: 'invalidated',
-      invalidatedReason: reason,
-      invalidatedBy: adminId,
-      invalidatedAt: new Date()
+      status: ProofStatus.REJECTED,
+      updatedAt: new Date()
     };
     
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminId,
-      walletAddress: adminWalletAddress,
-      action: 'invalidate_proof',
-      targetResource: proofId,
-      status: 'success',
-      details: { reason }
+    // Save updated proof
+    this.proofs.set(proofId, updatedProof);
+    
+    // Log the invalidation
+    logger.info(`Proof invalidated: ${proofId}`, {
+      userId,
+      proofId,
+      reason,
+      oldStatus: proof.status,
+      newStatus: ProofStatus.REJECTED
     });
     
-    return true;
+    return updatedProof;
   }
-  
+
   /**
-   * Get proof statistics
+   * Searches for proofs based on filters
+   * 
+   * @param userId ID of user making the request
+   * @param filters Search filters
+   * @returns Array of matching proof metadata
    */
-  public getProofStatistics(adminWalletAddress: string): ProofStatistics | null {
-    // Check if admin has permission to view proofs
-    if (!rbacSystem.hasPermission(adminWalletAddress, Permission.VIEW_PROOFS)) {
-      rbacSystem.logAction({
-        userId: 'unknown',
-        walletAddress: adminWalletAddress,
-        action: 'view_proof_statistics',
-        targetResource: 'proofs',
-        status: 'denied'
-      });
-      
-      return null;
+  public searchProofs(userId: string, filters: ProofSearchFilters): ProofMetadata[] {
+    // Validate inputs
+    if (!userId) {
+      throw new Error('User ID is required');
     }
-    
-    // Initialize counters
-    const byType: Record<string, number> = {
-      standard: 0,
-      threshold: 0,
-      maximum: 0,
-      zk: 0
-    };
-    
-    const byStatus: Record<string, number> = {
-      valid: 0,
-      expired: 0,
-      invalidated: 0,
-      pending: 0
-    };
-    
-    const byNetwork: Record<string, number> = {};
-    
-    let totalVerifications = 0;
-    let successfulVerifications = 0;
-    let failedVerifications = 0;
-    
-    // Validity periods in days
-    const validityPeriods: number[] = [];
-    
-    // Creation trend - last 30 days
-    const now = new Date();
-    const creationTrend: Array<{ date: Date; count: number }> = [];
-    
-    // Initialize creation trend for the last 30 days
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      creationTrend.push({ date, count: 0 });
-    }
-    
-    // Count proofs by various attributes
-    for (const proof of this.proofs) {
-      // Count by type
-      byType[proof.proofType]++;
-      
-      // Count by status
-      byStatus[proof.status]++;
-      
-      // Count by network
-      if (byNetwork[proof.network]) {
-        byNetwork[proof.network]++;
-      } else {
-        byNetwork[proof.network] = 1;
+
+    // Get all proofs
+    const allProofs = Array.from(this.proofs.values());
+
+    // Apply access filter
+    const isAdmin = this.isAdmin(userId);
+    const accessibleProofs = isAdmin
+      ? allProofs // Admins can see all proofs
+      : allProofs.filter(proof =>
+        proof.createdBy === userId || // User's own proofs
+        proof.isPublic // Public proofs
+      );
+
+    // Apply provided filters
+    return accessibleProofs.filter(proof => {
+      // Filter by user ID
+      if (filters.userId && proof.createdBy !== filters.userId) {
+        return false;
       }
-      
-      // Count verifications
-      totalVerifications += proof.verificationCount;
-      if (proof.verificationStatus === 'verified') {
-        successfulVerifications++;
-      } else if (proof.verificationStatus === 'failed') {
-        failedVerifications++;
+
+      // Filter by status
+      if (filters.status && filters.status.length > 0 && !filters.status.includes(proof.status)) {
+        return false;
       }
-      
-      // Calculate validity period in days
-      const validityMs = proof.expiresAt.getTime() - proof.createdAt.getTime();
-      const validityDays = validityMs / (1000 * 60 * 60 * 24);
-      validityPeriods.push(validityDays);
-      
-      // Update creation trend
-      if (proof.createdAt >= creationTrend[0].date) {
-        const dayIndex = Math.floor(
-          (proof.createdAt.getTime() - creationTrend[0].date.getTime()) / 
-          (1000 * 60 * 60 * 24)
-        );
-        
-        if (dayIndex >= 0 && dayIndex < creationTrend.length) {
-          creationTrend[dayIndex].count++;
+
+      // Filter by type
+      if (filters.type && filters.type.length > 0 && !filters.type.includes(proof.type)) {
+        return false;
+      }
+
+      // Filter by tags
+      if (filters.tags && filters.tags.length > 0) {
+        const proofTags = proof.tags || [];
+        const hasAllTags = filters.tags.every(tag => proofTags.includes(tag));
+        if (!hasAllTags) {
+          return false;
         }
       }
-    }
-    
-    // Calculate validity period statistics
-    let averageDays = 0;
-    let medianDays = 0;
-    let maxDays = 0;
-    let minDays = Number.MAX_VALUE;
-    
-    if (validityPeriods.length > 0) {
-      // Average
-      averageDays = validityPeriods.reduce((sum, days) => sum + days, 0) / validityPeriods.length;
-      
-      // Median
-      validityPeriods.sort((a, b) => a - b);
-      const mid = Math.floor(validityPeriods.length / 2);
-      medianDays = validityPeriods.length % 2 === 0
-        ? (validityPeriods[mid - 1] + validityPeriods[mid]) / 2
-        : validityPeriods[mid];
-      
-      // Max and min
-      maxDays = Math.max(...validityPeriods);
-      minDays = Math.min(...validityPeriods);
-    }
-    
-    // Compile statistics
-    const statistics: ProofStatistics = {
-      total: this.proofs.length,
-      byType,
-      byStatus,
-      byNetwork,
-      verificationCounts: {
-        total: totalVerifications,
-        successful: successfulVerifications,
-        failed: failedVerifications
-      },
-      validityPeriods: {
-        averageDays,
-        medianDays,
-        maxDays,
-        minDays: minDays === Number.MAX_VALUE ? 0 : minDays
-      },
-      creationTrend
-    };
-    
-    // Get admin user info for logging
-    const adminRole = rbacSystem.getUserRole(adminWalletAddress);
-    
-    // Log the action
-    rbacSystem.logAction({
-      userId: adminRole?.userId || 'unknown',
-      walletAddress: adminWalletAddress,
-      action: 'view_proof_statistics',
-      targetResource: 'proofs',
-      status: 'success'
+
+      // Filter by date range
+      if (filters.startDate && proof.createdAt < filters.startDate) {
+        return false;
+      }
+      if (filters.endDate && proof.createdAt > filters.endDate) {
+        return false;
+      }
+
+      // Filter by visibility
+      if (filters.isPublic !== undefined && proof.isPublic !== filters.isPublic) {
+        return false;
+      }
+
+      // Filter by keyword
+      if (filters.keyword) {
+        const keyword = filters.keyword.toLowerCase();
+        const title = (proof.title || '').toLowerCase();
+        const description = (proof.description || '').toLowerCase();
+        const tags = (proof.tags || []).join(' ').toLowerCase();
+
+        if (!title.includes(keyword) && !description.includes(keyword) && !tags.includes(keyword)) {
+          return false;
+        }
+      }
+
+      return true;
     });
-    
-    return statistics;
   }
-  
+
   /**
-   * Initialize example proofs for development
+   * Deletes a proof
+   * 
+   * @param proofId ID of the proof to delete
+   * @param userId ID of user requesting deletion
+   * @returns Whether the deletion was successful
+   */
+  public deleteProof(proofId: string, userId: string): boolean {
+    // Validate inputs
+    if (!proofId) {
+      throw new Error('Proof ID is required');
+    }
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Get proof
+    const proof = this.proofs.get(proofId);
+    if (!proof) {
+      return false;
+    }
+
+    // Check if user is allowed to delete
+    const isOwner = proof.createdBy === userId;
+    const isAdmin = this.isAdmin(userId);
+
+    if (!isOwner && !isAdmin) {
+      logger.warn(`Unauthorized proof deletion attempt: ${proofId}`, {
+        userId,
+        proofId
+      });
+      throw new Error('User is not authorized to delete this proof');
+    }
+
+    // Delete proof
+    const deleted = this.proofs.delete(proofId);
+
+    // Log the deletion
+    if (deleted) {
+      logger.info(`Proof deleted: ${proofId}`, {
+        userId,
+        proofId
+      });
+    }
+
+    return deleted;
+  }
+
+  /**
+   * Checks if a user is an admin
+   * 
+   * @param userId User ID to check
+   * @returns Whether the user is an admin
+   * @private
+   */
+  private isAdmin(userId: string): boolean {
+    // In a real implementation, this would check against RBAC
+    // For now, using hardcoded admin users
+    const adminUsers = ['admin1', 'admin2', 'superuser'];
+    return adminUsers.includes(userId);
+  }
+
+  /**
+   * Initializes example proofs for development
+   * @private
    */
   private initializeExampleProofs(): void {
-    // Generate example proofs for different types and statuses
-    const proofTypes = ['standard', 'threshold', 'maximum', 'zk'] as const;
-    const statuses = ['valid', 'expired', 'invalidated', 'pending'] as const;
-    const verificationStatuses = ['verified', 'unverified', 'failed'] as const;
-    const networks = ['ethereum', 'polygon', 'binance', 'optimism', 'arbitrum'];
-    
-    // Generate proofs with varying parameters
-    for (let i = 0; i < 100; i++) {
-      const proofType = proofTypes[Math.floor(Math.random() * proofTypes.length)];
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      const verificationStatus = verificationStatuses[Math.floor(Math.random() * verificationStatuses.length)];
-      const network = networks[Math.floor(Math.random() * networks.length)];
-      
-      // Generate a random wallet address
-      const walletAddress = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
-      
-      // Generate random dates
-      const createdAt = new Date();
-      createdAt.setDate(createdAt.getDate() - Math.floor(Math.random() * 90)); // Up to 90 days ago
-      
-      const expiresAt = new Date(createdAt);
-      expiresAt.setDate(expiresAt.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days validity
-      
-      // Generate a proof hash
-      const proofHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 42)}`;
-      
-      // Create proof object
-      const proof: ProofOfFunds = {
-        id: `proof_${i + 1}`,
-        proofHash,
-        proofType,
-        walletAddress,
-        network,
-        createdAt,
-        expiresAt,
-        status,
-        verificationStatus,
-        verificationCount: Math.floor(Math.random() * 10),
-        metadata: {
-          fundAmount: Math.floor(Math.random() * 1000000) / 100,
-          currency: network === 'ethereum' ? 'ETH' : 
-                   network === 'polygon' ? 'MATIC' : 
-                   network === 'binance' ? 'BNB' : 'USDC'
-        }
-      };
-      
-      // Add last verified date if the proof has been verified
-      if (proof.verificationCount > 0) {
-        const lastVerifiedAt = new Date(createdAt);
-        lastVerifiedAt.setDate(lastVerifiedAt.getDate() + Math.floor(Math.random() * 10)); // 0-10 days after creation
-        proof.lastVerifiedAt = lastVerifiedAt;
-      }
-      
-      // Add invalidation details if the proof has been invalidated
-      if (status === 'invalidated') {
-        proof.invalidatedReason = ['Fraudulent', 'Incorrect balance', 'Expired', 'User request'][Math.floor(Math.random() * 4)];
-        proof.invalidatedBy = 'admin_user';
-        
-        const invalidatedAt = new Date(createdAt);
-        invalidatedAt.setDate(invalidatedAt.getDate() + Math.floor(Math.random() * 20)); // 0-20 days after creation
-        proof.invalidatedAt = invalidatedAt;
-      }
-      
-      this.proofs.push(proof);
+    const proofTypes = [
+      ProofType.STANDARD,
+      ProofType.THRESHOLD,
+      ProofType.MAXIMUM
+    ];
+
+    const users = ['admin1', 'user123', 'user456'];
+
+    // Create some example proofs
+    for (let i = 0; i < 10; i++) {
+      const userId = users[i % users.length];
+      const type = proofTypes[i % proofTypes.length];
+      const isPublic = i % 2 === 0;
+
+      this.createProof(
+        userId,
+        `Example Proof ${i + 1}`,
+        `This is an example proof for testing purposes (#${i + 1})`,
+        type,
+        isPublic,
+        [`tag${i % 5}`, 'example']
+      );
+    }
+
+    // Set some proofs to different statuses
+    const proofIds = Array.from(this.proofs.keys());
+    if (proofIds.length >= 3) {
+      this.updateProofStatus(proofIds[0], 'admin1', ProofStatus.VERIFIED);
+      this.updateProofStatus(proofIds[1], 'admin1', ProofStatus.REJECTED);
+      this.updateProofStatus(proofIds[2], 'admin1', ProofStatus.ARCHIVED);
     }
   }
 }
 
-// Singleton instance management
-let instance: ProofManagementSystem | null = null;
+// Singleton instance
+let instance: ProofManagement | null = null;
 
 /**
- * Get the singleton instance of the Proof Management System
+ * Gets the singleton instance of ProofManagement
+ * 
+ * @returns The ProofManagement singleton instance
  */
-export function getInstance(): ProofManagementSystem {
+export function getInstance(): ProofManagement {
   if (!instance) {
-    instance = new ProofManagementSystem();
+    // Create instance with a default configuration
+    const defaultConfig: SystemConfiguration = {
+      id: 'default',
+      version: 1,
+      createdAt: new Date(),
+      createdBy: 'system',
+      settings: {
+        siteName: 'ZK Proof System',
+        siteDescription: 'Zero-Knowledge Proof Management System',
+        proofValidity: {
+          standard: 30,
+          threshold: 15,
+          maximum: 90,
+          zk: 60
+        },
+        verification: {
+          cacheResults: true,
+          cacheLifetime: 24,
+          verificationTimeout: 60
+        },
+        security: {
+          userVerificationRequired: true,
+          minPasswordLength: 8,
+          twoFactorAuthEnabled: false,
+          sessionTimeout: 30,
+          rateLimiting: {
+            maxRequests: 100,
+            timeWindow: 60
+          }
+        },
+        notifications: {
+          emailNotifications: false,
+          adminAlerts: true,
+          securityAlerts: true
+        },
+        analytics: {
+          enabled: false,
+          anonymizeIpAddresses: true,
+          retentionPeriod: 90
+        }
+      }
+    };
+
+    instance = new ProofManagement(defaultConfig);
   }
   return instance;
 }
 
-// Create a singleton instance
-export const proofManagementSystem = getInstance();
+// Export singleton instance
+export const proofManagement = getInstance();
 
-// Export default for CommonJS compatibility
-export default proofManagementSystem;
+// Export default for module compatibility
+export default proofManagement;

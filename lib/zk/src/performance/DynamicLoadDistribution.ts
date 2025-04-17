@@ -21,10 +21,14 @@ import { ResourceAllocator } from '../resources/ResourceAllocator';
 import { WebWorkerPool } from './WebWorkerPool';
 import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
 import { MemoryOptimizer } from './MemoryOptimizer';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create logger instance for load distribution
+const logger = new ZKErrorLogger({
+    logLevel: 'info',
+    privacyLevel: 'internal',
+    destinations: ['console']
+});
 
 /**
  * Workload distribution strategy
@@ -284,7 +288,7 @@ export class DynamicLoadDistribution {
 
             this.isInitialized = true;
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.initialize',
                 message: 'Failed to initialize load distribution system'
             });
@@ -417,7 +421,7 @@ export class DynamicLoadDistribution {
 
             return distributionResult;
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeTask',
                 message: 'Task execution failed'
             });
@@ -580,7 +584,7 @@ export class DynamicLoadDistribution {
             // Execute the function
             return await executableFn(data);
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeLocal',
                 message: 'Error in local task execution'
             });
@@ -612,7 +616,7 @@ export class DynamicLoadDistribution {
                 }
             );
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeInWorker',
                 message: 'Error in worker task execution'
             });
@@ -669,7 +673,7 @@ export class DynamicLoadDistribution {
 
             return result.data;
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeOnServer',
                 message: 'Error in server task execution'
             });
@@ -722,7 +726,7 @@ export class DynamicLoadDistribution {
             // Return result with metadata about source
             return result;
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeHybrid',
                 message: 'Error in hybrid task execution'
             });
@@ -779,7 +783,7 @@ export class DynamicLoadDistribution {
                 this.config.maxWorkers = optimalWorkers;
             }
         } catch (error) {
-            zkErrorLogger.logError(error as Error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.analyzeDeviceCapabilities',
                 message: 'Error analyzing device capabilities'
             });

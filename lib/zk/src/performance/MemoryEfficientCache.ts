@@ -15,10 +15,13 @@
  * @module MemoryEfficientCache
  */
 
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-// Get the singleton logger instance
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create logger instance for memory cache
+const logger = new ZKErrorLogger({
+    logLevel: 'info',
+    privacyLevel: 'internal'
+});
 
 /**
  * Available cache eviction policies
@@ -134,7 +137,7 @@ export class MemoryEfficientCache {
         // Start periodic cleanup of expired entries
         this.startCleanupInterval();
 
-        zkErrorLogger.log('INFO', 'MemoryEfficientCache initialized', {
+        logger.info('MemoryEfficientCache initialized', {
             details: {
                 maxSize: this.maxSize,
                 defaultTTL: this.defaultTTL,
@@ -155,7 +158,7 @@ export class MemoryEfficientCache {
     store(key: string, value: any, options: { ttl?: number, priority?: number } = {}): boolean {
         try {
             if (key === undefined || key === null) {
-                zkErrorLogger.log('ERROR', 'Cannot store with undefined or null key', {
+                logger.error('Cannot store with undefined or null key', {
                     details: { valueType: typeof value }
                 });
                 return false;
@@ -177,7 +180,7 @@ export class MemoryEfficientCache {
                     storedValue = this.compressValue(value);
                     compressed = true;
                 } catch (err) {
-                    zkErrorLogger.log('WARNING', 'Failed to compress cache value', {
+                    logger.warn('Failed to compress cache value', {
                         context: 'MemoryEfficientCache.store',
                         key,
                         error: err instanceof Error ? err.message : String(err)
@@ -211,7 +214,7 @@ export class MemoryEfficientCache {
 
             // Check if we're still over capacity after eviction
             if (this.totalSize + valueSize > this.maxSize) {
-                zkErrorLogger.log('WARNING', 'Cache entry too large to store', {
+                logger.warn('Cache entry too large to store', {
                     context: 'MemoryEfficientCache.store',
                     key,
                     size: valueSize,
@@ -237,7 +240,7 @@ export class MemoryEfficientCache {
 
             return true;
         } catch (err) {
-            zkErrorLogger.log('ERROR', 'Failed to store cache entry', {
+            logger.error('Failed to store cache entry', {
                 details: { key, error: err instanceof Error ? err.message : String(err) }
             });
             return false;
@@ -280,7 +283,7 @@ export class MemoryEfficientCache {
                 try {
                     value = this.decompressValue(value);
                 } catch (err) {
-                    zkErrorLogger.log('WARNING', 'Failed to decompress cache value', {
+                    logger.warn('Failed to decompress cache value', {
                         context: 'MemoryEfficientCache.retrieve',
                         key,
                         error: err instanceof Error ? err.message : String(err)
@@ -291,7 +294,7 @@ export class MemoryEfficientCache {
 
             return value;
         } catch (err) {
-            zkErrorLogger.log('ERROR', 'Failed to retrieve cache entry', {
+            logger.error('Failed to retrieve cache entry', {
                 details: { key, error: err instanceof Error ? err.message : String(err) }
             });
             return undefined;
@@ -334,7 +337,7 @@ export class MemoryEfficientCache {
 
             return count;
         } catch (err) {
-            zkErrorLogger.log('ERROR', 'Failed to invalidate cache entries', {
+            logger.error('Failed to invalidate cache entries', {
                 details: { keyOrPattern, isPattern, error: err instanceof Error ? err.message : String(err) }
             });
             return 0;
@@ -368,10 +371,10 @@ export class MemoryEfficientCache {
      */
     setEvictionPolicy(policy: EvictionPolicy): boolean {
         if (!Object.values(EvictionPolicy).includes(policy)) {
-            zkErrorLogger.log('WARNING', 'Invalid eviction policy', {
+            logger.warn('Invalid eviction policy', {
                 context: 'MemoryEfficientCache.setEvictionPolicy',
                 policy,
-                availablePolicies: Object.values(EvictionPolicy)
+                validPolicies: Object.values(EvictionPolicy)
             });
             return false;
         }
@@ -428,7 +431,7 @@ export class MemoryEfficientCache {
         this.cleanupInterval = setInterval(() => {
             const removed = this.cleanupExpired();
             if (removed > 0) {
-                zkErrorLogger.log('INFO', 'Removed expired cache entries', {
+                logger.info('Removed expired cache entries', {
                     details: { count: removed, totalRemaining: this.cache.size }
                 });
             }
@@ -542,12 +545,12 @@ export class MemoryEfficientCache {
 
         if (evicted > 0) {
             this.evictionCount += evicted;
-            zkErrorLogger.log('INFO', 'Evicted cache entries', {
+            logger.info('Evicted cache entries', {
                 details: {
                     count: evicted,
-                    bytesFreed,
-                    policy: this.evictionPolicy,
-                    totalRemaining: this.cache.size
+                    totalMemorySaved: bytesFreed,
+                    remainingEntries: this.cache.size,
+                    currentUsage: this.totalSize
                 }
             });
         }

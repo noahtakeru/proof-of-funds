@@ -5,8 +5,11 @@
  * zero-knowledge proofs across different platforms and environments.
  */
 
+import { EnvironmentType } from './DeploymentConfig';
+import { DeploymentStrategyType } from './DeploymentStrategy';
+
 // Core configuration and environment types
-export { 
+export {
   EnvironmentType,
   baseConfig,
   lowResourceConfig,
@@ -15,7 +18,7 @@ export {
   productionConfig
 } from './DeploymentConfig';
 
-export type { 
+export type {
   DeploymentConfig,
   FeatureFlags
 } from './DeploymentConfig';
@@ -39,6 +42,15 @@ export type {
   DeploymentStatus
 } from './DeploymentManager';
 
+// Deployment strategy
+export {
+  DeploymentStrategyType
+} from './DeploymentStrategy';
+
+export type {
+  DeploymentStrategy
+} from './DeploymentStrategy';
+
 // Health check system
 export {
   HealthCheck
@@ -61,12 +73,7 @@ export type {
 
 // Deployment strategy selection
 export {
-  DeploymentStrategySelector,
-  DeploymentStrategyType
-} from './DeploymentStrategySelector';
-
-export type {
-  DeploymentStrategy
+  DeploymentStrategySelector
 } from './DeploymentStrategySelector';
 
 // Platform-specific configuration
@@ -79,6 +86,11 @@ export type {
   PlatformProfile
 } from './PlatformConfigurator';
 
+// Deployment adapter
+export {
+  DeploymentAdapter
+} from './DeploymentAdapter';
+
 // Main cross-platform deployment system
 export {
   CrossPlatformDeployment
@@ -90,51 +102,47 @@ export type {
   DeploymentStats
 } from './CrossPlatformDeployment';
 
-// Import for function return type
-import { CrossPlatformDeployment as CPD } from './CrossPlatformDeployment';
-import { EnvironmentDetector } from './EnvironmentDetector';
-import { DeploymentStrategyType } from './DeploymentStrategySelector';
-import { EnvironmentType } from './DeploymentConfig';
-
 /**
- * Create and initialize a cross-platform deployment system
+ * Map environment name to environment type
  */
-export async function createDeployment(options: any = {}): Promise<CPD> {
-  const deployment = new CPD(options);
-  await deployment.initialize(options);
-  return deployment;
-}
-
-/**
- * Detect the current environment and create an optimized deployment
- */
-export async function createOptimizedDeployment(): Promise<CPD> {
-  const detector = new EnvironmentDetector();
-  const environment = detector.detectEnvironment();
-  const features = detector.detectFeatures();
-  
-  // Select appropriate strategy based on environment and capabilities
-  let strategyType: DeploymentStrategyType;
-  
-  if (features.isHighEndDevice) {
-    strategyType = DeploymentStrategyType.HighPerformance;
-  } else if (environment === EnvironmentType.Mobile) {
-    strategyType = DeploymentStrategyType.Hybrid;
-  } else if (!features.supportsWebWorkers || !features.supportsWebAssembly) {
-    strategyType = DeploymentStrategyType.ServerSide;
-  } else {
-    strategyType = DeploymentStrategyType.FullLocal;
+function getEnvironmentType(environment?: string): EnvironmentType {
+  switch (environment) {
+    case 'production':
+      return EnvironmentType.PRODUCTION;
+    case 'staging':
+      return EnvironmentType.STAGING;
+    case 'test':
+      return EnvironmentType.TEST;
+    case 'development':
+    default:
+      return EnvironmentType.DEVELOPMENT;
   }
-  
-  const deployment = new CPD({
-    environment,
-    initialStrategy: strategyType,
-    autoOptimize: true,
-    adaptToResourceConstraints: true,
-    monitorResourceUsage: true
-  });
-  
-  await deployment.initialize();
-  
-  return deployment;
 }
+
+/**
+ * Create a deployment manager with the specified configuration
+ */
+export function createDeployment(options: {
+  environment?: 'development' | 'production' | 'staging' | 'test';
+  platform?: 'node' | 'browser' | 'mobile' | 'auto';
+  logLevel?: 'info' | 'error' | 'warn' | 'debug' | 'none';
+  maxConcurrentDeployments?: number;
+  deploymentRetries?: number;
+  serverEndpoint?: string;
+  initialStrategy?: DeploymentStrategyType;
+  autoOptimize?: boolean;
+  adaptToResourceConstraints?: boolean;
+  monitorResourceUsage?: boolean;
+}) {
+  const { CrossPlatformDeployment } = require('./CrossPlatformDeployment');
+  return new CrossPlatformDeployment({
+    ...options
+  });
+}
+
+// Default export with explicitly created object
+export default {
+  createDeployment,
+  EnvironmentType: EnvironmentType,
+  DeploymentStrategyType: DeploymentStrategyType
+};

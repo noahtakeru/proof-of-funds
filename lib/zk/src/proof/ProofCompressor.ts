@@ -185,6 +185,7 @@ export function compressProof(
     // Validate memory limit before proceeding
     const proofJson = JSON.stringify(proofContainer);
     const proofSize = getByteSize(proofJson);
+    // Ensure memoryLimit is defined, using nullish coalescing to provide a default
     const memoryLimit = opts.memoryLimit ?? DEFAULT_COMPRESSION_OPTIONS.memoryLimit;
     if (proofSize > memoryLimit) {
       throw new InputError(`Proof size exceeds memory limit: ${proofSize} bytes > ${memoryLimit} bytes`, {

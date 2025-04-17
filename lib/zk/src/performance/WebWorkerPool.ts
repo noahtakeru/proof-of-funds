@@ -19,10 +19,13 @@
 import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
 import { ResourceMonitor } from '../resources/ResourceMonitor';
 import { ResourceAllocator } from '../resources/ResourceAllocator';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-// Get error logger from module
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create logger instance for worker pool
+const logger = new ZKErrorLogger({
+    logLevel: 'info',
+    privacyLevel: 'internal'
+});
 
 /**
  * Task priority levels for the worker pool
@@ -309,7 +312,7 @@ export class WebWorkerPool {
         } catch (error) {
             // Log error with type check
             const errorMessage = error instanceof Error ? error.message : String(error);
-            zkErrorLogger.logError(new Error(errorMessage), {
+            logger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.createWorker',
                 workerId,
                 workerScript: this.options.workerScript,
@@ -327,42 +330,45 @@ export class WebWorkerPool {
      * @param event Message event
      */
     private handleWorkerMessage(workerId: number, event: MessageEvent): void {
-        const workerInfo = this.workers.get(workerId);
-        if (!workerInfo) {
-            return;
-        }
-
-        const message = event.data;
-
         try {
+            const message = event.data;
+
+            // Validate message format
+            if (!message || !message.type) {
+                logger.warn('Invalid message from worker', {
+                    details: {
+                        workerId,
+                        message: event.data
+                    }
+                });
+                return;
+            }
+
             switch (message.type) {
                 case 'ready':
-                    // Worker is ready
-                    workerInfo.ready = true;
-                    this.assignTaskToWorker(workerInfo);
+                    // Worker is initialized and ready
+                    const workerInfo = this.workers.get(workerId);
+                    if (workerInfo) {
+                        workerInfo.ready = true;
+
+                        // Assign tasks if any are waiting
+                        this.assignTasks();
+                    }
                     break;
 
-                case 'taskComplete':
-                    // Task completed successfully
-                    this.completeTask(workerInfo, message.result);
-                    break;
-
-                case 'taskError':
-                    // Task failed
-                    this.failTask(workerInfo, message.error);
+                case 'result':
+                    // Worker completed a task successfully
+                    const taskResultWorker = this.workers.get(workerId);
+                    if (taskResultWorker && taskResultWorker.currentTask) {
+                        this.completeTask(taskResultWorker, message.result);
+                    }
                     break;
 
                 case 'error':
-                    // Worker error
-                    zkErrorLogger.logError(new Error(message.error.message), {
-                        context: 'WebWorkerPool.handleWorkerMessage.error',
-                        workerId,
-                        stack: message.error.stack,
-                        message: 'Error from worker'
-                    });
-
-                    if (workerInfo.currentTask) {
-                        this.failTask(workerInfo, message.error);
+                    // Worker encountered an error
+                    const errorWorker = this.workers.get(workerId);
+                    if (errorWorker && errorWorker.currentTask) {
+                        this.failTask(errorWorker, message.error);
                     }
                     break;
 
@@ -372,19 +378,24 @@ export class WebWorkerPool {
                     break;
 
                 default:
-                    zkErrorLogger.log('WARN', 'Unknown message type from worker', {
-                        context: 'WebWorkerPool.handleWorkerMessage',
-                        workerId,
-                        messageType: message.type
+                    // Use warn instead of log
+                    logger.warn('Unknown message type from worker', {
+                        details: {
+                            context: 'WebWorkerPool.handleWorkerMessage',
+                            workerId,
+                            messageType: message.type
+                        }
                     });
                     break;
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            zkErrorLogger.logError(new Error(errorMessage), {
+            logger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.handleWorkerMessage',
                 workerId,
-                messageType: message ? message.type : 'unknown',
+                messageType: event.data && typeof event.data === 'object' && 'type' in event.data
+                    ? event.data.type
+                    : 'unknown',
                 message: 'Error handling worker message'
             });
         }
@@ -401,7 +412,7 @@ export class WebWorkerPool {
             return;
         }
 
-        zkErrorLogger.logError(new Error(error.message || 'Worker error'), {
+        logger.logError(new Error(error.message || 'Worker error'), {
             context: 'WebWorkerPool.handleWorkerError',
             workerId: workerId.toString(),
             message: 'Worker encountered an error'
@@ -423,7 +434,7 @@ export class WebWorkerPool {
      * @param error Error message
      */
     private handleWorkerFatalError(workerInfo: WorkerInfo, error: string): void {
-        zkErrorLogger.logError(new Error(error), {
+        logger.logError(new Error(error), {
             context: 'WebWorkerPool.handleWorkerFatalError',
             workerId: workerInfo.id.toString(),
             message: 'Worker encountered a fatal error'
@@ -498,7 +509,7 @@ export class WebWorkerPool {
                         if (task.workerId !== undefined) {
                             const workerInfo = this.workers.get(task.workerId);
                             if (workerInfo && workerInfo.currentTask?.id === task.id) {
-                                zkErrorLogger.logError(new Error(task.error), {
+                                logger.logError(new Error(task.error), {
                                     context: 'WebWorkerPool.executeTask',
                                     taskId,
                                     taskType: type,
@@ -799,7 +810,7 @@ export class WebWorkerPool {
             workerInfo.worker.terminate();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            zkErrorLogger.logError(new Error(errorMessage), {
+            logger.logError(new Error(errorMessage), {
                 context: 'WebWorkerPool.terminateWorker',
                 workerId: workerId.toString(),
                 message: 'Error terminating worker'

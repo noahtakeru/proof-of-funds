@@ -1,0 +1,62 @@
+/**
+ * Test script to verify CommonJS imports of js-sha3 work correctly
+ */
+
+// Use require instead of import for js-sha3 since we're testing CommonJS interoperability
+const jssha3 = require('js-sha3');
+const { sha3_256, keccak256 } = jssha3;
+
+describe('js-sha3 module', () => {
+    test('should load the js-sha3 module', () => {
+        // Verify module is loaded
+        expect(jssha3).toBeDefined();
+        console.log('Module:', jssha3);
+        console.log('Keys:', Object.keys(jssha3));
+
+        // Check for SHA3-256 function
+        if (sha3_256) {
+            console.log('SHA3-256 is available');
+            console.log('SHA3-256 of "test":', sha3_256('test'));
+        } else {
+            console.log('SHA3-256 is not available');
+        }
+
+        // Check for Keccak-256 function
+        if (keccak256) {
+            console.log('Keccak-256 is available');
+            console.log('Keccak-256 of "test":', keccak256('test'));
+        } else {
+            console.log('Keccak-256 is not available');
+        }
+    });
+
+    test('sha3_256 function should be available', () => {
+        console.log('sha3_256 function:', sha3_256);
+        expect(sha3_256).toBeDefined();
+        expect(typeof sha3_256).toBe('function');
+    });
+
+    test('keccak256 function should be available', () => {
+        console.log('keccak256 function:', keccak256);
+        expect(keccak256).toBeDefined();
+        expect(typeof keccak256).toBe('function');
+    });
+
+    test('sha3_256 should generate correct hash', () => {
+        const testData = 'test data';
+        const hash = sha3_256(testData);
+        console.log('SHA3-256 hash:', hash);
+
+        const expectedHash = 'fc88e0ac33ff105e376f4ece95fb06925d5ab20080dbe3aede7dd47e45dfd931';
+        expect(hash).toBe(expectedHash);
+    });
+
+    test('keccak256 should generate correct hash', () => {
+        const testData = 'test data';
+        const hash = keccak256(testData);
+        console.log('Keccak256 hash:', hash);
+
+        const expectedHash = '7d92c840d5f0ac4f83543201db6005d78414059c778169efa3760f67a451e7ef';
+        expect(hash).toBe(expectedHash);
+    });
+}); 
