@@ -19,13 +19,13 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import AdminDashboard from '../components/admin/Dashboard';
-import ProofManagement from '../components/admin/ProofManagement';
-import UserManagement from '../components/admin/UserManagement';
-import ContractManagement from '../components/admin/ContractManagement';
-import SystemConfig from '../components/admin/SystemConfig';
-import AuditLogs from '../components/admin/AuditLogs';
-import WalletManagement from '../components/admin/WalletManagement';
+import AdminDashboard from '../components/admin/Dashboard.mjs';
+import ProofManagement from '../components/admin/ProofManagement.mjs';
+import UserManagement from '../components/admin/UserManagement.mjs';
+import ContractManagement from '../components/admin/ContractManagement.mjs';
+import SystemConfig from '../components/admin/SystemConfig.mjs';
+import AuditLogs from '../components/admin/AuditLogs.mjs';
+import WalletManagement from '../components/admin/WalletManagement.mjs';
 
 export default function AdminPage() {
     // Add a flag to track user-initiated connection, initialized from localStorage

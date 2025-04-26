@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers';
-import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
-import { SUPPORTED_CHAINS } from '../config/constants';
+import { connectMetaMask, connectPhantom, saveWalletConnection } from '../lib/walletHelpers.mjs';
+import PhantomMultiWalletSelector from './PhantomMultiWalletSelector.mjs';
+import { SUPPORTED_CHAINS } from '../config/constants.mjs';
 import { useConnect } from 'wagmi';
 
 export default function WalletSelector({ onClose }) {

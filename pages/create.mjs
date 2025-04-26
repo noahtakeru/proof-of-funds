@@ -24,12 +24,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
-import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '../lib/walletHelpers';
-import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
-import WalletSelector from '../components/WalletSelector';
+import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants.mjs';
+import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '../lib/walletHelpers.mjs';
+import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay.mjs';
+import WalletSelector from '../components/WalletSelector.mjs';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants.mjs';
 // Directly define isValidAmount function to bypass import issues
 const isValidAmount = (amount) => {
   if (!amount || amount.trim() === '') return false;
@@ -39,7 +39,7 @@ const isValidAmount = (amount) => {
   return true;
 };
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { generateZKProof } from '../lib/zk/src/zkUtils';
+import { generateZKProof } from '../lib/zk/src/zkUtils.mjs';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useContractRead, useContractWrite } from 'wagmi';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants.mjs';
 
 // Using the imported constants - Smart contract address on Polygon Amoy testnet
 // const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';

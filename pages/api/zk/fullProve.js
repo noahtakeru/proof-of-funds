@@ -24,7 +24,7 @@ import { responseSigner } from '../../../lib/zk/src/security/ResponseSigner';
 // Import analytics for server-side tracking
 let analyticsClient;
 try {
-  analyticsClient = require('../../../lib/analytics/bigQueryClient');
+  analyticsClient = await import('../../../lib/analytics/bigQueryClient').then(m => m.default);
 } catch (e) {
   console.warn('Analytics client could not be loaded:', e.message);
   analyticsClient = null;

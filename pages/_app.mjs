@@ -7,7 +7,7 @@
 //  - Global layout and styling
 //  - Persistence management for wallet connections
 
-import '../styles/globals.css';
+import '../styles/globals.css.mjs';
 // import '@rainbow-me/rainbowkit/styles.css';
 import { AppProps } from 'next/app';
 import { useState, useEffect } from 'react';
@@ -16,7 +16,7 @@ import { WagmiConfig, createClient, configureChains } from 'wagmi';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { InjectedConnector } from 'wagmi/connectors/injected';
-import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext';
+import { PhantomMultiWalletProvider } from '../lib/PhantomMultiWalletContext.mjs';
 import Script from 'next/script';
 
 /**

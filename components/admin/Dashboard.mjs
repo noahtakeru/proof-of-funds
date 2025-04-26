@@ -1,25 +1,27 @@
 /**
  * Admin Dashboard Component
  * 
- * This component renders the main admin dashboard view with key metrics
- * and performance indicators for the Arbitr platform.
- * 
- * The dashboard displays:
- * - Active Proofs Summary: Count of different proof types in the system
- * - System Health Metrics: Platform performance indicators like gas usage and uptime
- * - User Activity: User engagement metrics and verification success rates
- * 
- * Each section contains:
- * - Summary cards with key metrics
+ * This component provides an administrative dashboard overview with:
+ * - Summary metrics of system usage
+ * - Proof generation statistics 
+ * - User activity metrics
+ * - Recent proof activity feed
  * - Placeholder areas for detailed charts (to be implemented)
- * - Additional contextual information
+ * 
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - mockData (lines 49-90): Hardcoded dashboard statistics and metrics
+ * - Chart placeholders (lines 94, 127, 166): Empty div placeholders instead of real chart implementations
+ * 
+ * These mocks are documented in MOCKS.md with priority LOW for replacement.
  * 
  * Note: Currently uses mock data for demonstration purposes.
- * In production, this would fetch real-time data from the backend.
+ * Production implementation would connect to analytics services
+ * and backend APIs for real-time statistics.
  */
 
 import { useState, useEffect } from 'react';
-import { PROOF_TYPES, ZK_PROOF_TYPES } from '../../config/constants';
+import { PROOF_TYPES, ZK_PROOF_TYPES } from '../../config/constants.mjs';
 
 export default function AdminDashboard() {
     const [metrics, setMetrics] = useState({

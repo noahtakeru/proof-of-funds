@@ -17,7 +17,7 @@
  */
 
 import Link from 'next/link';
-import ConnectWallet from './ConnectWallet';
+import ConnectWallet from './ConnectWallet.mjs';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 

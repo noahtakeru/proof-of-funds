@@ -11,6 +11,17 @@
  * - User-friendly resolution instructions
  * - Built-in system diagnostics and feedback
  * 
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - performDiagnosticCheck (lines 228-319): Mock implementations of various system diagnostic checks
+ *   that return simulated results instead of performing real tests
+ * - handleAction (lines 145-193): Mock implementations of troubleshooting actions like clearing cache
+ *   that only simulate the operations without making real changes
+ * - getTroubleshootingFlow (lines 336-675): Mock troubleshooting flow definitions with predefined 
+ *   decision paths
+ *
+ * These mocks are documented in MOCKS.md with priority MEDIUM for replacement.
+ * 
  * @param {Object} props - Component properties
  * @param {string} props.issueCategory - Category of issue being troubleshooted
  * @param {boolean} props.isOpen - Whether the wizard is open
@@ -21,7 +32,7 @@
 import React, { useState, useEffect } from 'react';
 
 // Types of issues that can be troubleshooted
-export type IssueCategory = 
+export type IssueCategory =
   | 'generation_failure'    // Proof generation fails
   | 'verification_failure'  // Verification fails
   | 'performance_issue'     // Poor performance
@@ -30,7 +41,7 @@ export type IssueCategory =
   | 'resource_issue';       // Resource (memory/CPU) problems
 
 // Types of checks that can be performed
-export type DiagnosticCheck = 
+export type DiagnosticCheck =
   | 'browser_compatibility'   // Check browser compatibility
   | 'webassembly_support'     // Check WebAssembly support
   | 'memory_availability'     // Check available memory
@@ -106,30 +117,30 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [isResolved, setIsResolved] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
-  
+
   // Initialize the appropriate troubleshooting flow based on issue category
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const flow = getTroubleshootingFlow(issueCategory);
     setCurrentFlow(flow);
     setCurrentStepId(flow.initialStep);
     setHistory([flow.initialStep]);
     setIsResolved(false);
   }, [issueCategory, isOpen]);
-  
+
   // Get current step
   const getCurrentStep = (): TroubleshootingStep | null => {
     if (!currentFlow || !currentStepId) return null;
     return currentFlow.steps[currentStepId];
   };
-  
+
   // Handle option selection
   const handleOptionSelected = (nextStepId: string) => {
     setCurrentStepId(nextStepId);
     setHistory(prevHistory => [...prevHistory, nextStepId]);
   };
-  
+
   // Handle going back
   const handleBack = () => {
     if (history.length > 1) {
@@ -140,13 +151,13 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
       setHistory(newHistory);
     }
   };
-  
+
   // Handle action execution
   const handleAction = (actionHandler: string) => {
     // In a real implementation, these handlers would do real work
     // For this demo, we'll simulate the actions
     setIsChecking(true);
-    
+
     setTimeout(() => {
       switch (actionHandler) {
         case 'clearCache':
@@ -160,7 +171,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             setIsChecking(false);
           }, 2000);
           break;
-          
+
         case 'refreshBrowser':
           console.log('Would refresh browser...');
           // Just simulate since we can't actually refresh
@@ -172,7 +183,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             setIsChecking(false);
           }, 2000);
           break;
-          
+
         case 'switchToServer':
           console.log('Switching to server processing...');
           setTimeout(() => {
@@ -183,18 +194,18 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             setIsChecking(false);
           }, 2000);
           break;
-          
+
         default:
           setIsChecking(false);
           break;
       }
     }, 1000);
   };
-  
+
   // Handle diagnostic check
   const handleDiagnosticCheck = (check: DiagnosticCheck) => {
     setIsChecking(true);
-    
+
     // Simulate performing checks
     setTimeout(() => {
       const result = performDiagnosticCheck(check);
@@ -202,17 +213,17 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
         ...prev,
         [check]: result
       }));
-      
+
       // Move to next step
       const step = getCurrentStep();
       if (step?.nextStep) {
         handleOptionSelected(step.nextStep);
       }
-      
+
       setIsChecking(false);
     }, 2000);
   };
-  
+
   // Handle resolution
   const handleResolution = (success: boolean) => {
     setIsResolved(true);
@@ -223,7 +234,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
       }, 2000);
     }
   };
-  
+
   // Simulate performing a diagnostic check
   const performDiagnosticCheck = (check: DiagnosticCheck): CheckResult => {
     // In a real implementation, these would perform actual checks
@@ -235,24 +246,23 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
         const isChrome = userAgent.indexOf('Chrome') > -1 && userAgent.indexOf('Edge') === -1;
         const isFirefox = userAgent.indexOf('Firefox') > -1;
         const isSafari = userAgent.indexOf('Safari') > -1 && userAgent.indexOf('Chrome') === -1;
-        
+
         const compatible = isChrome || isFirefox || (isSafari && userAgent.indexOf('Version/15') > -1);
-        
+
         return {
           check,
           passed: compatible,
-          details: `Detected browser: ${
-            isChrome ? 'Chrome' : isFirefox ? 'Firefox' : isSafari ? 'Safari' : 'Other'
-          }`,
-          recommendation: compatible 
+          details: `Detected browser: ${isChrome ? 'Chrome' : isFirefox ? 'Firefox' : isSafari ? 'Safari' : 'Other'
+            }`,
+          recommendation: compatible
             ? 'Your browser is compatible with ZK operations.'
             : 'Consider using Chrome, Firefox, or Safari 15+ for optimal compatibility.'
         };
-        
+
       case 'webassembly_support':
         // Check for WebAssembly support
         const hasWasm = typeof WebAssembly === 'object' && typeof WebAssembly.instantiate === 'function';
-        
+
         return {
           check,
           passed: hasWasm,
@@ -261,19 +271,19 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             ? 'Your browser supports WebAssembly, which is required for ZK operations.'
             : 'Your browser does not support WebAssembly. Please use a modern browser or try server-side processing.'
         };
-        
+
       case 'memory_availability':
         // Simulate memory check based on performance.memory if available
         let memoryEstimate = 4; // Default to 4GB estimate
-        
+
         if ((navigator as any).deviceMemory) {
           memoryEstimate = (navigator as any).deviceMemory;
         } else if ((performance as any).memory && (performance as any).memory.jsHeapSizeLimit) {
           memoryEstimate = (performance as any).memory.jsHeapSizeLimit / (1024 * 1024 * 1024);
         }
-        
+
         const sufficientMemory = memoryEstimate >= 2; // 2GB is minimum recommended
-        
+
         return {
           check,
           passed: sufficientMemory,
@@ -282,7 +292,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             ? 'Your device has sufficient memory for ZK operations.'
             : 'Your device has limited memory. Consider using server-side processing for complex operations.'
         };
-        
+
       case 'network_connectivity':
         // Simple connectivity check
         return {
@@ -293,7 +303,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             ? 'Your network connection is active.'
             : 'Please check your internet connection and try again.'
         };
-        
+
       case 'cpu_performance':
         // Simplified CPU benchmark
         // In a real implementation, this would be more sophisticated
@@ -303,7 +313,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
           details: 'CPU performance check completed',
           recommendation: 'Your CPU performance is sufficient for basic ZK operations.'
         };
-        
+
       case 'proof_parameters':
         // Check if proof parameters are valid
         return {
@@ -312,7 +322,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
           details: 'Proof parameters are valid',
           recommendation: 'Your proof parameters are correctly configured.'
         };
-        
+
       case 'device_capabilities':
         // Overall device capability check
         return {
@@ -321,7 +331,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
           details: 'Device capability check completed',
           recommendation: 'Your device meets the minimum requirements for ZK operations.'
         };
-        
+
       default:
         return {
           check,
@@ -331,12 +341,12 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
         };
     }
   };
-  
+
   // Get the appropriate troubleshooting flow based on issue category
   const getTroubleshootingFlow = (category: IssueCategory): TroubleshootingFlow => {
     // In a real implementation, these flows would be more comprehensive
     // and potentially loaded from a configuration file or API
-    
+
     switch (category) {
       case 'generation_failure':
         return {
@@ -453,7 +463,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             }
           }
         };
-        
+
       case 'verification_failure':
         // Similar structure to generation_failure but with verification-specific steps
         return {
@@ -552,7 +562,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             }
           }
         };
-        
+
       case 'performance_issue':
       case 'compatibility_issue':
       case 'connection_issue':
@@ -618,14 +628,14 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
         };
     }
   };
-  
+
   // If not open, don't render
   if (!isOpen) return null;
-  
+
   // Get the current step
   const currentStep = getCurrentStep();
   if (!currentStep || !currentFlow) return null;
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col">
@@ -645,7 +655,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
           </div>
           <p className="mt-1 text-sm text-gray-500">{currentFlow.description}</p>
         </div>
-        
+
         {/* Progress indicator */}
         <div className="px-6 pt-4">
           <div className="flex items-center justify-between text-xs text-gray-500">
@@ -655,18 +665,18 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             </span>
           </div>
           <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-primary-500 transition-all duration-300 ease-in-out"
               style={{ width: `${(history.length / Object.keys(currentFlow.steps).length) * 100}%` }}
             />
           </div>
         </div>
-        
+
         {/* Step content */}
         <div className="px-6 py-4 flex-grow overflow-y-auto">
           <h3 className="text-lg font-medium text-gray-900 mb-2">{currentStep.title}</h3>
           <p className="text-sm text-gray-600 mb-4">{currentStep.description}</p>
-          
+
           {/* Step-specific content */}
           {currentStep.type === 'question' && currentStep.options && (
             <div className="space-y-3">
@@ -681,7 +691,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
               ))}
             </div>
           )}
-          
+
           {currentStep.type === 'check' && currentStep.check && (
             <div>
               {isChecking ? (
@@ -700,20 +710,18 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
                   Run Diagnostic Check
                 </button>
               )}
-              
+
               {/* Show check results if available */}
               {checkResults[currentStep.check] && (
-                <div className={`mt-4 p-4 rounded-md border ${
-                  checkResults[currentStep.check]!.passed
+                <div className={`mt-4 p-4 rounded-md border ${checkResults[currentStep.check]!.passed
                     ? 'bg-green-50 border-green-200'
                     : 'bg-yellow-50 border-yellow-200'
-                }`}>
+                  }`}>
                   <div className="flex items-start">
-                    <div className={`flex-shrink-0 h-5 w-5 ${
-                      checkResults[currentStep.check]!.passed
+                    <div className={`flex-shrink-0 h-5 w-5 ${checkResults[currentStep.check]!.passed
                         ? 'text-green-600'
                         : 'text-yellow-600'
-                    }`}>
+                      }`}>
                       {checkResults[currentStep.check]!.passed ? (
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -746,7 +754,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
               )}
             </div>
           )}
-          
+
           {currentStep.type === 'action' && currentStep.action && (
             <div className="text-center">
               {isChecking ? (
@@ -767,18 +775,16 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
               )}
             </div>
           )}
-          
+
           {currentStep.type === 'resolution' && currentStep.resolution && (
-            <div className={`text-center p-6 rounded-lg border ${
-              currentStep.resolution.success
+            <div className={`text-center p-6 rounded-lg border ${currentStep.resolution.success
                 ? 'bg-green-50 border-green-200'
                 : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <div className={`h-12 w-12 mx-auto mb-4 ${
-                currentStep.resolution.success
+              }`}>
+              <div className={`h-12 w-12 mx-auto mb-4 ${currentStep.resolution.success
                   ? 'text-green-600'
                   : 'text-yellow-600'
-              }`}>
+                }`}>
                 {currentStep.resolution.success ? (
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -795,18 +801,17 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
               {!isResolved && (
                 <button
                   onClick={() => handleResolution(currentStep.resolution!.success)}
-                  className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    currentStep.resolution.success
+                  className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${currentStep.resolution.success
                       ? 'bg-green-600 hover:bg-green-700'
                       : 'bg-yellow-600 hover:bg-yellow-700'
-                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500`}
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500`}
                 >
                   {currentStep.resolution.success ? 'Continue' : 'Close'}
                 </button>
               )}
             </div>
           )}
-          
+
           {/* Check results summary (shown on question steps after checks) */}
           {currentStep.type === 'question' && Object.values(checkResults).some(r => r !== null) && (
             <div className="mt-6 pt-4 border-t border-gray-200">
@@ -816,9 +821,8 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
                   .filter(([_, result]) => result !== null)
                   .map(([check, result]) => (
                     <div key={check} className="flex items-start text-xs">
-                      <div className={`flex-shrink-0 h-4 w-4 mt-0.5 ${
-                        result!.passed ? 'text-green-500' : 'text-yellow-500'
-                      }`}>
+                      <div className={`flex-shrink-0 h-4 w-4 mt-0.5 ${result!.passed ? 'text-green-500' : 'text-yellow-500'
+                        }`}>
                         {result!.passed ? (
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -838,21 +842,20 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
             </div>
           )}
         </div>
-        
+
         {/* Footer with navigation buttons */}
         <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
           <button
             onClick={handleBack}
             disabled={history.length <= 1 || currentStep.type === 'resolution'}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              history.length <= 1 || currentStep.type === 'resolution'
+            className={`px-4 py-2 text-sm font-medium rounded-md ${history.length <= 1 || currentStep.type === 'resolution'
                 ? 'text-gray-400 cursor-not-allowed'
                 : 'text-gray-700 hover:bg-gray-100 border border-gray-300'
-            }`}
+              }`}
           >
             Back
           </button>
-          
+
           <button
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"

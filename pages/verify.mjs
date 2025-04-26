@@ -24,8 +24,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
-import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
-import { verifyZKProof } from '../lib/zk/src/zkUtils';
+import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants.mjs';
+import { verifyZKProof } from '../lib/zk/src/zkUtils.mjs';
 
 // Browser-friendly RPC URLs that support CORS
 const RPC_OPTIONS = [

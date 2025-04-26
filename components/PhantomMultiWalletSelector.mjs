@@ -19,8 +19,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { saveWalletConnection } from '../lib/walletHelpers';
-import { usePhantomMultiWallet } from '../lib/PhantomMultiWalletContext';
+import { saveWalletConnection } from '../lib/walletHelpers.mjs';
+import { usePhantomMultiWallet } from '../lib/PhantomMultiWalletContext.mjs';
 
 export default function PhantomMultiWalletSelector({ onClose }) {
     const [detectedWallets, setDetectedWallets] = useState([]);

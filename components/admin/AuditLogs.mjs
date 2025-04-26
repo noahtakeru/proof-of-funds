@@ -1,37 +1,26 @@
 /**
- * Audit Logs Component
+ * Admin Audit Logs Component
  * 
- * Administrative interface for monitoring and reviewing all system activities
- * within the Arbitr platform. Provides a comprehensive audit trail for compliance,
- * security monitoring, and troubleshooting purposes.
+ * This component displays a comprehensive audit log interface for administrators,
+ * allowing them to review system activity and security events.
  * 
- * Key features:
- * - Activity Tracking: Records all significant platform events, including:
- *   - Proof creation, verification, and revocation events
- *   - Administrative actions and system configuration changes
- *   - Authentication events (wallet connections)
+ * Features:
+ * - Searchable and filterable audit log entries
+ * - Detailed view for specific events
+ * - Filtering by date range, event type, and user
+ * - Color-coded severity levels
+ * - Export functionality
  * 
- * - Advanced Filtering: Multiple ways to filter log data
- *   - Full-text search across all log fields
- *   - Category-based filtering (proofs, auth, admin actions)
- *   - Time-based filtering (today, yesterday, last 7/30 days)
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - mockLogs (lines 48-95): Hardcoded array of audit log entries
+ * - Export functionality (line 154): Simulates export without generating real files
  * 
- * - Export Capabilities: Export logs in different formats
- *   - CSV format for spreadsheet analysis
- *   - JSON format for programmatic processing
- *   - PDF format for formal reporting
- * 
- * - Detailed Log Inspection: View comprehensive details for each log entry
- * 
- * Each log entry captures important metadata:
- * - Timestamp of the action
- * - User/wallet address that performed the action
- * - IP address for security tracking
- * - Detailed description of the event
+ * These mocks are documented in MOCKS.md with priority LOW for replacement.
  * 
  * Note: Currently using mock data for demonstration.
- * Production implementation would integrate with backend logging systems
- * and comply with data retention policies and privacy regulations.
+ * Production implementation would connect to secure audit logging
+ * services and backend APIs for comprehensive audit trail.
  */
 
 import { useState, useEffect } from 'react';

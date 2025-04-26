@@ -20,8 +20,8 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import WalletSelector from './WalletSelector';
-import { getConnectedWallets, disconnectWallet } from '../lib/walletHelpers';
+import WalletSelector from './WalletSelector.mjs';
+import { getConnectedWallets, disconnectWallet } from '../lib/walletHelpers.mjs';
 import { useDisconnect } from 'wagmi';
 
 export default function ConnectWallet() {

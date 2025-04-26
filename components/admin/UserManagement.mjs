@@ -1,30 +1,28 @@
 /**
- * User Management Component
+ * Admin User Management Component
  * 
- * Administrative interface for managing users of the Arbitr platform.
- * Allows administrators to view user information, monitor activity, 
- * and take actions on user accounts when necessary.
+ * This component provides an administrative interface for managing users
+ * within the Proof of Funds system.
  * 
- * Key features:
- * - Searchable and filterable table of platform users
- * - User status management (activate, deactivate, suspend accounts)
- * - Detailed user information view showing:
- *   - Wallet address
- *   - Registration date
- *   - Activity metrics
- *   - Proof creation history
- *   - Account status
- * - Support note system for internal documentation
- * - Moderation tools for compliance and security
+ * Features:
+ * - View all registered users in the system
+ * - Search users by ID or wallet address
+ * - View user activity and proof history
+ * - Manage user roles and permissions
+ * - Restrict access when necessary
+ * - Add notes to user profiles
  * 
- * User statuses:
- * - Active: Normal user with full platform access
- * - Inactive: User account that hasn't been active recently
- * - Suspended: Account with restricted access due to policy violations
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - mockUsers (lines 39-73): Hardcoded array of user data
+ * - handleUpdateRole (line 81): Mock function that updates UI without backend calls
+ * - handleRestrictUser (line 94): Mock function that uses alert and updates UI without making real API calls
+ * 
+ * These mocks are documented in MOCKS.md with priority LOW for replacement.
  * 
  * Note: Currently using mock data for demonstration.
- * Production implementation would integrate with user database
- * and blockchain analytics for actual user management.
+ * Production implementation would connect to authentication and
+ * user management services for real user data and operations.
  */
 
 import { useState, useEffect } from 'react';

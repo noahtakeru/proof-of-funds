@@ -18,7 +18,7 @@
  */
 
 import Head from 'next/head';
-import Navbar from './Navbar';
+import Navbar from './Navbar.mjs';
 
 export default function Layout({ children, title = 'Proof of Funds - Polygon' }) {
     return (

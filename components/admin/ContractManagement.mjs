@@ -1,34 +1,31 @@
 /**
- * Contract Management Component
+ * Admin Contract Management Component
  * 
- * Administrative interface for managing smart contracts within the Arbitr platform.
- * Allows administrators to monitor, inspect, and upgrade the deployed smart contracts
- * that power the proof of funds verification system.
+ * This component provides administrative controls for managing blockchain contracts
+ * used by the Proof of Funds system.
  * 
- * Key features:
- * - Overview of all deployed contracts with status and metrics
- * - Detailed contract information including:
- *   - Contract address
- *   - Version history
- *   - Deployment date
- *   - Network information
- *   - Usage statistics (function calls and gas consumption)
- * - Contract upgrade workflow:
- *   - Input new contract address
- *   - Document upgrade notes
- *   - Safety warnings and confirmation
+ * Features:
+ * - View deployed contracts across multiple networks
+ * - Upgrade contracts when new versions are available
+ * - Update contract parameters and configurations
+ * - View contract verification status and transaction history
+ * - Deploy new contracts to supported networks
  * 
- * The component handles two primary contracts:
- * - ProofOfFunds: Main contract for standard proof verification
- * - ZKVerifier: Zero-knowledge proof verification contract
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - mockContracts (lines 41-65): Hardcoded array of contract data
+ * - handleDeployContract (line 73): Mock function that shows alert without real deployment
+ * - handleUpgradeContract (line 84): Mock function that updates UI state without making contract calls
+ * 
+ * These mocks are documented in MOCKS.md with priority MEDIUM for replacement.
  * 
  * Note: Currently using mock data for demonstration.
- * Production implementation would interact with blockchain networks
- * to fetch real contract data and perform upgrades.
+ * Production implementation would connect to blockchain networks
+ * and contract management services for actual deployments.
  */
 
 import { useState, useEffect } from 'react';
-import { CONTRACT_ADDRESS, ZK_VERIFIER_ADDRESS } from '../../config/constants';
+import { CONTRACT_ADDRESS, ZK_VERIFIER_ADDRESS } from '../../config/constants.mjs';
 
 export default function ContractManagement() {
     const [contracts, setContracts] = useState([]);

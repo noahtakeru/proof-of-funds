@@ -1,24 +1,27 @@
 /**
- * Proof Management Component
+ * Admin Proof Management Component
  * 
- * Administrative interface for managing proof of funds records within the Arbitr platform.
- * Allows administrators to view, filter, search, and perform actions on proofs created by users.
+ * This component provides an admin interface for managing ZK proofs,
+ * with functionality to view, filter, and take actions on proofs:
  * 
- * Key features:
- * - Searchable and filterable table of all proof records
- * - Filtering by proof type (standard, threshold, maximum, zero-knowledge)
- * - Filtering by status (active, expired, revoked)
- * - Detail view for individual proofs
- * - Administrative actions:
- *   - Revoking active proofs (for compliance or security reasons)
- *   - Extending proof expiration dates
- * 
- * Each proof record contains:
- * - Unique identifier
- * - User wallet address
- * - Proof type
+ * Features:
+ * - List all proofs in the system
+ * - Filter by type and status
+ * - Search by ID or wallet address
+ * - View detailed information for each proof
+ * - Revoke or extend validity of proofs
  * - Status
  * - Creation and expiration dates
+ * 
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - mockProofs (lines 39-45): Uses hardcoded array of mock proof data
+ * - handleRevokeProof (lines 47-57): Mock implementation that shows alert and updates UI
+ *   without making real contract calls
+ * - handleExtendProof (lines 59-69): Mock implementation that shows alert and updates UI
+ *   without making real contract calls
+ * 
+ * These mocks are documented in MOCKS.md with priority MEDIUM for replacement.
  * 
  * Note: Currently using mock data for demonstration.
  * Production implementation would connect to blockchain contracts
@@ -26,7 +29,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { PROOF_TYPES, ZK_PROOF_TYPES } from '../../config/constants';
+import { PROOF_TYPES, ZK_PROOF_TYPES } from '../../config/constants.mjs';
 
 export default function ProofManagement() {
     const [proofs, setProofs] = useState([]);
