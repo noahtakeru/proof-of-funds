@@ -14,7 +14,7 @@
  */
 
 import { bigQueryAnalytics } from '../analytics/BigQueryAnalytics';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.js';
 import { EventEmitter } from 'events';
 
 // TypeScript-safe logger implementation

@@ -1,6 +1,14 @@
 /**
  * @file VerificationPathways.ts
  * @description Manages different verification pathways for ZK proofs
+ * 
+ * ---------- MOCK STATUS ----------
+ * This file contains the following mock implementations:
+ * - verifyLocally: Returns a mock successful verification instead of real snarkjs verification (lines 470-477)
+ * - verifyOffChain: Uses simulated API with a delay instead of a real API call (lines 494-538)
+ * - verifyThirdParty: Uses a placeholder implementation that returns success (lines 539-553)
+ * 
+ * These mocks are documented in MOCKS.md with priority HIGH for replacement.
  */
 
 import { ethers } from 'ethers';

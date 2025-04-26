@@ -1,0 +1,87 @@
+# Real Files to Keep
+# This file lists important files that should NEVER be deleted
+
+# Core Project Files
+package.json
+next.config.js
+.env.example
+.gitignore
+README.md
+tsconfig.json
+
+# Main Application Components
+pages/index.tsx
+pages/_app.tsx
+pages/_document.tsx
+components/Layout.js
+components/Header.js
+components/Footer.js
+
+# API Endpoints
+pages/api/auth/[...nextauth].js
+pages/api/generate-proof.js
+pages/api/verify-proof.js
+
+# Assets
+public/favicon.ico
+public/logo.svg
+
+# Config
+tailwind.config.js
+postcss.config.js
+
+# Contracts & ZK Files
+lib/zk/circuits/poaCircuit.circom
+lib/zk/circuits/standardCircuit.circom
+smart-contracts/contracts/PoAVerifier.sol
+
+# Important app files
+app/page.tsx
+app/layout.tsx
+
+## Core ZK Circuits and Libraries
+lib/zk/circuits/standardProof.circom
+lib/zk/circuits/thresholdProof.circom
+lib/zk/circuits/maximumProof.circom
+lib/zk/src/zkProofGenerator.js
+lib/zk/src/zkProofSerializer.mjs
+lib/zk/src/realZkUtils.mjs
+lib/zk/cjs/zkVerifier.cjs
+lib/zk/config/real-zk-config.mjs
+
+## Additional Essential ZK Files
+lib/zk/src/zkCircuits.mjs
+lib/zk/src/constants.mjs
+lib/zk/src/contracts/ProofOfFundsContract.ts
+lib/zk/src/zkErrorHandler.js
+lib/zk/src/zkErrorLogger.js
+
+## Smart Contracts
+smart-contracts/contracts/ProofOfFunds.sol
+
+## Frontend Components
+components/BackgroundProcessor.tsx
+components/ZKErrorDisplay.tsx
+components/ZKProgressIndicator.tsx
+components/UnderstandingPOF.tsx
+components/admin/WalletManagement.js
+components/admin/SystemConfig.js
+
+## Pages
+pages/tech.js
+pages/api/zk/status.js
+pages/api/zk/verificationKey.js
+
+## Styles
+styles/globals.css
+
+## Configuration
+babel.config.cjs
+
+## Documentation (may need updating after cleaning)
+docs/wallet-connection.md
+
+## Cleanup Scripts
+cleanup.sh
+lib/zk/scripts/clean-mock-files.js
+lib/zk/mock_files_to_delete.txt 

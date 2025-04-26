@@ -16,7 +16,7 @@
  * @created July 2024
  */
 
-import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
+import deviceCapabilitiesModule from '../deviceCapabilities.js';
 import { ResourceMonitor } from '../resources/ResourceMonitor';
 import { ResourceAllocator } from '../resources/ResourceAllocator';
 import { ZKErrorLogger } from '../zkErrorLogger.js';

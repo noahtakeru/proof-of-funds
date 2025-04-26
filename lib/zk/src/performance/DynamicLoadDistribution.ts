@@ -19,7 +19,7 @@
 import { ResourceMonitor, ResourceType } from '../resources/ResourceMonitor';
 import { ResourceAllocator } from '../resources/ResourceAllocator';
 import { WebWorkerPool } from './WebWorkerPool';
-import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
+import deviceCapabilitiesModule from '../deviceCapabilities.js';
 import { MemoryOptimizer } from './MemoryOptimizer';
 import { ZKErrorLogger } from '../zkErrorLogger.js';
 

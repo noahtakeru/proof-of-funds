@@ -1,5 +1,5 @@
 /**
- * zkCircuitParameterDerivation.js - Derivation of circuit parameters from transaction data
+ * zkCircuitParameterDerivation.mjs - Derivation of circuit parameters from transaction data
  * 
  * This module provides functions to generate appropriate circuit parameters
  * based on transaction data, wallet information, and proof requirements.
@@ -23,10 +23,11 @@
  * Each proof type protects your financial privacy while still proving what's needed.
  */
 
-// Import the proper ethers utility
+// Import all dependencies at the top
 import { getEthers } from '../../ethersUtils.mjs';
-
-// Import error handling utilities
+import { addressToBytes as importedAddressToBytes } from './zkCircuitInputs.mjs';
+import { getCircuitMemoryRequirements } from './zkCircuitRegistry.mjs';
+import deviceCapabilities from './deviceCapabilities.mjs';
 import {
   InputError,
   ProofError,
@@ -35,17 +36,11 @@ import {
   ErrorCode,
   isZKError
 } from './zkErrorHandler.mjs';
-import { zkErrorLogger } from './zkErrorLogger.mjs';
+import zkErrorLoggerModule from './zkErrorLogger.mjs';
+const { zkErrorLogger } = zkErrorLoggerModule;
 
-// Define ZK_PROOF_TYPES locally to avoid ESM import issues
-const ZK_PROOF_TYPES = {
-  STANDARD: 0,
-  THRESHOLD: 1,
-  MAXIMUM: 2
-};
-
-// Import addressToBytes from zkCircuitInputs if possible
-import { addressToBytes as importedAddressToBytes } from './zkCircuitInputs.js';
+// Use correct function from the default export
+const getDeviceCapabilities = deviceCapabilities.detectCapabilities;
 
 // Fallback implementation if import fails
 function localAddressToBytes(address) {
@@ -107,12 +102,6 @@ function localAddressToBytes(address) {
 
 // Use imported function or fallback to local implementation
 const addressToBytes = importedAddressToBytes || localAddressToBytes;
-
-// Import other dependencies
-import { getCircuitMemoryRequirements } from './zkCircuitRegistry.js';
-import deviceCapabilities from './deviceCapabilities.js';
-// Use correct function from the default export
-const getDeviceCapabilities = deviceCapabilities.detectCapabilities;
 
 /**
  * Generate a deterministic nonce for ZK proofs
@@ -1497,17 +1486,17 @@ async function deriveCircuitParameters(walletAddress, assetType, options = {}) {
     let parameters;
     switch (assetType) {
       case 'ETH':
-        parameters = await this.processEthereumParameters(walletAddress, mergedOptions);
+        parameters = await zkCircuitParameterDerivation.processEthereumParameters(walletAddress, mergedOptions);
         break;
       case 'BTC':
-        parameters = await this.processBitcoinParameters(walletAddress, mergedOptions);
+        parameters = await zkCircuitParameterDerivation.processBitcoinParameters(walletAddress, mergedOptions);
         break;
       case 'SOL':
-        parameters = await this.processSolanaParameters(walletAddress, mergedOptions);
+        parameters = await zkCircuitParameterDerivation.processSolanaParameters(walletAddress, mergedOptions);
         break;
       case 'USDC':
       case 'USDT':
-        parameters = await this.processStablecoinParameters(walletAddress, assetType, mergedOptions);
+        parameters = await zkCircuitParameterDerivation.processStablecoinParameters(walletAddress, assetType, mergedOptions);
         break;
       default:
         // This shouldn't be reached due to earlier validation, but as a safeguard
@@ -2166,7 +2155,22 @@ async function deriveKeySimpleFallback(seed, purpose) {
 
 /**
  * ZkCircuitParameterDerivation class for deriving circuit parameters
- * Handles all parameter generation and validation for ZK circuits
+ * 
+ * @class
+ * @classdesc A comprehensive class that handles all parameter generation and validation 
+ * for zero-knowledge proofs across multiple blockchain networks. The class provides methods
+ * for processing Ethereum, Bitcoin, Solana, and stablecoin parameters, as well as
+ * validation utilities and fallback mechanisms for critical operations.
+ * 
+ * Key features:
+ * - Multi-chain support (ETH, BTC, SOL, USDC, USDT)
+ * - Three proof types (standard, threshold, maximum)
+ * - Robust error handling with user-friendly messages
+ * - Parameter validation and transformation
+ * - Cryptographic key derivation with fallback mechanisms
+ * 
+ * This class is instantiated once as a singleton and exported as the default
+ * from this module.
  */
 class ZkCircuitParameterDerivation {
   constructor() {
@@ -2435,9 +2439,8 @@ class ZkCircuitParameterDerivation {
    */
   async deriveKey(seed, purpose) {
     // Implementation of primary key derivation method
-    // This is a placeholder; the actual implementation would use
-    // cryptographic primitives appropriate for the application
-    throw new Error('Primary key derivation not implemented');
+    // Fall back to hash-based method since the primary isn't implemented
+    return this.deriveKeyHashFallback(seed, purpose);
   }
 
   /**
@@ -2687,5 +2690,13 @@ class ZkCircuitParameterDerivation {
 // Create instance
 const zkCircuitParameterDerivation = new ZkCircuitParameterDerivation();
 
-// Export the instance for use in other modules
+/**
+ * Zero-knowledge circuit parameter derivation module.
+ * 
+ * This module provides functions for generating and transforming input parameters
+ * for different types of zero-knowledge circuits based on wallet data and proof requirements.
+ * 
+ * @module zkCircuitParameterDerivation
+ * @exports {Object} zkCircuitParameterDerivation - Singleton instance for deriving circuit parameters
+ */
 export default zkCircuitParameterDerivation;

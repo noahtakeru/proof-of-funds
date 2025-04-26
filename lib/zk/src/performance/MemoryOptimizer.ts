@@ -6,7 +6,7 @@
  */
 
 // Import device capabilities for memory detection
-import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
+import deviceCapabilitiesModule from '../deviceCapabilities.js';
 
 /**
  * Memory allocation strategy

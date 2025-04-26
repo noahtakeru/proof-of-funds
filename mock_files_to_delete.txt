@@ -1,0 +1,127 @@
+# Mock Files to Delete
+# This file lists mock/temporary files that can be safely deleted
+
+# IMPORTANT: The following actual implementation files need modification after cleanup:
+# - lib/zk/src/zkCircuits.mjs: Fix import path for constants module
+# - lib/zk/src/zkProofGenerator.mjs: Verify pathways to circuits and error handling
+# - lib/zk/src/contracts/ProofOfFundsContract.ts: Review error handling alignment
+
+# Test mock files
+lib/zk/__tests__/mock_*
+lib/zk/__tests__/reports/*.json
+tests/mock_*.json
+tests/fixtures/mock_*.json
+
+# Mock verification keys
+lib/zk/build/verification_key/mock_*.json
+
+# Temporary build artifacts
+lib/zk/build/tmp/*.json
+lib/zk/build/tmp/*.r1cs
+lib/zk/build/tmp/*_js/
+
+# Mock Verifier contracts
+lib/zk/build/contracts/Mock*Verifier.sol
+
+# Mock circuit inputs
+lib/zk/input/mock_*.json
+lib/zk/input/test_*.json
+
+# Mock proofs
+lib/zk/proof/mock_*.json
+lib/zk/proof/test_*.json
+
+# Temporary development files
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Mock standardProof inputs
+lib/zk/input/standardProof_input.json
+
+# Mock info files
+lib/zk/circuit_info/mock_*_info.json
+
+## Documentation Mocks
+CIRCOM_IMPLEMENTATION_GUIDE.md
+CIRCOM_INSTALLATION_SUMMARY.md
+CLAUDE.md
+MOCKS.md
+MODULE_STANDARDIZATION_PLAN.md
+MODULE_STANDARDIZATION_PLAN_REVISED.md
+ProjectOutline.md
+TECHNICAL_DEBT_REMEDIATION_PLAN.md
+WEBPACK_WARNING_ELIMINATION_PLAN.md
+ZK_CIRCUIT_COMPATIBILITY.md
+ZK_SETUP_GUIDE.md
+Mock_Analysis.md
+Mock_Line_By_Line.md
+
+## Component Mocks
+components/TroubleshootingWizard.tsx
+components/admin/AuditLogs.js
+components/admin/ProofManagement.js
+components/admin/UserManagement.js
+components/admin/ContractManagement.js
+components/admin/Dashboard.js
+components/security/Verification.js
+components/verification/Notary.js
+
+## API Endpoint Mocks
+pages/api/zk/fullProve.js
+pages/api/zk/verify.js
+pages/api/verify-transaction.js
+
+## Page Mocks
+pages/create.js
+pages/verify.js
+pages/manage.js
+
+## Utility and Library Mocks
+lib/ethersUtils.js
+lib/moralisApi.js
+lib/walletHelpers.js
+lib/zk/src/zkUtils.js
+lib/zk/zkUtils.js
+lib/zk/zkCircuitRegistry.js
+lib/zk/TrustedSetupManager.js
+lib/zk/dist/performance/resources/ResourceAllocator.js
+lib/zk/dist/performance/performance/WebWorkerPool.js
+lib/config/constants.js
+lib/analytics/bigQueryClient.js
+lib/zk/src/zkSecureInputs-cjs-wrapper.cjs
+lib/zk/lib/zk/src/security/PenetrationTest.js
+lib/zk/src/zkProxyClient.js
+lib/zk/src/security/rules/index.js
+
+## ZK Library Build Mocks
+lib/zk/build/*Verifier.sol
+lib/zk/build/standardProof_input.json
+lib/zk/build/*_info.json
+lib/zk/build/*.r1cs
+
+## ZK Test Files
+lib/zk/__tests__/MOCKS.md
+lib/zk/__tests__/ceremony/__mocks__/fileMock.js
+lib/zk/__tests__/ceremony/__mocks__/styleMock.js
+lib/zk/__tests__/mocks.js
+lib/zk/__tests__/testVectors.js
+lib/zk/__tests__/testRunners/standardProofRunner.js
+lib/zk/__tests__/testRunners/thresholdProofRunner.js
+lib/zk/__tests__/testRunners/maximumProofRunner.js
+lib/zk/__tests__/testRunners/serverFallbackRunner.js
+lib/zk/__tests__/mockValidation.test.js
+lib/zk/__tests__/setup.js
+lib/zk/__tests__/snarkjsLoader.test.js
+lib/zk/__tests__/circuits/standardProof.test.js
+lib/zk/tests/unit/task1-test.js
+
+## Smart Contract Mocks
+smart-contracts/contracts/ZKVerifier.sol
+smart-contracts/contracts/ProofOfFundsSimple.sol
+
+## Deployment Mocks
+deployments/simple-deployment.json
+config/gcp/service-account-key.json 

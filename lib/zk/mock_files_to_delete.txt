@@ -1,0 +1,27 @@
+# Patterns for mock and temporary files to be deleted
+# Each line specifies a glob pattern relative to the zk library root
+# Empty lines and lines starting with # are ignored
+
+# Mock test data files
+test/mock_*.json
+test/**/*_mock.json
+test/**/*_sample.json
+
+# Temporary files and build artifacts
+**/*.tmp
+**/.DS_Store
+**/temp/
+**/tmp/
+
+# Circuit temporary files
+circuits/**/*.r1cs.tmp
+circuits/**/*.sym.tmp
+circuits/**/witness_calculator.js
+
+# Debugging files
+**/*_debug.log
+**/*_debug.json
+
+# Intermediate proof files
+**/*_intermediate.ptau
+**/*_intermediate.zkey 

@@ -36,7 +36,7 @@ class SecretManagerServiceClient {
   }
 }
 
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import zkErrorLoggerModule from '../zkErrorLogger.js';
 // Properly type the import using type assertion
 const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;
 

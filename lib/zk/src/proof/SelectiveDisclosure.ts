@@ -7,10 +7,10 @@
  * @module SelectiveDisclosure
  */
 
-import { InputError, ProofError, SecurityError } from '../zkErrorHandler.mjs';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
-import * as zkProofSerializer from '../zkProofSerializer.mjs';
-import { PROOF_TYPES } from '../zkProofSerializer.mjs';
+import { InputError, ProofError, SecurityError } from '../zkErrorHandler.js';
+import zkErrorLoggerModule from '../zkErrorLogger.js';
+import * as zkProofSerializer from '../zkProofSerializer.js';
+import { PROOF_TYPES } from '../zkProofSerializer.js';
 
 // Get error logger with proper typing
 const zkErrorLogger = (zkErrorLoggerModule as any).zkErrorLogger;

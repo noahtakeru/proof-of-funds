@@ -7,9 +7,9 @@
  * @module OptimizedSerializer
  */
 
-import { InputError, ProofError, ProofSerializationError } from '../zkErrorHandler.mjs';
+import { InputError, ProofError, ProofSerializationError } from '../zkErrorHandler.js';
 import { ZKErrorLogger } from '../zkErrorLogger.js';
-import * as zkProofSerializer from '../zkProofSerializer.mjs';
+import * as zkProofSerializer from '../zkProofSerializer.js';
 import { CompressionAlgorithm, CompressionLevel, compressProof, decompressProof } from './ProofCompressor';
 
 // Create logger instance

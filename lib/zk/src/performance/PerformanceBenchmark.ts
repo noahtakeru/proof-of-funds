@@ -3,7 +3,7 @@
  * Allows performance measurement and comparison between different ZK operations
  */
 
-import { ZKErrorLogger } from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
 /**
  * Represents a performance metric with a name and value

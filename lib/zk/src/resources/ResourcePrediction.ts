@@ -12,7 +12,7 @@ interface DeviceCapabilitiesModule {
 }
 
 // Import deviceCapabilities using require to bypass ESM/CJS compatibility issues
-const deviceCapabilitiesModule: DeviceCapabilitiesModule = require('../deviceCapabilities.mjs');
+const deviceCapabilitiesModule: DeviceCapabilitiesModule = require('../deviceCapabilities.js');
 
 // Extract methods using safe property access
 const detectCPUCores = deviceCapabilitiesModule.detectCPUCores || deviceCapabilitiesModule.getCpuCores || (() => 4);

@@ -7,9 +7,9 @@
  * @module ProofCompressor
  */
 
-import { InputError, ProofError, ProofSerializationError } from '../zkErrorHandler.mjs';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
-import * as zkProofSerializer from '../zkProofSerializer.mjs';
+import { InputError, ProofError, ProofSerializationError } from '../zkErrorHandler.js';
+import zkErrorLoggerModule from '../zkErrorLogger.js';
+import * as zkProofSerializer from '../zkProofSerializer.js';
 import { compress as pako_compress, decompress as pako_decompress } from 'pako';
 
 // Get error logger with proper typing
