@@ -12,7 +12,8 @@ import '../styles/globals.css';
 import { AppProps } from 'next/app';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { WagmiConfig, createClient, configureChains } from 'wagmi';
+import { createClient, configureChains, WagmiConfig, chain } from 'wagmi';
+import { publicProvider } from 'wagmi/providers/public';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { InjectedConnector } from 'wagmi/connectors/injected';
@@ -47,14 +48,11 @@ const polygonAmoy = {
  * Sets up the blockchain networks and RPC providers for the application
  * Currently only using Polygon Amoy testnet
  */
+// Use polygon testnet for consistency with the original intent
 const { chains, provider } = configureChains(
-    [polygonAmoy],
+    [chain.polygonMumbai], // Use built-in polygon test chain from wagmi
     [
-        jsonRpcProvider({
-            rpc: (chain) => ({
-                http: chain.rpcUrls.default,
-            }),
-        }),
+        publicProvider(),
     ]
 );
 
