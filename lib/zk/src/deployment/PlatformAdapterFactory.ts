@@ -5,6 +5,35 @@
  * that abstract away differences between platforms (browser, Node.js, mobile, etc.)
  */
 
+// Environment detection
+const isServer = typeof window === 'undefined';
+
+// Node.js module helpers - centralized to avoid repetition
+const getNodeModules = () => {
+  if (!isServer) return { fs: null, path: null, crypto: null, worker_threads: null, os: null };
+
+  try {
+    return {
+      fs: require('fs'),
+      path: require('path'),
+      crypto: require('crypto'),
+      worker_threads: require('worker_threads'),
+      os: require('os')
+    };
+  } catch (err) {
+    console.error('Failed to import Node.js modules:', err);
+    return { fs: null, path: null, crypto: null, worker_threads: null, os: null };
+  }
+};
+
+// Storage path helper
+const getStoragePath = (key: string) => {
+  const { path } = getNodeModules();
+  return isServer && path
+    ? path.join(process.cwd(), '.cache', key)
+    : `platform_adapter_${key}`;
+};
+
 import { EnvironmentType } from './DeploymentConfig';
 import { EnvironmentDetector } from './EnvironmentDetector';
 
@@ -58,37 +87,43 @@ export class PlatformAdapterFactory {
    * Create or retrieve a platform adapter for the current environment
    */
   public getPlatformAdapter(): PlatformAdapter {
-    const environment = this.detector.detectEnvironment();
-    
-    // Return cached adapter if available
-    if (this.adapters.has(environment)) {
-      return this.adapters.get(environment)!;
+    try {
+      const environment = this.detector.detectEnvironment();
+      
+      // Return cached adapter if available
+      if (this.adapters.has(environment)) {
+        return this.adapters.get(environment)!;
+      }
+      
+      // Create appropriate adapter for the detected environment
+      let adapter: PlatformAdapter;
+      
+      switch (environment) {
+        case EnvironmentType.Browser:
+          adapter = new BrowserPlatformAdapter();
+          break;
+        case EnvironmentType.Node:
+          adapter = new NodePlatformAdapter();
+          break;
+        case EnvironmentType.Mobile:
+          adapter = new MobilePlatformAdapter();
+          break;
+        case EnvironmentType.Worker:
+          adapter = new WorkerPlatformAdapter();
+          break;
+        default:
+          adapter = new FallbackPlatformAdapter();
+      }
+      
+      // Cache the adapter for future use
+      this.adapters.set(environment, adapter);
+      
+      return adapter;
+    } catch (error) {
+      // If environment detection fails, log the error and fall back to a safe default
+      console.error(`Platform detection error: ${error.message}`);
+      return new FallbackPlatformAdapter();
     }
-    
-    // Create appropriate adapter for the detected environment
-    let adapter: PlatformAdapter;
-    
-    switch (environment) {
-      case EnvironmentType.Browser:
-        adapter = new BrowserPlatformAdapter();
-        break;
-      case EnvironmentType.Node:
-        adapter = new NodePlatformAdapter();
-        break;
-      case EnvironmentType.Mobile:
-        adapter = new MobilePlatformAdapter();
-        break;
-      case EnvironmentType.Worker:
-        adapter = new WorkerPlatformAdapter();
-        break;
-      default:
-        adapter = new FallbackPlatformAdapter();
-    }
-    
-    // Cache the adapter for future use
-    this.adapters.set(environment, adapter);
-    
-    return adapter;
   }
   
   /**
@@ -362,35 +397,91 @@ class NodePlatformAdapter extends BasePlatformAdapter {
   protected async registerImplementations(): Promise<void> {
     // Register Node.js-specific storage implementation
     this.implementations.set('storage', {
-      // Node.js storage implementation will go here
-      // This would use the fs module in a real implementation
       async store(key: string, value: any): Promise<void> {
-        // Simplified implementation for example
-        const fs = require('fs').promises;
-        const path = require('path');
-        const filePath = path.join(process.cwd(), '.cache', key);
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, JSON.stringify(value));
+        if (isServer) {
+          const { fs, path } = getNodeModules();
+          if (!fs || !path) {
+            throw new Error('Node.js file system modules not available');
+          }
+
+          try {
+            const filePath = getStoragePath(key);
+            await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+            await fs.promises.writeFile(filePath, JSON.stringify(value));
+          } catch (error) {
+            throw new Error(`Failed to store data: ${error.message}`);
+          }
+        } else {
+          // Browser implementation
+          try {
+            if (typeof localStorage === 'undefined') {
+              throw new Error('Local storage not available');
+            }
+
+            if (typeof value === 'object') {
+              localStorage.setItem(key, JSON.stringify(value));
+            } else {
+              localStorage.setItem(key, String(value));
+            }
+          } catch (error) {
+            throw new Error(`Failed to store data in browser: ${error.message}`);
+          }
+        }
       },
       async retrieve(key: string): Promise<any> {
-        try {
-          const fs = require('fs').promises;
-          const path = require('path');
-          const filePath = path.join(process.cwd(), '.cache', key);
-          const data = await fs.readFile(filePath, 'utf8');
-          return JSON.parse(data);
-        } catch {
-          return null;
+        if (isServer) {
+          const { fs, path } = getNodeModules();
+          if (!fs || !path) {
+            throw new Error('Node.js file system modules not available');
+          }
+
+          try {
+            const filePath = getStoragePath(key);
+            const data = await fs.promises.readFile(filePath, 'utf8');
+            return JSON.parse(data);
+          } catch (error) {
+            if (error.code === 'ENOENT') {
+              // Not finding the file is not an error, just return null
+              return null;
+            }
+            throw new Error(`Failed to retrieve data: ${error.message}`);
+          }
+        } else {
+          // Browser implementation
+          if (typeof localStorage === 'undefined') {
+            throw new Error('Local storage not available');
+          }
+
+          try {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : null;
+          } catch (error) {
+            throw new Error(`Failed to retrieve data from browser: ${error.message}`);
+          }
         }
       },
       async remove(key: string): Promise<void> {
-        try {
-          const fs = require('fs').promises;
-          const path = require('path');
-          const filePath = path.join(process.cwd(), '.cache', key);
-          await fs.unlink(filePath);
-        } catch {
-          // Ignore errors if file doesn't exist
+        if (isServer) {
+          const { fs, path } = getNodeModules();
+          if (!fs || !path) {
+            throw new Error('Node.js file system modules not available');
+          }
+
+          try {
+            const filePath = getStoragePath(key);
+            // Check if file exists before trying to delete
+            if (fs.existsSync(filePath)) {
+              await fs.promises.unlink(filePath);
+            }
+          } catch (error) {
+            throw new Error(`Failed to remove data: ${error.message}`);
+          }
+        } else {
+          if (typeof localStorage === 'undefined') {
+            throw new Error('Local storage not available');
+          }
+
+          localStorage.removeItem(key);
         }
       }
     });
@@ -398,13 +489,25 @@ class NodePlatformAdapter extends BasePlatformAdapter {
     // Register Node.js-specific threading implementation
     if (this.supportsFeature('workerThreads')) {
       this.implementations.set('threading', {
-        // Node.js threading implementation will go here
         async spawnWorker(scriptPath: string, data: any): Promise<any> {
+          if (!isServer) {
+            throw new Error('Node.js worker threads not available in browser environment');
+          }
+
+          const { worker_threads } = getNodeModules();
+          if (!worker_threads) {
+            throw new Error('Worker threads module not available');
+          }
+
           return new Promise((resolve, reject) => {
-            const { Worker } = require('worker_threads');
-            const worker = new Worker(scriptPath, { workerData: data });
-            worker.on('message', resolve);
-            worker.on('error', reject);
+            try {
+              const { Worker } = worker_threads;
+              const worker = new Worker(scriptPath, { workerData: data });
+              worker.on('message', resolve);
+              worker.on('error', reject);
+            } catch (error) {
+              reject(new Error(`Failed to spawn worker thread: ${error.message}`));
+            }
           });
         }
       });
@@ -413,10 +516,24 @@ class NodePlatformAdapter extends BasePlatformAdapter {
     // Register Node.js-specific crypto implementation
     if (this.supportsFeature('nodeCrypto')) {
       this.implementations.set('crypto', {
-        // Node.js crypto implementation will go here
         async generateRandomBytes(length: number): Promise<Uint8Array> {
-          const crypto = require('crypto');
-          return crypto.randomBytes(length);
+          // In Node.js
+          if (isServer) {
+            const { crypto } = getNodeModules();
+            if (!crypto) {
+              throw new Error('Node.js crypto module not available');
+            }
+            return crypto.randomBytes(length);
+          }
+          
+          // In browser
+          if (!window.crypto || !window.crypto.getRandomValues) {
+            throw new Error('Web Crypto API not available in this browser');
+          }
+          
+          const array = new Uint8Array(length);
+          window.crypto.getRandomValues(array);
+          return array;
         }
       });
     }
@@ -426,19 +543,39 @@ class NodePlatformAdapter extends BasePlatformAdapter {
    * Execute Node.js-specific optimizations
    */
   public async optimizeForPlatform(): Promise<void> {
-    // Node.js specific optimizations
-    // Example: Adjust memory limits based on available system memory
-    try {
-      const os = require('os');
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      
-      if (freeMem < totalMem * 0.2) {
-        // System is low on memory, reduce memory usage
-        // Implement memory conservation strategies
+    if (isServer) {
+      const { os } = getNodeModules();
+      if (!os) {
+        throw new Error('Node.js OS module not available');
       }
-    } catch {
-      // Ignore errors if os module is unavailable
+
+      try {
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+
+        if (freeMem < totalMem * 0.2) {
+          console.warn('System is low on memory, applying optimization strategies');
+          // Add actual optimization logic here
+        }
+      } catch (error) {
+        throw new Error(`Failed to optimize for platform: ${error.message}`);
+      }
+    } else {
+      // Browser environment
+      if (typeof navigator === 'undefined') {
+        throw new Error('Navigator API not available');
+      }
+
+      // Use actual browser APIs if available
+      if ('deviceMemory' in navigator) {
+        const memory = (navigator as any).deviceMemory;
+        if (memory && memory < 4) {
+          console.warn('Device has limited memory, applying optimization strategies');
+          // Add actual optimization logic here
+        }
+      } else {
+        throw new Error('Device memory detection not supported in this browser');
+      }
     }
   }
   
@@ -446,24 +583,20 @@ class NodePlatformAdapter extends BasePlatformAdapter {
    * Detect worker_threads support
    */
   private detectWorkerThreads(): boolean {
-    try {
-      require('worker_threads');
-      return true;
-    } catch {
-      return false;
-    }
+    if (!isServer) return false;
+
+    const { worker_threads } = getNodeModules();
+    return !!worker_threads;
   }
   
   /**
    * Detect crypto module support
    */
   private detectNodeCrypto(): boolean {
-    try {
-      require('crypto');
-      return true;
-    } catch {
-      return false;
-    }
+    if (!isServer) return false;
+
+    const { crypto } = getNodeModules();
+    return !!crypto;
   }
 }
 
