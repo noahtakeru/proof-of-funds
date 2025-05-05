@@ -9,15 +9,15 @@
 import { EnvironmentType, DeploymentConfig, FeatureFlags } from './DeploymentConfig';
 import { EnvironmentDetector } from './EnvironmentDetector';
 import { HealthCheck, HealthCheckResult } from './HealthCheck';
-// Import the module interfaces
-import '../zkCircuitRegistry';
-import '../deviceCapabilities';
+// Import the module interfaces properly with type safety
+import type { ZKCircuitRegistry } from '../zkCircuitRegistry';
+import type { DeviceCapabilities } from '../deviceCapabilities';
 
-// Type declarations for dynamic modules
+// Type declarations for dynamic modules with proper typing
 declare global {
   interface Window {
-    zkCircuitRegistry: any;
-    deviceCapabilities: any;
+    zkCircuitRegistry: ZKCircuitRegistry;
+    deviceCapabilities: DeviceCapabilities;
   }
 }
 
