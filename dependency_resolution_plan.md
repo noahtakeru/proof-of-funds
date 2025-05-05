@@ -8,6 +8,7 @@ Rules (ongoing list):
 7. Unless a plan or test file was made during this phased sprint (contained in this document) - I'd assume it's unreliable until its contents are analyzed thoroughly. Confirm its legitimacy before proceeding with trusting it blindly. Bad assumptions are unacceptable.
 8. Put all imports at the top of the file it's being imported into.
 9. Record all progress in this document.
+10. Blockchain testing will be done on Polygon Amoy.
 
 Phase 1: Resolve All Module System Issues
 
