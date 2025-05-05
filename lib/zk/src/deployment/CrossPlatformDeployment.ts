@@ -12,6 +12,10 @@ import { PlatformAdapterFactory, PlatformAdapter } from './PlatformAdapterFactor
 import { EnvironmentDetector } from './EnvironmentDetector';
 import { DeploymentConfig, EnvironmentType } from './DeploymentConfig';
 
+// Import types from external modules for type safety
+import type { ZKCircuitRegistry } from '../zkCircuitRegistry';
+import type { DeviceCapabilities } from '../deviceCapabilities';
+
 // Define an environment type mapping for string environment names
 type EnvironmentName = 'development' | 'production' | 'staging' | 'test';
 

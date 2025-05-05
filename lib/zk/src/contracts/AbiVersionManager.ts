@@ -10,7 +10,7 @@ import { ethers } from 'ethers';
  */
 interface ContractAbiVersion {
   version: string;
-  abi: ethers.ContractInterface;
+  abi: ethers.ContractInterface | string[];
   deployedDate: Date;
   compatibleChains: number[];
   notes?: string;
