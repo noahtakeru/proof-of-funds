@@ -76,9 +76,9 @@ export const PROOF_TYPE_NAMES: Record<number, string> = {
  * Maps proof type string names to enum values
  */
 export const PROOF_TYPE_ENUMS: Record<string, number> = {
-  'standard': ZK_PROOF_TYPES.STANDARD,
-  'threshold': ZK_PROOF_TYPES.THRESHOLD,
-  'maximum': ZK_PROOF_TYPES.MAXIMUM
+  'standard': Number(ZK_PROOF_TYPES.STANDARD),
+  'threshold': Number(ZK_PROOF_TYPES.THRESHOLD),
+  'maximum': Number(ZK_PROOF_TYPES.MAXIMUM)
 };
 
 /**

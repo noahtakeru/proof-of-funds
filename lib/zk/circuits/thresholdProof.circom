@@ -95,7 +95,7 @@ template ThresholdProof() {
     commitmentHasher.inputs[0] <== address;
     commitmentHasher.inputs[1] <== threshold;
     commitmentHasher.inputs[2] <== nonce;
-    commitmentHasher.inputs[3] <== greaterEqCheck.out; // Include verification result in hash
+    commitmentHasher.inputs[3] <== amountChecker.out; // Include verification result in hash
     
     // Output the commitment hash
     signal output hash_result;

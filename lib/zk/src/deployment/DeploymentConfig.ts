@@ -15,7 +15,15 @@ export enum EnvironmentType {
   /** Web Worker environment */
   Worker = 'worker',
   /** Unknown environment */
-  Unknown = 'unknown'
+  Unknown = 'unknown',
+  /** Production environment */
+  PRODUCTION = 'production',
+  /** Staging environment */
+  STAGING = 'staging',
+  /** Test environment */
+  TEST = 'test',
+  /** Development environment */
+  DEVELOPMENT = 'development'
 }
 
 /**

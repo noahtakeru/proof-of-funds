@@ -52,7 +52,8 @@ export class EnvironmentDetector {
     // Check for Web Worker
     if (typeof self !== 'undefined' && 
         typeof window === 'undefined' && 
-        typeof importScripts === 'function') {
+        // Check if this is a worker context without direct reference to importScripts
+        self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope') {
       return EnvironmentType.Worker;
     }
     
@@ -292,11 +293,11 @@ export class EnvironmentDetector {
    * Detect approximate available memory in MB
    */
   private detectAvailableMemory(): number {
-    // For browsers that support memory info API
+    // For browsers that support memory info API (Chrome)
     if (typeof performance !== 'undefined' && 
-        performance.memory && 
-        performance.memory.jsHeapSizeLimit) {
-      return Math.floor(performance.memory.jsHeapSizeLimit / (1024 * 1024));
+        (performance as any).memory && 
+        (performance as any).memory.jsHeapSizeLimit) {
+      return Math.floor((performance as any).memory.jsHeapSizeLimit / (1024 * 1024));
     }
     
     // For Node.js

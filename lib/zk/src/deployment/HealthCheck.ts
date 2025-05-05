@@ -434,7 +434,10 @@ export class HealthCheck {
     
     // Worker-specific checks
     checks.workerContext = await this.runCheck('Worker Context', async () => {
-      if (typeof self !== 'undefined' && typeof window === 'undefined' && typeof importScripts === 'function') {
+      if (typeof self !== 'undefined' && 
+          typeof window === 'undefined' && 
+          self.constructor && 
+          self.constructor.name === 'DedicatedWorkerGlobalScope') {
         return {
           status: 'ok',
           message: 'Running in a proper worker context'

@@ -85,7 +85,7 @@ template MaximumProof() {
     commitmentHasher.inputs[0] <== address;
     commitmentHasher.inputs[1] <== maximum;
     commitmentHasher.inputs[2] <== nonce;
-    commitmentHasher.inputs[3] <== lessEqCheck.out; // Include verification result
+    commitmentHasher.inputs[3] <== amountChecker.out; // Include verification result
     
     // Output the commitment hash for verification
     signal output hash_result;

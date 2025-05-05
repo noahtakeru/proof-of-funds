@@ -6,7 +6,7 @@
  */
 
 // Import device capabilities for memory detection
-import { getDeviceCapabilities } from '../deviceCapabilities';
+import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
 
 /**
  * Memory allocation strategy
@@ -77,8 +77,8 @@ export class MemoryOptimizer {
    */
   constructor(config?: Partial<MemoryConfig>) {
     // Get device capabilities for memory detection
-    const deviceCaps = getDeviceCapabilities();
-    const availableMemoryMB = deviceCaps.memory || 1024; // Default to 1GB if detection fails
+    const deviceCaps = deviceCapabilitiesModule.detectCapabilities();
+    const availableMemoryMB = deviceCaps.availableMemory || 1024; // Default to 1GB if detection fails
     
     // Default configuration based on available memory
     this.config = {
@@ -195,25 +195,23 @@ export class MemoryOptimizer {
         // Ignore if os module is not available
       }
     } 
-    // Browser environment with memory API
+    // Browser environment with memory API (Chrome-specific)
     else if (typeof performance !== 'undefined' && 
-             performance.memory && 
-             // @ts-ignore - Not standard but available in some browsers
-             performance.memory.usedJSHeapSize) {
-      // @ts-ignore - Not standard but available in some browsers
-      heapUsed = performance.memory.usedJSHeapSize;
-      // @ts-ignore - Not standard but available in some browsers
-      heapTotal = performance.memory.totalJSHeapSize;
-      // @ts-ignore - Not standard but available in some browsers
-      totalMemory = performance.memory.jsHeapSizeLimit;
+             (performance as any).memory && 
+             (performance as any).memory.usedJSHeapSize) {
+      // Use type assertion for Chrome-specific memory API
+      const chromePerf = performance as any;
+      heapUsed = chromePerf.memory.usedJSHeapSize;
+      heapTotal = chromePerf.memory.totalJSHeapSize;
+      totalMemory = chromePerf.memory.jsHeapSizeLimit;
     }
     // No memory API available - use rough estimate
     else {
       // Rough estimation based on device capabilities
-      const deviceCaps = getDeviceCapabilities();
-      heapUsed = (deviceCaps.memory || 1024) * 1024 * 1024 * 0.3; // Assume 30% usage
-      heapTotal = (deviceCaps.memory || 1024) * 1024 * 1024 * 0.5; // Assume 50% allocation
-      totalMemory = (deviceCaps.memory || 1024) * 1024 * 1024;
+      const deviceCaps = deviceCapabilitiesModule.detectCapabilities();
+      heapUsed = (deviceCaps.availableMemory || 1024) * 1024 * 1024 * 0.3; // Assume 30% usage
+      heapTotal = (deviceCaps.availableMemory || 1024) * 1024 * 1024 * 0.5; // Assume 50% allocation
+      totalMemory = (deviceCaps.availableMemory || 1024) * 1024 * 1024;
     }
     
     return {

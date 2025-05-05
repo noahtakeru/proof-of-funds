@@ -5,11 +5,12 @@
  * zero-knowledge proofs across different platforms and environments.
  */
 
+import { EnvironmentType } from './DeploymentConfig';
+import { DeploymentStrategyType } from './DeploymentStrategy';
+
 // Core configuration and environment types
-export { 
+export {
   EnvironmentType,
-  DeploymentConfig,
-  FeatureFlags,
   baseConfig,
   lowResourceConfig,
   highPerformanceConfig,
@@ -17,22 +18,45 @@ export {
   productionConfig
 } from './DeploymentConfig';
 
+export type {
+  DeploymentConfig,
+  FeatureFlags
+} from './DeploymentConfig';
+
 // Environment and feature detection
 export {
-  EnvironmentDetector,
+  EnvironmentDetector
+} from './EnvironmentDetector';
+
+export type {
   FeatureDetectionResult
 } from './EnvironmentDetector';
 
 // Deployment management
 export {
-  DeploymentManager, 
+  DeploymentManager
+} from './DeploymentManager';
+
+export type {
   DeploymentManagerOptions,
   DeploymentStatus
 } from './DeploymentManager';
 
+// Deployment strategy
+export {
+  DeploymentStrategyType
+} from './DeploymentStrategy';
+
+export type {
+  DeploymentStrategy
+} from './DeploymentStrategy';
+
 // Health check system
 export {
-  HealthCheck,
+  HealthCheck
+} from './HealthCheck';
+
+export type {
   HealthCheckStatus,
   HealthCheckResult,
   HealthCheckItemResult
@@ -40,71 +64,85 @@ export {
 
 // Cross-platform adapter system
 export {
-  PlatformAdapter,
   PlatformAdapterFactory
+} from './PlatformAdapterFactory';
+
+export type {
+  PlatformAdapter
 } from './PlatformAdapterFactory';
 
 // Deployment strategy selection
 export {
-  DeploymentStrategySelector,
-  DeploymentStrategy,
-  DeploymentStrategyType
+  DeploymentStrategySelector
 } from './DeploymentStrategySelector';
 
 // Platform-specific configuration
 export {
-  PlatformConfigurator,
+  PlatformConfigurator
+} from './PlatformConfigurator';
+
+export type {
   PlatformConfigOptions,
   PlatformProfile
 } from './PlatformConfigurator';
 
+// Deployment adapter
+export {
+  DeploymentAdapter
+} from './DeploymentAdapter';
+
 // Main cross-platform deployment system
 export {
-  CrossPlatformDeployment,
+  CrossPlatformDeployment
+} from './CrossPlatformDeployment';
+
+export type {
   CrossPlatformDeploymentOptions,
   ResourceConstraints,
   DeploymentStats
 } from './CrossPlatformDeployment';
 
 /**
- * Create and initialize a cross-platform deployment system
+ * Map environment name to environment type
  */
-export async function createDeployment(options: any = {}): Promise<CrossPlatformDeployment> {
-  const deployment = new CrossPlatformDeployment(options);
-  await deployment.initialize(options);
-  return deployment;
+function getEnvironmentType(environment?: string): EnvironmentType {
+  switch (environment) {
+    case 'production':
+      return EnvironmentType.PRODUCTION;
+    case 'staging':
+      return EnvironmentType.STAGING;
+    case 'test':
+      return EnvironmentType.TEST;
+    case 'development':
+    default:
+      return EnvironmentType.DEVELOPMENT;
+  }
 }
 
 /**
- * Detect the current environment and create an optimized deployment
+ * Create a deployment manager with the specified configuration
  */
-export async function createOptimizedDeployment(): Promise<CrossPlatformDeployment> {
-  const detector = new EnvironmentDetector();
-  const environment = detector.detectEnvironment();
-  const features = detector.detectFeatures();
-  
-  // Select appropriate strategy based on environment and capabilities
-  let strategyType: DeploymentStrategyType;
-  
-  if (features.isHighEndDevice) {
-    strategyType = DeploymentStrategyType.HighPerformance;
-  } else if (environment === EnvironmentType.Mobile) {
-    strategyType = DeploymentStrategyType.Hybrid;
-  } else if (!features.supportsWebWorkers || !features.supportsWebAssembly) {
-    strategyType = DeploymentStrategyType.ServerSide;
-  } else {
-    strategyType = DeploymentStrategyType.FullLocal;
-  }
-  
-  const deployment = new CrossPlatformDeployment({
-    environment,
-    initialStrategy: strategyType,
-    autoOptimize: true,
-    adaptToResourceConstraints: true,
-    monitorResourceUsage: true
+export function createDeployment(options: {
+  environment?: 'development' | 'production' | 'staging' | 'test';
+  platform?: 'node' | 'browser' | 'mobile' | 'auto';
+  logLevel?: 'info' | 'error' | 'warn' | 'debug' | 'none';
+  maxConcurrentDeployments?: number;
+  deploymentRetries?: number;
+  serverEndpoint?: string;
+  initialStrategy?: DeploymentStrategyType;
+  autoOptimize?: boolean;
+  adaptToResourceConstraints?: boolean;
+  monitorResourceUsage?: boolean;
+}) {
+  const { CrossPlatformDeployment } = require('./CrossPlatformDeployment');
+  return new CrossPlatformDeployment({
+    ...options
   });
-  
-  await deployment.initialize();
-  
-  return deployment;
 }
+
+// Default export with explicitly created object
+export default {
+  createDeployment,
+  EnvironmentType: EnvironmentType,
+  DeploymentStrategyType: DeploymentStrategyType
+};

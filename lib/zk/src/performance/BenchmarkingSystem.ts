@@ -213,9 +213,10 @@ export class BenchmarkingSystem {
         let memoryBefore: number | undefined;
         if (typeof process !== 'undefined' && process.memoryUsage) {
           memoryBefore = process.memoryUsage().heapUsed;
-        } else if (typeof performance !== 'undefined' && performance.memory) {
-          // @ts-ignore - Not standard but available in some browsers
-          memoryBefore = performance.memory?.usedJSHeapSize;
+        } else if (typeof performance !== 'undefined' && (performance as any).memory) {
+          // Chrome-specific memory info
+          const chromePerf = performance as any;
+          memoryBefore = chromePerf.memory?.usedJSHeapSize;
         }
         
         const start = Date.now();
@@ -244,9 +245,10 @@ export class BenchmarkingSystem {
         if (typeof process !== 'undefined' && process.memoryUsage && memoryBefore !== undefined) {
           const memoryAfter = process.memoryUsage().heapUsed;
           memoryBytes = memoryAfter - memoryBefore;
-        } else if (typeof performance !== 'undefined' && performance.memory && memoryBefore !== undefined) {
-          // @ts-ignore - Not standard but available in some browsers
-          const memoryAfter = performance.memory?.usedJSHeapSize;
+        } else if (typeof performance !== 'undefined' && (performance as any).memory && memoryBefore !== undefined) {
+          // Chrome-specific memory info
+          const chromePerf = performance as any;
+          const memoryAfter = chromePerf.memory?.usedJSHeapSize;
           memoryBytes = memoryAfter - memoryBefore;
         }
         
@@ -319,7 +321,8 @@ export class BenchmarkingSystem {
     const p95Diff = this.calculatePercentDifference(baseline.p95DurationMs, comparison.p95DurationMs);
     const opsPerSecondDiff = this.calculatePercentDifference(baseline.opsPerSecond, comparison.opsPerSecond);
     
-    let memoryDiff: number | undefined;
+    // Default to 0 if memory measurements aren't available
+    let memoryDiff = 0;
     if (baseline.meanMemoryBytes && comparison.meanMemoryBytes) {
       memoryDiff = this.calculatePercentDifference(baseline.meanMemoryBytes, comparison.meanMemoryBytes);
     }

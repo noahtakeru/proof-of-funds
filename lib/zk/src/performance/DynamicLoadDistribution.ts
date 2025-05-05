@@ -19,12 +19,16 @@
 import { ResourceMonitor, ResourceType } from '../resources/ResourceMonitor';
 import { ResourceAllocator } from '../resources/ResourceAllocator';
 import { WebWorkerPool } from './WebWorkerPool';
-import { deviceCapabilities } from '../deviceCapabilities';
+import deviceCapabilitiesModule from '../deviceCapabilities.mjs';
 import { MemoryOptimizer } from './MemoryOptimizer';
-import zkErrorLoggerModule from '../zkErrorLogger.mjs';
+import { ZKErrorLogger } from '../zkErrorLogger.js';
 
-// Get error logger
-const { zkErrorLogger } = zkErrorLoggerModule;
+// Create logger instance for load distribution
+const logger = new ZKErrorLogger({
+    logLevel: 'info',
+    privacyLevel: 'internal',
+    destinations: ['console']
+});
 
 /**
  * Workload distribution strategy
@@ -95,13 +99,13 @@ export interface LoadDistributionConfig {
     adaptiveMode?: boolean;
 
     /** Resource monitor instance */
-    resourceMonitor?: ResourceMonitor;
+    resourceMonitor?: ResourceMonitor | null;
 
     /** Resource allocator instance */
-    resourceAllocator?: ResourceAllocator;
+    resourceAllocator?: ResourceAllocator | null;
 
     /** Memory optimizer instance */
-    memoryOptimizer?: MemoryOptimizer;
+    memoryOptimizer?: MemoryOptimizer | null;
 }
 
 /**
@@ -177,13 +181,13 @@ export class DynamicLoadDistribution {
     private workerPool: WebWorkerPool;
 
     /** Resource monitor */
-    private resourceMonitor: ResourceMonitor;
+    private resourceMonitor!: ResourceMonitor;
 
     /** Resource allocator */
-    private resourceAllocator?: ResourceAllocator;
+    private resourceAllocator?: ResourceAllocator | null;
 
     /** Memory optimizer */
-    private memoryOptimizer?: MemoryOptimizer;
+    private memoryOptimizer?: MemoryOptimizer | null;
 
     /** Whether the system is initialized */
     private isInitialized: boolean = false;
@@ -214,8 +218,8 @@ export class DynamicLoadDistribution {
      */
     constructor(config: LoadDistributionConfig = {}) {
         // Initialize with device capabilities
-        const deviceCaps = deviceCapabilities();
-        const cpuCores = deviceCaps.cores || 4;
+        const deviceCaps = deviceCapabilitiesModule.detectCapabilities();
+        const cpuCores = deviceCaps.cpuCores || 4;
 
         // Default configuration
         this.config = {
@@ -228,9 +232,9 @@ export class DynamicLoadDistribution {
             serverFallbackUrl: '/api/zkproof/fallback',
             enableServerFallback: true,
             adaptiveMode: true,
-            resourceMonitor: undefined,
-            resourceAllocator: undefined,
-            memoryOptimizer: undefined,
+            resourceMonitor: null,
+            resourceAllocator: null,
+            memoryOptimizer: null,
             ...config
         };
 
@@ -255,7 +259,7 @@ export class DynamicLoadDistribution {
             minWorkers: this.config.minWorkers,
             maxWorkers: this.config.maxWorkers,
             resourceMonitor: this.resourceMonitor,
-            resourceAllocator: this.resourceAllocator
+            resourceAllocator: this.resourceAllocator === null ? undefined : this.resourceAllocator
         });
     }
 
@@ -269,9 +273,7 @@ export class DynamicLoadDistribution {
 
         try {
             // Initialize resource monitor
-            if (!this.resourceMonitor.isMonitoring()) {
-                await this.resourceMonitor.startMonitoring();
-            }
+            await this.resourceMonitor.startMonitoring();
 
             // Check server fallback availability
             if (this.config.enableServerFallback) {
@@ -286,7 +288,7 @@ export class DynamicLoadDistribution {
 
             this.isInitialized = true;
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.initialize',
                 message: 'Failed to initialize load distribution system'
             });
@@ -351,8 +353,8 @@ export class DynamicLoadDistribution {
             const phaseTimings: Record<string, number> = {};
 
             // Mark resource usage before execution
-            const beforeCpuUsage = resourceSnapshot.resources.CPU?.currentUsage || 0;
-            const beforeMemoryUsage = resourceSnapshot.resources.MEMORY?.currentUsage || 0;
+            const beforeCpuUsage = resourceSnapshot.resources['cpu']?.currentUsage || 0;
+            const beforeMemoryUsage = resourceSnapshot.resources['memory']?.currentUsage || 0;
 
             // Execute with the determined strategy
             const executionStartTime = performance.now();
@@ -396,8 +398,8 @@ export class DynamicLoadDistribution {
 
             // Sample resource usage after execution
             const afterSnapshot = await this.resourceMonitor.sampleResources();
-            const afterCpuUsage = afterSnapshot.resources.CPU?.currentUsage || 0;
-            const afterMemoryUsage = afterSnapshot.resources.MEMORY?.currentUsage || 0;
+            const afterCpuUsage = afterSnapshot.resources['cpu']?.currentUsage || 0;
+            const afterMemoryUsage = afterSnapshot.resources['memory']?.currentUsage || 0;
 
             // Update metrics
             this.metrics.completedTasks++;
@@ -411,15 +413,15 @@ export class DynamicLoadDistribution {
                 executedLocally,
                 resourceUsage: {
                     cpuPercentage: (afterCpuUsage + beforeCpuUsage) / 2 * 100,
-                    memoryBytes: afterSnapshot.resources.MEMORY?.metrics?.usedBytes,
-                    peakMemoryBytes: afterSnapshot.resources.MEMORY?.metrics?.peakBytes
+                    memoryBytes: afterSnapshot.resources['memory']?.metrics?.usedBytes,
+                    peakMemoryBytes: afterSnapshot.resources['memory']?.metrics?.peakBytes
                 },
                 phases: phaseTimings
             };
 
             return distributionResult;
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeTask',
                 message: 'Task execution failed'
             });
@@ -441,7 +443,7 @@ export class DynamicLoadDistribution {
 
         return {
             currentStrategy: this.currentStrategy,
-            activeWorkers: this.workerPool.getActiveWorkerCount(),
+            activeWorkers: this.workerPool.getStatus().activeWorkers,
             avgExecutionTimeMs: avgExecutionTime,
             totalTasks: this.metrics.totalTasks,
             serverOffloadedTasks: this.metrics.serverOffloadedTasks,
@@ -483,7 +485,7 @@ export class DynamicLoadDistribution {
         this.workerPool.shutdown();
 
         // Stop resource monitoring
-        if (this.resourceMonitor.isMonitoring()) {
+        if (this.isInitialized) {
             this.resourceMonitor.stopMonitoring();
         }
 
@@ -495,10 +497,10 @@ export class DynamicLoadDistribution {
      * @returns Appropriate distribution strategy
      */
     private determineInitialStrategy(): DistributionStrategy {
-        const device = deviceCapabilities();
+        const device = deviceCapabilitiesModule.detectCapabilities();
 
         // Check if device is very limited
-        if (device.tier === 'low' || (device.memory && device.memory < 1024)) {
+        if (device.deviceClass === 'low' || (device.availableMemory && device.availableMemory < 1024)) {
             // Low-end device, use server fallback if available
             return this.config.enableServerFallback
                 ? DistributionStrategy.SERVER_FALLBACK
@@ -506,7 +508,7 @@ export class DynamicLoadDistribution {
         }
 
         // Check if device has limited CPU
-        if (device.cores && device.cores < 2) {
+        if (device.cpuCores && device.cpuCores < 2) {
             return DistributionStrategy.SINGLE_THREADED;
         }
 
@@ -555,11 +557,11 @@ export class DynamicLoadDistribution {
         }
 
         // No constraints, use optimal strategy
-        const device = deviceCapabilities();
+        const device = deviceCapabilitiesModule.detectCapabilities();
 
-        if (device.cores && device.cores >= 4) {
+        if (device.cpuCores && device.cpuCores >= 4) {
             return DistributionStrategy.DYNAMIC_WORKERS;
-        } else if (device.cores && device.cores >= 2) {
+        } else if (device.cpuCores && device.cpuCores >= 2) {
             return DistributionStrategy.FIXED_WORKERS;
         } else {
             return DistributionStrategy.SINGLE_THREADED;
@@ -582,7 +584,7 @@ export class DynamicLoadDistribution {
             // Execute the function
             return await executableFn(data);
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeLocal',
                 message: 'Error in local task execution'
             });
@@ -614,7 +616,7 @@ export class DynamicLoadDistribution {
                 }
             );
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeInWorker',
                 message: 'Error in worker task execution'
             });
@@ -671,7 +673,7 @@ export class DynamicLoadDistribution {
 
             return result.data;
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeOnServer',
                 message: 'Error in server task execution'
             });
@@ -724,7 +726,7 @@ export class DynamicLoadDistribution {
             // Return result with metadata about source
             return result;
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.executeHybrid',
                 message: 'Error in hybrid task execution'
             });
@@ -763,7 +765,7 @@ export class DynamicLoadDistribution {
      */
     private async analyzeDeviceCapabilities(): Promise<void> {
         try {
-            const device = deviceCapabilities();
+            const device = deviceCapabilitiesModule.detectCapabilities();
 
             // Perform more detailed analysis if needed
             // This could include:
@@ -775,11 +777,13 @@ export class DynamicLoadDistribution {
             // Update worker pool settings based on analysis
             const optimalWorkers = this.calculateOptimalWorkerCount(device);
 
+            // Instead of directly setting workers, update the config which will be used
+            // in future worker pool operations
             if (optimalWorkers !== this.config.maxWorkers) {
-                this.workerPool.setMaxWorkers(optimalWorkers);
+                this.config.maxWorkers = optimalWorkers;
             }
         } catch (error) {
-            zkErrorLogger.logError(error, {
+            logger.logError(error as Error, {
                 context: 'DynamicLoadDistribution.analyzeDeviceCapabilities',
                 message: 'Error analyzing device capabilities'
             });
@@ -819,7 +823,7 @@ export class DynamicLoadDistribution {
     ): number {
         try {
             const resources = snapshot?.resources ||
-                this.resourceMonitor.getLatestSnapshot()?.resources;
+                this.resourceMonitor.sampleResources().then(s => s.resources);
 
             if (!resources || !resources[resourceType]) {
                 return 0;
@@ -838,17 +842,19 @@ export class DynamicLoadDistribution {
      */
     private getAvailableMemoryMB(snapshot?: any): number {
         try {
-            const resources = snapshot?.resources ||
-                this.resourceMonitor.getLatestSnapshot()?.resources;
+            const resources = snapshot?.resources || {};
 
-            if (!resources || !resources[ResourceType.MEMORY]) {
-                return 1024; // Default to 1GB if unknown
+            if (!resources[ResourceType.MEMORY]) {
+                // If resource monitor doesn't have memory info, use device capabilities
+                const deviceCapabilities = deviceCapabilitiesModule.detectCapabilities();
+                const memoryMB = deviceCapabilities.availableMemory || 1024;
+                return memoryMB;
             }
 
             const memory = resources[ResourceType.MEMORY];
             const totalMB = memory.metrics?.totalBytes
                 ? Math.floor(memory.metrics.totalBytes / (1024 * 1024))
-                : deviceCapabilities().memory || 1024;
+                : 1024; // Default to 1GB if unknown
 
             const usedPercentage = memory.currentUsage;
             const availableMB = totalMB * (1 - usedPercentage);

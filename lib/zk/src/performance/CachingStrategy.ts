@@ -132,7 +132,7 @@ export class CachingStrategy {
   private memoryOptimizer?: MemoryOptimizer;
   private refreshTimers: Map<string, NodeJS.Timeout> = new Map();
   private precomputePromises: Map<string, Promise<any>> = new Map();
-  
+
   /**
    * Create a new caching strategy
    */
@@ -148,7 +148,7 @@ export class CachingStrategy {
       enablePrecomputation: true,
       enableBackgroundRefresh: true
     };
-    
+
     // Apply custom configuration
     if (config) {
       this.config = {
@@ -156,11 +156,11 @@ export class CachingStrategy {
         ...config
       };
     }
-    
+
     // Set memory optimizer if provided
     this.memoryOptimizer = memoryOptimizer;
   }
-  
+
   /**
    * Get an entry from the cache
    * 
@@ -175,36 +175,36 @@ export class CachingStrategy {
       this.stats.misses++;
       return null;
     }
-    
+
     // Get cache entry
     const entry = namespaceMap.get(key);
     if (!entry) {
       this.stats.misses++;
       return null;
     }
-    
+
     // Check if entry has expired
     if (this.hasExpired(entry)) {
       // Remove expired entry
       namespaceMap.delete(key);
-      
+
       // Check if namespace is now empty
       if (namespaceMap.size === 0) {
         this.cache.delete(namespace);
       }
-      
+
       this.stats.misses++;
       return null;
     }
-    
+
     // Update entry metadata
     entry.meta.lastAccessed = Date.now();
     entry.meta.accessCount++;
-    
+
     this.stats.hits++;
     return entry.value;
   }
-  
+
   /**
    * Set an entry in the cache
    * 
@@ -223,12 +223,12 @@ export class CachingStrategy {
     if (!this.cache.has(namespace)) {
       this.cache.set(namespace, new Map());
     }
-    
+
     const namespaceMap = this.cache.get(namespace)!;
-    
+
     // Estimate size if not provided
     const sizeBytes = options.sizeBytes || this.estimateSize(value);
-    
+
     // Create entry
     const entry: CacheEntry<T> = {
       value,
@@ -241,21 +241,21 @@ export class CachingStrategy {
         priority: options.priority
       }
     };
-    
+
     // Check if we need to evict before adding
     if (this.shouldEvictBeforeAdd(sizeBytes)) {
       this.evict(namespace, key, sizeBytes);
     }
-    
+
     // Add to cache
     namespaceMap.set(key, entry);
-    
+
     // Setup background refresh if enabled and refresh function provided
     if (this.config.enableBackgroundRefresh && options.refreshFn && entry.meta.ttlMs! > 0) {
       this.setupBackgroundRefresh(namespace, key, options.refreshFn, entry.meta.ttlMs!);
     }
   }
-  
+
   /**
    * Check if an entry exists in the cache
    * 
@@ -269,29 +269,29 @@ export class CachingStrategy {
     if (!namespaceMap) {
       return false;
     }
-    
+
     // Get cache entry
     const entry = namespaceMap.get(key);
     if (!entry) {
       return false;
     }
-    
+
     // Check if entry has expired
     if (this.hasExpired(entry)) {
       // Remove expired entry
       namespaceMap.delete(key);
-      
+
       // Check if namespace is now empty
       if (namespaceMap.size === 0) {
         this.cache.delete(namespace);
       }
-      
+
       return false;
     }
-    
+
     return true;
   }
-  
+
   /**
    * Delete an entry from the cache
    * 
@@ -305,42 +305,42 @@ export class CachingStrategy {
     if (!namespaceMap) {
       return false;
     }
-    
+
     // Cancel any refresh timer
     const timerKey = `${namespace}:${key}`;
     if (this.refreshTimers.has(timerKey)) {
       clearTimeout(this.refreshTimers.get(timerKey));
       this.refreshTimers.delete(timerKey);
     }
-    
+
     // Delete entry
     const deleted = namespaceMap.delete(key);
-    
+
     // Check if namespace is now empty
     if (namespaceMap.size === 0) {
       this.cache.delete(namespace);
     }
-    
+
     return deleted;
   }
-  
+
   /**
    * Clear all entries from the cache
    */
   public clear(): void {
     // Clear all cache entries
     this.cache.clear();
-    
+
     // Clear all refresh timers
     for (const timer of this.refreshTimers.values()) {
       clearTimeout(timer);
     }
     this.refreshTimers.clear();
-    
+
     // Clear all precompute promises
     this.precomputePromises.clear();
   }
-  
+
   /**
    * Get the number of entries in the cache
    */
@@ -351,7 +351,7 @@ export class CachingStrategy {
     }
     return count;
   }
-  
+
   /**
    * Get the approximate memory usage of the cache in bytes
    */
@@ -364,7 +364,7 @@ export class CachingStrategy {
     }
     return totalBytes;
   }
-  
+
   /**
    * Get or compute a value from the cache
    * 
@@ -385,33 +385,33 @@ export class CachingStrategy {
     if (cachedValue !== null) {
       return cachedValue;
     }
-    
+
     // Check if there's already a computation in progress
     const computeKey = `${namespace}:${key}`;
     if (this.precomputePromises.has(computeKey)) {
       return this.precomputePromises.get(computeKey) as Promise<T>;
     }
-    
+
     // Compute the value
     const computePromise = computeFn();
     this.precomputePromises.set(computeKey, computePromise);
-    
+
     try {
       const value = await computePromise;
-      
+
       // Cache the computed value
       this.set(namespace, key, value, {
         ...options,
         refreshFn: options.refreshFn || computeFn
       });
-      
+
       return value;
     } finally {
       // Remove promise whether it succeeded or failed
       this.precomputePromises.delete(computeKey);
     }
   }
-  
+
   /**
    * Prefetch values into the cache
    * 
@@ -429,17 +429,17 @@ export class CachingStrategy {
     if (!this.config.enablePrecomputation) {
       return;
     }
-    
+
     // Process items in parallel with concurrency limit
     const concurrencyLimit = 5;
     const activePromises: Promise<any>[] = [];
-    
+
     for (const item of items) {
       // Skip if already in cache
       if (this.has(item.namespace, item.key)) {
         continue;
       }
-      
+
       // Create promise for this item
       const promise = this.getOrCompute(
         item.namespace,
@@ -447,38 +447,37 @@ export class CachingStrategy {
         item.computeFn,
         options
       );
-      
+
       activePromises.push(promise);
-      
+
       // Wait if we've hit the concurrency limit
       if (activePromises.length >= concurrencyLimit) {
-        await Promise.race(activePromises.map(p => p.catch(() => {})));
-        
-        // Filter out completed promises
-        const newActivePromises = activePromises.filter(p => !p.isResolved);
+        await Promise.race(activePromises.map(p => p.catch(() => { })));
+
+        // We need to create a new set of promises since Promise.race() only tells us one promise completed
+        // but doesn't tell us which one. Simplest solution is to create new batch of promises.
         activePromises.length = 0;
-        activePromises.push(...newActivePromises);
       }
     }
-    
+
     // Wait for remaining promises
-    await Promise.all(activePromises.map(p => p.catch(() => {})));
+    await Promise.all(activePromises.map(p => p.catch(() => { })));
   }
-  
+
   /**
    * Get cache statistics
    */
   public getStats(): CacheStats {
     // Calculate current memory usage
     const memoryUsageBytes = this.memoryUsage();
-    
+
     // Count entries
     const size = this.size();
-    
+
     // Calculate hit rate
     const totalAccesses = this.stats.hits + this.stats.misses;
     const hitRate = totalAccesses > 0 ? this.stats.hits / totalAccesses : 0;
-    
+
     return {
       size,
       maxSize: this.config.maxEntries,
@@ -491,7 +490,7 @@ export class CachingStrategy {
       timestamp: Date.now()
     };
   }
-  
+
   /**
    * Check if a cache entry has expired
    */
@@ -500,13 +499,13 @@ export class CachingStrategy {
     if (!entry.meta.ttlMs || entry.meta.ttlMs === 0) {
       return false;
     }
-    
+
     const now = Date.now();
     const expirationTime = entry.meta.createdAt + entry.meta.ttlMs;
-    
+
     return now > expirationTime;
   }
-  
+
   /**
    * Check if we need to evict entries before adding a new one
    */
@@ -515,15 +514,15 @@ export class CachingStrategy {
     if (this.size() >= this.config.maxEntries) {
       return true;
     }
-    
+
     // Check if adding would exceed max memory
     if (this.config.trackSize && this.memoryUsage() + newEntrySize > this.config.maxMemoryBytes) {
       return true;
     }
-    
+
     return false;
   }
-  
+
   /**
    * Evict entries to make room for a new entry
    */
@@ -532,18 +531,18 @@ export class CachingStrategy {
     if (this.memoryOptimizer) {
       this.memoryOptimizer.optimizeBeforeOperation();
     }
-    
+
     // Determine how many entries to evict
     const spaceNeeded = this.memoryUsage() + newSize - this.config.maxMemoryBytes;
     const entriesOverLimit = this.size() + 1 - this.config.maxEntries;
-    
+
     // Need to evict based on count or size
     const needEviction = entriesOverLimit > 0 || spaceNeeded > 0;
-    
+
     if (!needEviction) {
       return;
     }
-    
+
     // Choose eviction strategy based on policy
     switch (this.config.evictionPolicy) {
       case EvictionPolicy.LRU:
@@ -566,7 +565,7 @@ export class CachingStrategy {
         break;
     }
   }
-  
+
   /**
    * Evict based on Least Recently Used policy
    */
@@ -578,14 +577,14 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Sort by last accessed time (oldest first)
     allEntries.sort((a, b) => a.meta.lastAccessed - b.meta.lastAccessed);
-    
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Evict based on First In First Out policy
    */
@@ -597,14 +596,14 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Sort by creation time (oldest first)
     allEntries.sort((a, b) => a.meta.createdAt - b.meta.createdAt);
-    
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Evict based on Least Frequently Used policy
    */
@@ -616,14 +615,14 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Sort by access count (least first)
     allEntries.sort((a, b) => a.meta.accessCount - b.meta.accessCount);
-    
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Evict based on Time-To-Live policy (evict closest to expiration)
    */
@@ -635,7 +634,7 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Calculate time to expiration for each entry
     const now = Date.now();
     for (const entry of allEntries) {
@@ -645,14 +644,14 @@ export class CachingStrategy {
         entry.timeToExpiration = (entry.meta.createdAt + entry.meta.ttlMs) - now;
       }
     }
-    
+
     // Sort by time to expiration (closest first)
-    allEntries.sort((a, b) => a.timeToExpiration - b.timeToExpiration);
-    
+    allEntries.sort((a, b) => (a.timeToExpiration ?? Number.MAX_SAFE_INTEGER) - (b.timeToExpiration ?? Number.MAX_SAFE_INTEGER));
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Evict based on Random policy
    */
@@ -664,17 +663,17 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Shuffle array
     for (let i = allEntries.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [allEntries[i], allEntries[j]] = [allEntries[j], allEntries[i]];
     }
-    
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Evict based on Size policy (largest first)
    */
@@ -686,14 +685,14 @@ export class CachingStrategy {
   ): void {
     // Get all entries with metadata
     const allEntries = this.getAllEntriesWithMetadata(newNamespace, newKey);
-    
+
     // Sort by size (largest first)
     allEntries.sort((a, b) => b.meta.sizeBytes - a.meta.sizeBytes);
-    
+
     // Evict entries until we've freed enough space
     this.evictEntries(allEntries, spaceNeeded, entriesOverLimit);
   }
-  
+
   /**
    * Get all entries with metadata, excluding the new entry
    */
@@ -702,14 +701,14 @@ export class CachingStrategy {
     newKey: string
   ): Array<CacheEntry<any> & { namespace: string; key: string; timeToExpiration?: number }> {
     const allEntries: Array<CacheEntry<any> & { namespace: string; key: string; timeToExpiration?: number }> = [];
-    
+
     for (const [namespace, namespaceMap] of this.cache.entries()) {
       for (const [key, entry] of namespaceMap.entries()) {
         // Skip the new entry if it already exists
         if (namespace === newNamespace && key === newKey) {
           continue;
         }
-        
+
         allEntries.push({
           ...entry,
           namespace,
@@ -717,10 +716,10 @@ export class CachingStrategy {
         });
       }
     }
-    
+
     return allEntries;
   }
-  
+
   /**
    * Evict entries until we've freed enough space
    */
@@ -731,28 +730,28 @@ export class CachingStrategy {
   ): void {
     let freedSpace = 0;
     let entriesRemoved = 0;
-    
+
     for (const entry of entries) {
       // Skip entries with high priority if possible
       if (entry.meta.priority && entry.meta.priority > 0 && entriesRemoved >= entriesOverLimit && freedSpace >= spaceNeeded) {
         continue;
       }
-      
+
       // Delete the entry
       this.delete(entry.namespace, entry.key);
-      
+
       // Update tracking
       freedSpace += entry.meta.sizeBytes;
       entriesRemoved++;
       this.stats.evictions++;
-      
+
       // Check if we've freed enough space
       if (entriesRemoved >= entriesOverLimit && freedSpace >= spaceNeeded) {
         break;
       }
     }
   }
-  
+
   /**
    * Estimate the size of a value in bytes
    */
@@ -760,14 +759,14 @@ export class CachingStrategy {
     if (value === null || value === undefined) {
       return 0;
     }
-    
+
     const type = typeof value;
-    
+
     // Primitives
     if (type === 'boolean') return 4;
     if (type === 'number') return 8;
     if (type === 'string') return value.length * 2;
-    
+
     // Objects
     if (type === 'object') {
       // Arrays
@@ -778,12 +777,12 @@ export class CachingStrategy {
         }
         return size;
       }
-      
+
       // ArrayBuffer or TypedArray
       if (value.byteLength !== undefined) {
         return value.byteLength;
       }
-      
+
       // Regular objects
       let size = 0;
       for (const key in value) {
@@ -794,11 +793,11 @@ export class CachingStrategy {
       }
       return size;
     }
-    
+
     // Functions, symbols, etc.
     return 0;
   }
-  
+
   /**
    * Setup background refresh for an entry
    */
@@ -810,13 +809,13 @@ export class CachingStrategy {
   ): void {
     // Calculate refresh time (90% of TTL to refresh before expiration)
     const refreshTime = Math.max(1000, ttlMs * 0.9);
-    
+
     // Cancel any existing timer
     const timerKey = `${namespace}:${key}`;
     if (this.refreshTimers.has(timerKey)) {
       clearTimeout(this.refreshTimers.get(timerKey));
     }
-    
+
     // Set up new timer
     const timer = setTimeout(async () => {
       try {
@@ -824,10 +823,10 @@ export class CachingStrategy {
         if (!this.has(namespace, key)) {
           return;
         }
-        
+
         // Refresh the entry
         const value = await refreshFn();
-        
+
         // Update the cache
         this.set(namespace, key, value, {
           ttlMs,
@@ -841,7 +840,7 @@ export class CachingStrategy {
         this.refreshTimers.delete(timerKey);
       }
     }, refreshTime);
-    
+
     // Store the timer
     this.refreshTimers.set(timerKey, timer);
   }
