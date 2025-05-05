@@ -2,6 +2,12 @@ Rules (ongoing list):
 1. No mock or placeholder code. We want to know where we're failing.
 2. If something is confusing, don't create crap - stop, make note and consult.
 3. Always check if an implementation, file, test, architecture, function or code exists before making any new files or folders.
+4. Understand the entire codebase (make sure you grok it before making changes).
+5. Review this entire plan and its progress before coding.
+6. If you make a new code file - indicate that this is new and exactly what it's needed for. Also make sure there isn't mock or placeholder crap code in here either.
+7. Unless a plan or test file was made during this phased sprint (contained in this document) - I'd assume it's unreliable until its contents are analyzed thoroughly. Confirm its legitimacy before proceeding with trusting it blindly. Bad assumptions are unacceptable.
+8. Put all imports at the top of the file it's being imported into.
+9. Record all progress in this document.
 
 Phase 1: Resolve All Module System Issues
 
