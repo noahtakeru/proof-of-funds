@@ -669,8 +669,8 @@ export class ResourceAllocator {
   private pauseLowerPriorityOperations(): void {
     // Sort active operations by priority (lowest first)
     const operations = Array.from(this.activeOperations.entries())
-      .filter(([_, op]) => op.canBePaused)
-      .sort(([_a, opA], [_b, opB]) => {
+      .filter(([, op]) => op.canBePaused)
+      .sort(([, opA], [, opB]) => {
         const priorityA = this.config.priorityWeights[opA.priority] || 0;
         const priorityB = this.config.priorityWeights[opB.priority] || 0;
         return priorityA - priorityB; // Sort ascending by priority weight

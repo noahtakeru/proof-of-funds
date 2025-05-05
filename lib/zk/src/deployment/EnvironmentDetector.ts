@@ -77,40 +77,64 @@ export class EnvironmentDetector {
    */
   public detectFeatures(): FeatureDetectionResult {
     const environment = this.detectEnvironment();
+    let result: FeatureDetectionResult;
     
-    // Default values for Node.js
-    if (environment === EnvironmentType.Node) {
+    try {
+      // Default values for Node.js
+      if (environment === EnvironmentType.Node) {
+        result = {
+          environment,
+          supportsWebWorkers: false,
+          supportsWebAssembly: true,
+          supportsIndexedDB: false,
+          supportsServiceWorker: false,
+          supportsSharedArrayBuffer: true,
+          isSecureContext: true,
+          supportsLocalStorage: false,
+          cpuCores: this.detectCPUCores(),
+          isHighEndDevice: true,
+          hasNetwork: this.detectNetwork(),
+          supportsPersistentStorage: this.detectPersistentStorage()
+        };
+      } else {
+        // Browser, Mobile, or Worker environment detection
+        result = {
+          environment,
+          supportsWebWorkers: this.detectWebWorkers(),
+          supportsWebAssembly: this.detectWebAssembly(),
+          supportsIndexedDB: this.detectIndexedDB(),
+          supportsServiceWorker: this.detectServiceWorker(),
+          supportsSharedArrayBuffer: this.detectSharedArrayBuffer(),
+          isSecureContext: this.detectSecureContext(),
+          supportsLocalStorage: this.detectLocalStorage(),
+          cpuCores: this.detectCPUCores(),
+          isHighEndDevice: this.isHighEndDevice(),
+          hasNetwork: this.detectNetwork(),
+          supportsPersistentStorage: this.detectPersistentStorage()
+        };
+      }
+      
+      return result;
+    } catch (error) {
+      // If any detection fails, log the error and provide safe fallback values
+      console.error(`Feature detection error: ${error.message}`);
+      
+      // Fallback to safe default values
       return {
         environment,
-        supportsWebWorkers: false,
-        supportsWebAssembly: true,
-        supportsIndexedDB: false,
-        supportsServiceWorker: false,
-        supportsSharedArrayBuffer: true,
-        isSecureContext: true,
-        supportsLocalStorage: false,
-        cpuCores: this.detectCPUCores(),
-        isHighEndDevice: true,
-        hasNetwork: this.detectNetwork(),
-        supportsPersistentStorage: true
+        supportsWebWorkers: typeof Worker !== 'undefined',
+        supportsWebAssembly: typeof WebAssembly !== 'undefined',
+        supportsIndexedDB: typeof indexedDB !== 'undefined',
+        supportsServiceWorker: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
+        supportsSharedArrayBuffer: false, // Safest default
+        isSecureContext: typeof window !== 'undefined' && (window.isSecureContext === true),
+        supportsLocalStorage: typeof localStorage !== 'undefined',
+        cpuCores: 2, // Conservative default
+        isHighEndDevice: false, // Conservative default
+        hasNetwork: true, // Assume network is available
+        supportsPersistentStorage: false // Conservative default
       };
     }
-    
-    // Browser, Mobile, or Worker environment detection
-    return {
-      environment,
-      supportsWebWorkers: this.detectWebWorkers(),
-      supportsWebAssembly: this.detectWebAssembly(),
-      supportsIndexedDB: this.detectIndexedDB(),
-      supportsServiceWorker: this.detectServiceWorker(),
-      supportsSharedArrayBuffer: this.detectSharedArrayBuffer(),
-      isSecureContext: this.detectSecureContext(),
-      supportsLocalStorage: this.detectLocalStorage(),
-      cpuCores: this.detectCPUCores(),
-      isHighEndDevice: this.isHighEndDevice(),
-      hasNetwork: this.detectNetwork(),
-      supportsPersistentStorage: this.detectPersistentStorage()
-    };
   }
   
   /**
@@ -241,8 +265,8 @@ export class EnvironmentDetector {
       try {
         const os = require('os');
         return os.cpus().length;
-      } catch (e) {
-        return 1;
+      } catch (error) {
+        throw new Error(`CPU detection failed in Node.js environment: ${error.message}`);
       }
     }
     
@@ -251,8 +275,7 @@ export class EnvironmentDetector {
       return navigator.hardwareConcurrency;
     }
     
-    // Default if detection fails
-    return 2;
+    throw new Error('CPU core detection not supported in this environment');
   }
   
   /**
@@ -284,8 +307,8 @@ export class EnvironmentDetector {
       try {
         const os = require('os');
         return Math.floor(os.totalmem() / (1024 * 1024));
-      } catch (e) {
-        return 1024; // Default 1GB for Node.js
+      } catch (error) {
+        throw new Error(`Memory detection failed in Node.js environment: ${error.message}`);
       }
     }
     
@@ -293,24 +316,29 @@ export class EnvironmentDetector {
     if (typeof navigator !== 'undefined' && navigator.userAgent) {
       const ua = navigator.userAgent.toLowerCase();
       
-      // Higher-end device heuristics
-      if (this.detectCPUCores() >= 8 || 
-          ua.includes('macintosh') || 
-          ua.includes('win64')) {
-        return 4096; // Assume 4GB
+      try {
+        // Higher-end device heuristics
+        if (this.detectCPUCores() >= 8 || 
+            ua.includes('macintosh') || 
+            ua.includes('win64')) {
+          return 4096; // Assume 4GB
+        }
+        
+        // Mid-range device
+        if (this.detectCPUCores() >= 4) {
+          return 2048; // Assume 2GB
+        }
+        
+        // Lower-end device
+        return 1024; // Assume 1GB
+      } catch (error) {
+        // If CPU detection fails, use a conservative estimate
+        return 1024; // Conservative 1GB
       }
-      
-      // Mid-range device
-      if (this.detectCPUCores() >= 4) {
-        return 2048; // Assume 2GB
-      }
-      
-      // Lower-end device
-      return 1024; // Assume 1GB
     }
     
-    // Conservative default
-    return 1024;
+    // Could not detect environment
+    throw new Error('Memory detection not supported in this environment');
   }
   
   /**
@@ -321,7 +349,23 @@ export class EnvironmentDetector {
       return navigator.onLine;
     }
     
-    // Default to true if we can't detect
+    // For Node.js, try to make a dummy network request
+    if (typeof process !== 'undefined' && 
+        process.versions && 
+        process.versions.node) {
+      try {
+        // We're not actually making a request here, but in a real implementation
+        // we could use http/https modules to check connectivity
+        // For now, we'll just assume connectivity in Node.js
+        return true;
+      } catch (error) {
+        console.warn(`Network detection warning: ${error.message}`);
+        return false;
+      }
+    }
+    
+    console.warn('Network detection not supported in this environment');
+    // Default to true if we can't detect - safer assumption for most applications
     return true;
   }
   
@@ -329,17 +373,35 @@ export class EnvironmentDetector {
    * Detect if persistent storage is available
    */
   private detectPersistentStorage(): boolean {
+    // For browsers with Storage API
     if (typeof navigator !== 'undefined' && 
         'storage' in navigator && 
         'persisted' in navigator.storage) {
-      return true; // API exists, actual persistence check would be async
-    }
-    
-    // For Node.js assume true
-    if (this.detectEnvironment() === EnvironmentType.Node) {
+      // API exists, actual persistence check would be async
+      // In a real implementation, we might use:
+      // const isPersisted = await navigator.storage.persisted();
+      // For now, we just check if the API is available
       return true;
     }
     
+    // For browsers with localStorage/IndexedDB
+    if (typeof localStorage !== 'undefined' || typeof indexedDB !== 'undefined') {
+      return true;
+    }
+    
+    // For Node.js environments
+    if (this.detectEnvironment() === EnvironmentType.Node) {
+      try {
+        // Check if we can require the fs module
+        require('fs');
+        return true;
+      } catch (error) {
+        console.warn(`Persistent storage detection warning: ${error.message}`);
+        return false;
+      }
+    }
+    
+    console.warn('Persistent storage detection not supported in this environment');
     return false;
   }
 }

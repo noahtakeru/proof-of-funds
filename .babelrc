@@ -2,7 +2,7 @@
     "presets": [
         "next/babel"
     ],
-    "sourceType": "module",
+    "sourceType": "unambiguous",
     "assumptions": {
         "setPublicClassFields": true
     }

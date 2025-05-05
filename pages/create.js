@@ -39,7 +39,7 @@ const isValidAmount = (amount) => {
   return true;
 };
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { generateZKProof } from '../lib/zk/src/zkUtils';
+import { generateZKProof } from '../lib/zk';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {

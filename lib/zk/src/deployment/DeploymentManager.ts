@@ -473,35 +473,57 @@ export class DeploymentManager {
    * Detect features available in the current environment
    */
   private detectFeatures(): void {
-    const detectedFeatures = this.detector.detectFeatures();
+    try {
+      const detectedFeatures = this.detector.detectFeatures();
 
-    // Update features configuration based on detection
-    this.config.features = {
-      ...this.config.features,
-      webWorkers: detectedFeatures.supportsWebWorkers,
-      webAssembly: detectedFeatures.supportsWebAssembly,
-      indexedDB: detectedFeatures.supportsIndexedDB,
-      serviceWorker: detectedFeatures.supportsServiceWorker,
-      sharedArrayBuffer: detectedFeatures.supportsSharedArrayBuffer,
-      secureContext: detectedFeatures.isSecureContext,
-      localStorage: detectedFeatures.supportsLocalStorage
-    };
+      // Update features configuration based on detection
+      this.config.features = {
+        ...this.config.features,
+        webWorkers: detectedFeatures.supportsWebWorkers,
+        webAssembly: detectedFeatures.supportsWebAssembly,
+        indexedDB: detectedFeatures.supportsIndexedDB,
+        serviceWorker: detectedFeatures.supportsServiceWorker,
+        sharedArrayBuffer: detectedFeatures.supportsSharedArrayBuffer,
+        secureContext: detectedFeatures.isSecureContext,
+        localStorage: detectedFeatures.supportsLocalStorage
+      };
 
-    // Copy to features record for external use
-    this.features = {
-      webWorkers: this.config.features.webWorkers,
-      webAssembly: this.config.features.webAssembly,
-      indexedDB: this.config.features.indexedDB,
-      serviceWorker: this.config.features.serviceWorker,
-      sharedArrayBuffer: this.config.features.sharedArrayBuffer,
-      secureContext: this.config.features.secureContext,
-      localStorage: this.config.features.localStorage
-    };
+      // Copy to features record for external use
+      this.features = {
+        webWorkers: this.config.features.webWorkers,
+        webAssembly: this.config.features.webAssembly,
+        indexedDB: this.config.features.indexedDB,
+        serviceWorker: this.config.features.serviceWorker,
+        sharedArrayBuffer: this.config.features.sharedArrayBuffer,
+        secureContext: this.config.features.secureContext,
+        localStorage: this.config.features.localStorage
+      };
 
-    this.log('info', `Feature detection completed: ${Object.entries(this.features)
-      .filter(([, value]) => value)
-      .map(([key]) => key)
-      .join(', ')}`);
+      this.log('info', `Feature detection completed: ${Object.entries(this.features)
+        .filter(([, value]) => value)
+        .map(([key]) => key)
+        .join(', ')}`);
+    } catch (error) {
+      this.log('error', `Feature detection failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.warnings.push(`Feature detection error: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Set safe default values if detection fails
+      this.config.features = {
+        ...this.config.features,
+        webWorkers: typeof Worker !== 'undefined',
+        webAssembly: typeof WebAssembly !== 'undefined',
+        indexedDB: typeof indexedDB !== 'undefined',
+        serviceWorker: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
+        sharedArrayBuffer: false, // Conservative default
+        secureContext: typeof window !== 'undefined' && (window.isSecureContext === true),
+        localStorage: typeof localStorage !== 'undefined'
+      };
+      
+      // Copy to features record for external use
+      this.features = { ...this.config.features };
+      
+      this.log('warn', 'Using fallback feature detection values due to error');
+    }
   }
 
   /**
