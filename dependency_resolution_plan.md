@@ -297,52 +297,24 @@ Phase 3: Incremental Migration Strategy (No Symlinks)
 
 > **Important**: For each migration step below, ensure proper cleanup by removing original files **only after** successful testing. This prevents accumulation of redundant code and maintains a clean codebase. Always verify functionality before removing original files.
 
+> **Prepare for Phase 3**: Before starting the actual migration, make sure to:
+> 1. Fix the Hardhat dependency issue in the contracts package during migration step 3.2 by updating the package.json with the correct Hardhat version (2.22.19) and required dependencies from the working smart-contracts directory
+> 2. Create proper testing procedures for each module to ensure functionality isn't broken
+> 3. Backup critical files before removal to allow for easy rollback if needed
+> 4. Update import paths carefully to maintain compatibility with the new structure
+
 3.1. Incremental Migration of Common Package (ZK Libraries)
 
-Step 1: Setup Package Structure
+> **Note**: The directory structure for packages/common has already been created during Phase 2. This step involves migrating the actual implementations.
+
+Step 1: Verify Package Structure and Install Dependencies
 ```bash
-# Create directory structure
-mkdir -p packages/common/src
-mkdir -p packages/common/dist
+# Verify package structure created in Phase 2
+ls -la packages/common/
 
-# Create package.json and tsconfig.json
-cat > packages/common/package.json << EOF
-{
-  "name": "@proof-of-funds/common",
-  "version": "0.1.0",
-  "description": "Common utilities for Proof of Funds platform",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsup src/index.mjs --format cjs,esm --dts",
-    "test": "jest"
-  },
-  "dependencies": {
-    "buffer": "^6.0.3"
-  },
-  "peerDependencies": {
-    "ethers": "^5.0.0 || ^6.0.0"
-  }
-}
-EOF
-
-# Create TypeScript configuration
-cat > packages/common/tsconfig.json << EOF
-{
-  "compilerOptions": {
-    "target": "es2020",
-    "module": "esnext",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "outDir": "./dist",
-    "declaration": true,
-    "strict": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.test.ts"]
-}
-EOF
+# Install test dependencies for migration
+cd packages/common
+npm install --save-dev jest @types/jest ts-jest tsup
 ```
 
 Step 2: Migrate Error Handling System
@@ -458,35 +430,68 @@ cd packages/common && npm run build
 
 3.2. Migrate Contract Package
 
-Step 1: Setup Contract Package
+> **Note**: The directory structure for packages/contracts has already been created during Phase 2. This step involves migrating the actual contract files and fixing the Hardhat dependency issue.
+
+Step 1: Fix Hardhat Dependency and Complete Package Setup
 
 ```bash
 # Create directory structure
 mkdir -p packages/contracts
 
-# Create package.json
+# Create package.json with fixed dependencies for Hardhat
 cat > packages/contracts/package.json << EOF
 {
   "name": "@proof-of-funds/contracts",
   "version": "0.1.0",
   "description": "Smart contracts for Proof of Funds platform",
   "scripts": {
+    "build": "hardhat compile",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:local": "hardhat run scripts/deploy.js --network localhost"
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy"
   },
   "dependencies": {
-    "ethers": "^6.1.0",
-    "hardhat": "^2.17.0",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
-    "chai": "^4.5.0",
+    "@openzeppelin/contracts": "^4.9.3",
     "@proof-of-funds/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "chai": "^4.3.10",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.22.19"
   }
 }
 EOF
 
-# Copy hardhat config
+# Create an .npmrc file to ensure consistent dependency resolution
+cat > .npmrc << EOF
+legacy-peer-deps=true
+node-linker=hoisted
+EOF
+
+# Copy hardhat config and create a .env file for environment variables
 cp /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/hardhat.config.cjs packages/contracts/
+
+# Create a placeholder .env file with sample values
+cat > packages/contracts/.env << EOF
+# Private key for deployments (replace with your own for actual deployments)
+PRIVATE_KEY=your_private_key_here
+
+# RPC URLs
+POLYGON_AMOY_RPC=https://rpc-amoy.polygon.technology
+POLYGON_MAINNET_RPC=https://polygon-rpc.com
+
+# Polygonscan API key for contract verification
+POLYGONSCAN_API_KEY=your_polygonscan_api_key_here
+EOF
+
+# Add .env to .gitignore to avoid committing sensitive information
+echo "packages/contracts/.env" >> .gitignore
 ```
 
 Step 2: Migrate Contract Files
@@ -517,36 +522,28 @@ rm -rf /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/test
 
 3.3. Migrate Frontend Package
 
-Step 1: Setup Frontend Package
+> **Note**: The directory structure for packages/frontend has already been created during Phase 2. This step involves migrating the actual components and pages.
+
+Step 1: Verify Frontend Package Setup and Update Configuration
 
 ```bash
-# Create directory structure
-mkdir -p packages/frontend
+# Verify package structure created in Phase 2
+ls -la packages/frontend/
 
-# Create package.json
-cat > packages/frontend/package.json << EOF
-{
-  "name": "@proof-of-funds/frontend",
-  "version": "0.1.0",
-  "description": "Frontend for Proof of Funds platform",
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+# Update Next.js config to support workspace packages
+cat > packages/frontend/next.config.js << EOF
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  transpilePackages: ['@proof-of-funds/common'],
+  webpack: (config) => {
+    config.resolve.fallback = { ...config.resolve.fallback, buffer: require.resolve('buffer/') };
+    return config;
   },
-  "dependencies": {
-    "ethers": "^5.7.2",
-    "next": "^14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@proof-of-funds/common": "workspace:*"
-  }
-}
-EOF
+};
 
-# Copy Next.js config
-cp /Users/karpel/Documents/GitHub/proof-of-funds/next.config.cjs packages/frontend/
+module.exports = nextConfig;
+EOF
 ```
 
 Step 2: Migrate Frontend Files by Component Groups
@@ -597,8 +594,41 @@ rm /Users/karpel/Documents/GitHub/proof-of-funds/components/ConnectWallet.js
 rm /Users/karpel/Documents/GitHub/proof-of-funds/components/PhantomMultiWalletSelector.js
 rm /Users/karpel/Documents/GitHub/proof-of-funds/components/WalletBalanceProof.tsx
 
-# Continue with other component groups...
-# [Additional component groups would be migrated in similar pattern]
+# Group 3: ZK-related components
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKVerificationResult.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKProgressIndicator.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKErrorDisplay.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/CircuitSelector.tsx packages/frontend/components/
+
+# Update imports
+sed -i '' 's|from "../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/components/*.tsx
+
+# Test these components
+cd packages/frontend && npm run build
+
+# After successful testing, remove original files
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKVerificationResult.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKProgressIndicator.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/ZKErrorDisplay.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/CircuitSelector.tsx
+
+# Group 4: Educational and progress tracking components
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/EducationalGuide.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/ProgressTracker.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/TaskBreakdown.tsx packages/frontend/components/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/components/UnderstandingPOF.tsx packages/frontend/components/
+
+# Update imports
+sed -i '' 's|from "../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/components/*.tsx
+
+# Test these components
+cd packages/frontend && npm run build
+
+# After successful testing, remove original files
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/EducationalGuide.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/ProgressTracker.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/TaskBreakdown.tsx
+rm /Users/karpel/Documents/GitHub/proof-of-funds/components/UnderstandingPOF.tsx
 
 # Pages migration
 # Copy pages in logical groups
@@ -617,8 +647,37 @@ rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/index.js
 rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/about.js
 rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/_app.js
 
-# Continue with other page groups...
-# [Additional page groups would be migrated in similar pattern]
+# Group 2: Verification and create pages
+cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/verify.js packages/frontend/pages/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/create.js packages/frontend/pages/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/tech.js packages/frontend/pages/
+
+# Update imports
+sed -i '' 's|from "../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/pages/*.js
+
+# Test these pages
+cd packages/frontend && npm run build
+
+# After successful testing, remove original files
+rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/verify.js
+rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/create.js
+rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/tech.js
+
+# Group 3: API routes
+mkdir -p packages/frontend/pages/api/zk
+cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/api/verify-transaction.js packages/frontend/pages/api/
+cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/api/zk/*.js packages/frontend/pages/api/zk/
+
+# Update imports
+sed -i '' 's|from "../../../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/pages/api/zk/*.js
+sed -i '' 's|from "../../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/pages/api/*.js
+
+# Test API routes
+cd packages/frontend && npm run build
+
+# After successful testing, remove original files
+rm /Users/karpel/Documents/GitHub/proof-of-funds/pages/api/verify-transaction.js
+rm -rf /Users/karpel/Documents/GitHub/proof-of-funds/pages/api/zk
 
 # Migrate styles and public directories
 cp -r /Users/karpel/Documents/GitHub/proof-of-funds/styles/* packages/frontend/styles/
@@ -657,25 +716,115 @@ npm install
 4.2. Verify Complete Migration
 
 ```bash
-# Run specific tests for each phase of migration
-# For common package:
-npm run test -w @proof-of-funds/common -- --testPathPattern=error-handling
-npm run test -w @proof-of-funds/common -- --testPathPattern=zk-core
-npm run test -w @proof-of-funds/common -- --testPathPattern=system
+# Create a migration validation script
+cat > verify-migration.js << EOF
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
-# For contracts package:
-npm run test -w @proof-of-funds/contracts
+// Define original file paths and their new locations
+const migrationMap = {
+  // Error handling system
+  'lib/zk/src/zkErrorHandler.mjs': 'packages/common/src/error-handling/zkErrorHandler.mjs',
+  'lib/zk/src/zkErrorLogger.mjs': 'packages/common/src/error-handling/zkErrorLogger.mjs',
+  
+  // ZK core
+  'lib/zk/src/zkUtils.mjs': 'packages/common/src/zk-core/zkUtils.mjs',
+  'lib/zk/src/zkCircuitRegistry.mjs': 'packages/common/src/zk-core/zkCircuitRegistry.mjs',
+  'lib/zk/src/zkCircuitInputs.mjs': 'packages/common/src/zk-core/zkCircuitInputs.mjs',
+  
+  // System utilities
+  'lib/zk/src/memoryManager.mjs': 'packages/common/src/system/memoryManager.mjs',
+  'lib/zk/src/secureStorage.mjs': 'packages/common/src/system/secureStorage.mjs',
+  'lib/zk/src/SecureKeyManager.js': 'packages/common/src/system/SecureKeyManager.js',
+  
+  // Add more entries as needed for validation
+};
 
-# For frontend:
-npm run build -w @proof-of-funds/frontend
+console.log('Validating migration completion...');
+console.log('--------------------------------');
 
-# Start development server
-npm run dev
+let allPassed = true;
+const basePath = process.cwd();
 
-# Verify application works in browser by navigating to:
-# http://localhost:3000
-# http://localhost:3000/create
-# http://localhost:3000/verify
+// Check file migrations
+for (const [originalPath, newPath] of Object.entries(migrationMap)) {
+  const fullOriginalPath = path.join(basePath, originalPath);
+  const fullNewPath = path.join(basePath, newPath);
+  
+  const originalExists = fs.existsSync(fullOriginalPath);
+  const newExists = fs.existsSync(fullNewPath);
+  
+  console.log(`${originalPath} -> ${newPath}:`);
+  if (originalExists && newExists) {
+    console.log('  ❌ INCOMPLETE: Both files exist (original not removed)');
+    allPassed = false;
+  } else if (!originalExists && newExists) {
+    console.log('  ✅ COMPLETE: Original removed, new file exists');
+  } else if (originalExists && !newExists) {
+    console.log('  ❌ FAILED: Original exists but new file missing');
+    allPassed = false;
+  } else {
+    console.log('  ⚠️ UNKNOWN: Neither file exists');
+    allPassed = false;
+  }
+}
+
+console.log('');
+console.log('Running package tests...');
+console.log('--------------------------------');
+
+// Run tests for each package
+try {
+  console.log('Testing @proof-of-funds/common:');
+  execSync('npm run test -w @proof-of-funds/common', { stdio: 'inherit' });
+  console.log('  ✅ @proof-of-funds/common tests passed');
+} catch (error) {
+  console.log('  ❌ @proof-of-funds/common tests failed');
+  allPassed = false;
+}
+
+try {
+  console.log('Testing @proof-of-funds/contracts:');
+  execSync('npm run test -w @proof-of-funds/contracts', { stdio: 'inherit' });
+  console.log('  ✅ @proof-of-funds/contracts tests passed');
+} catch (error) {
+  console.log('  ❌ @proof-of-funds/contracts tests failed');
+  allPassed = false;
+}
+
+try {
+  console.log('Building @proof-of-funds/frontend:');
+  execSync('npm run build -w @proof-of-funds/frontend', { stdio: 'inherit' });
+  console.log('  ✅ @proof-of-funds/frontend build passed');
+} catch (error) {
+  console.log('  ❌ @proof-of-funds/frontend build failed');
+  allPassed = false;
+}
+
+console.log('');
+console.log('Migration result:', allPassed ? '✅ SUCCESSFUL' : '❌ INCOMPLETE');
+console.log('');
+
+if (allPassed) {
+  console.log('Verify application works in browser by navigating to:');
+  console.log('- http://localhost:3000');
+  console.log('- http://localhost:3000/create');
+  console.log('- http://localhost:3000/verify');
+  console.log('');
+  console.log('Run the development server with: npm run dev');
+} else {
+  console.log('Please fix the issues above before proceeding.');
+}
+EOF
+
+# Run the verification script
+node verify-migration.js
+
+# If verification is successful, start development server to manually test
+if [ $? -eq 0 ]; then
+  npm run dev
+fi
 ```
 
 Testing Strategy
@@ -709,19 +858,50 @@ Risk Assessment and Mitigation
    - Risk: Next.js may not properly resolve workspace package imports
    - Mitigation: Update Next.js configuration to support workspaces
    - Test each component after migration before removing original
+   - Add specific Next.js configuration for workspace imports:
+     ```js
+     // next.config.js
+     const nextConfig = {
+       transpilePackages: ['@proof-of-funds/common']
+     };
+     ```
 
 2. **TypeScript Integration:**
    - Risk: TypeScript types may not be properly exposed between packages
    - Mitigation: Ensure proper tsconfig.json setup in each package
    - Add explicit type exports in common package index.ts
+   - Use `"types": "dist/index.d.ts"` in package.json
 
 3. **Module Resolution:**
    - Risk: Mixed CommonJS/ESM imports might cause runtime errors
    - Mitigation: Explicitly specify module format in package.json
    - Use proper extensions (.mjs for ESM, .cjs for CommonJS)
    - Test in both Node.js and browser environments
+   - Create both ESM and CJS build outputs using tsup:
+     ```
+     "build": "tsup src/index.mjs --format cjs,esm --dts"
+     ```
 
 4. **Dependency Management:**
    - Risk: Version conflicts between ethers v5 and v6
    - Mitigation: Use peerDependencies in common package
    - Explicitly specify which version each package uses
+   - Define package resolution overrides when needed:
+     ```json
+     "overrides": {
+       "ethers": {
+         "@proof-of-funds/frontend": "5.7.2",
+         "@proof-of-funds/contracts": "6.10.0"
+       }
+     }
+     ```
+
+5. **Hardhat Dependency Issue:**
+   - Risk: Hardhat fails to compile contracts due to missing dependencies
+   - Mitigation: Upgrade Hardhat to v2.22.19 and add all required dependencies
+   - Include hardhat-toolbox to ensure all plugins are properly loaded
+   - Add `.npmrc` settings to ensure consistent dependency resolution:
+     ```
+     legacy-peer-deps=true
+     node-linker=hoisted
+     ```
