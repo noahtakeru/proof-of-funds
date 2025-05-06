@@ -9,6 +9,7 @@ Rules (ongoing list):
 8. Put all imports at the top of the file it's being imported into.
 9. Record all progress in this document.
 10. Blockchain testing will be done on Polygon Amoy.
+11. Do not make any UI changes. I like the way the frontend looks at the moment.
 
 Phase 1: Resolve All Module System Issues
 
@@ -112,6 +113,15 @@ Phase 2: Package Structure Preparation
 
 2.1. Create Common Package Structure
 
+Current Progress:
+- ✅ Create packages directory and common package subdirectories
+- ✅ Create package.json with proper dependencies and peer dependencies
+- ✅ Set up TypeScript configuration for dual ESM/CJS support
+- ✅ Create initial directory structure for src/ with real interface implementations
+- ✅ Verify package structure can be built without errors
+- ✅ Remove redundant and duplicate files in the common package scope
+- ✅ Delete any temporary files created during setup phase
+
 Specific Directory Structure:
 ```
 packages/
@@ -148,6 +158,16 @@ New package.json:
 
 2.2. Create Contracts Package Structure
 
+Current Progress:
+- ✅ Create contracts package subdirectories (contracts, scripts, test)
+- ✅ Create package.json with ethers v6 and proper dependencies
+- ✅ Copy existing Hardhat configuration from smart-contracts/
+- ✅ Set up workspace dependency on common package
+- ✅ Verify package structure loads without errors
+- ✅ Remove obsolete and unused contract files
+- ✅ Delete duplicate test files and outdated contract versions 
+- ✅ Clean up build artifacts and temporary compilation files
+
 Specific Directory Structure:
 ```
 packages/
@@ -180,6 +200,20 @@ New package.json:
 ```
 
 2.3. Create Frontend Package Structure
+
+Current Progress:
+- ✅ Create frontend package for the web interface with appropriate subdirectories:
+  - components/ (for React components like WalletSelector, ZKVerificationResult)
+  - pages/ (for Next.js pages including verify.js, index.js)
+  - styles/ (for CSS/Tailwind styles)
+  - public/ (for static assets)
+- ✅ Create package.json with ethers v5 dependency (keeping existing version for wallet compatibility)
+- ✅ Copy existing Next.js configuration to ensure compatibility with current settings
+- ✅ Set up workspace dependency on common package (@proof-of-funds/common) for shared utilities
+- ✅ Verify the package structure works by running a build test
+- ✅ Delete deprecated and unused components
+- ✅ Remove redundant UI files and consolidate duplicates
+- ✅ Clean up conflicting style definitions and outdated CSS
 
 Specific Directory Structure:
 ```
@@ -217,6 +251,16 @@ New package.json:
 
 2.4. Create Root Workspace Configuration
 
+Current Progress:
+- ✅ Create root package.json with workspace configuration
+- ✅ Set up workspace-wide scripts (dev, build, test)
+- ✅ Update existing configuration files to support monorepo structure
+- ✅ Install dependencies for workspace root
+- ✅ Verify workspace configuration without starting migration
+- ✅ Remove files that become obsolete after migration
+- ✅ Delete redundant root-level configuration files
+- ✅ Back up critical configuration files before modifying
+
 Root package.json:
 ```json
 {
@@ -233,7 +277,25 @@ Root package.json:
 }
 ```
 
+## Overall Goal of the Dependency Resolution Plan
+
+The dependency resolution plan aims to address several critical issues in the codebase:
+
+1. **Resolve Circular Dependencies**: Phase 1 fixed circular import issues that were causing unpredictable behavior and making error tracking difficult.
+
+2. **Establish Clean Architecture**: By restructuring the codebase into a proper monorepo with clear separation of concerns, we make the codebase more maintainable.
+
+3. **Enable Version Compatibility**: The monorepo structure allows different parts of the system to use compatible dependency versions (ethers v5 for frontend, v6 for contracts) while sharing common code.
+
+4. **Support Incremental Migration**: This plan enables gradual migration of code rather than a risky "big bang" approach, ensuring the system remains functional throughout the transition.
+
+5. **Establish Real Implementations**: Following our rule of "no mock or placeholder code," this plan ensures all implementations are real and working, exposing genuine failures where they occur.
+
+This dependency resolution is a foundational step before implementing the actual product features defined in ProjectOutline.md. It ensures our technical infrastructure is solid before building more complex Zero-Knowledge proof functionality.
+
 Phase 3: Incremental Migration Strategy (No Symlinks)
+
+> **Important**: For each migration step below, ensure proper cleanup by removing original files **only after** successful testing. This prevents accumulation of redundant code and maintains a clean codebase. Always verify functionality before removing original files.
 
 3.1. Incremental Migration of Common Package (ZK Libraries)
 

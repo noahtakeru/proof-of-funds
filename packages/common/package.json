@@ -1,0 +1,18 @@
+{
+  "name": "@proof-of-funds/common",
+  "version": "0.1.0",
+  "description": "Common utilities for Proof of Funds platform",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.mjs --format cjs,esm --dts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
+  },
+  "peerDependencies": {
+    "ethers": "^5.0.0 || ^6.0.0"
+  }
+}

@@ -2,6 +2,8 @@
 
 ## Overview
 
+FOR THE ACTUAL PLAN REFER TO dependency_resolution_plan.md. This will give you the actual progress of the plan and is the core document for the plan.
+
 This report summarizes the work completed on Phase 1 of the dependency resolution plan. The goal was to address circular dependencies, TypeScript integration issues, and module format inconsistencies in the codebase.
 
 ## Phase 1 Completion Summary
