@@ -1,42 +1,32 @@
 # Proof of Funds Protocol
 
-A decentralized protocol for verifying proof of funds ownership on EVM-compatible blockchains, with a focus on privacy and user control. This project consists of:
+A decentralized protocol for verifying proof of funds ownership on EVM-compatible blockchains, with a focus on privacy and user control. This project is structured as a monorepo with the following packages:
 
-1. Smart contracts for on-chain verification
-2. A Next.js frontend for user interaction
+1. **@proof-of-funds/common** - Core utilities and zero-knowledge proof functionality
+2. **@proof-of-funds/contracts** - Smart contracts for on-chain verification
+3. **@proof-of-funds/frontend** - Next.js frontend for user interaction
 
-## Smart Contract Features
+## Features
 
 - Verifiable proofs of fund ownership with three verification modes:
   - **Standard Proof**: Verify exact amount of funds
   - **Threshold Proof**: Verify a minimum amount of funds
   - **Maximum Proof**: Verify a maximum amount of funds
+- Zero-knowledge proofs for privacy-preserving verification
 - User-controlled expiration dates
 - Proof revocation capabilities
-- Zero-knowledge verification (in progress)
+- Multi-chain support (Ethereum, Polygon, etc.)
+- Comprehensive wallet integration
 
-## Frontend Features
-
-- Connect multiple wallets (Ethereum, Polygon, etc.)
-- Create and manage proofs of funds
-- Share proofs with third parties
-- Verify proofs received from others
-
-## Project Structure
+## Monorepo Structure
 
 ```
 proof-of-funds/
-├── contracts/           # Smart contract source files
-├── scripts/             # Deployment & verification scripts
-├── test/                # Contract test files
-├── deployments/         # Deployment artifacts and records
-├── artifacts/           # Compiled contract artifacts
-├── cache/               # Hardhat cache
-├── components/          # React components
-├── pages/               # Next.js pages
-├── public/              # Static assets
-├── styles/              # CSS and styling
-└── config/              # Configuration files
+├── packages/
+│   ├── common/             # Core utilities and ZK functionality
+│   ├── contracts/          # Smart contract source files
+│   └── frontend/           # Next.js frontend application
+└── config/                 # Root configuration files
 ```
 
 ## Development Setup
@@ -76,7 +66,7 @@ proof-of-funds/
 
 2. Run tests
    ```bash
-   npm run test
+   npm run test -w @proof-of-funds/contracts
    ```
 
 3. Deploy to local network
@@ -87,11 +77,6 @@ proof-of-funds/
 4. Deploy to Polygon Amoy testnet
    ```bash
    npm run deploy:amoy
-   ```
-   
-5. Verify contract on Polygonscan
-   ```bash
-   npm run verify:amoy
    ```
 
 ### Frontend Development
@@ -105,8 +90,8 @@ proof-of-funds/
 
 ## Testing
 
-- Smart contract tests: `npm run test`
-- Frontend tests: (coming soon)
+- Run all tests: `npm run test`
+- Test specific package: `npm run test -w @proof-of-funds/common`
 
 ## Deployment
 
@@ -123,8 +108,8 @@ The contract can be deployed to any EVM-compatible network. The deployment scrip
 The Next.js frontend can be deployed to Vercel or any other hosting service:
 
 ```bash
-npm run build
-npm run start
+npm run build -w @proof-of-funds/frontend
+npm run start -w @proof-of-funds/frontend
 ```
 
 ## License

@@ -1,0 +1,12 @@
+{
+  "name": "proof-of-funds-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @proof-of-funds/frontend",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces"
+  }
+}
