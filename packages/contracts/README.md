@@ -2,7 +2,7 @@
 
 This package contains the smart contracts used in the Proof of Funds platform.
 
-> **Note**: During Phase 2 of the dependency resolution plan, this package has a known issue with Hardhat dependencies that will be resolved in Phase 3 during actual code migration.
+> **Note**: Phase 3 of the dependency resolution plan has migrated the contract interfaces to this package and resolved previous Hardhat dependency issues.
 
 ## Contracts
 

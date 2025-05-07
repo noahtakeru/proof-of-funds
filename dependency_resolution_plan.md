@@ -432,13 +432,34 @@ cd packages/common && npm run build
 
 > **Note**: The directory structure for packages/contracts has already been created during Phase 2. This step involves migrating the actual contract files and fixing the Hardhat dependency issue.
 
-Step 1: Fix Hardhat Dependency and Complete Package Setup
+Step 1: Verify Common Package Completion and Contract Package Structure
 
 ```bash
-# Create directory structure
-mkdir -p packages/contracts
+# Verify Phase 3.1 (Common Package) was completed successfully
+if [ ! -f "packages/common/dist/index.js" ]; then
+  echo "ERROR: Common package has not been built. Please complete Phase 3.1 first."
+  echo "Run: cd packages/common && npm run build"
+  exit 1
+fi
 
-# Create package.json with fixed dependencies for Hardhat
+# Verify that the contracts package structure exists from Phase 2.2
+if [ ! -d "packages/contracts" ]; then
+  echo "Warning: packages/contracts directory doesn't exist yet. Creating it now..."
+  mkdir -p packages/contracts
+  echo "This should have been created in Phase 2.2, but proceeding anyway."
+else
+  echo "Verified packages/contracts directory exists from Phase 2.2."
+fi
+
+# Check subdirectories
+for dir in contracts scripts test; do
+  if [ ! -d "packages/contracts/$dir" ]; then
+    echo "Creating missing directory: packages/contracts/$dir"
+    mkdir -p "packages/contracts/$dir"
+  fi
+done
+
+# Update package.json with fixed dependencies for Hardhat
 cat > packages/contracts/package.json << EOF
 {
   "name": "@proof-of-funds/contracts",
@@ -469,16 +490,26 @@ cat > packages/contracts/package.json << EOF
 EOF
 
 # Create an .npmrc file to ensure consistent dependency resolution
-cat > .npmrc << EOF
+if [ ! -f ".npmrc" ]; then
+  cat > .npmrc << EOF
 legacy-peer-deps=true
 node-linker=hoisted
 EOF
+  echo "Created .npmrc file for dependency resolution."
+fi
+
+# Verify the hardhat config exists in source before copying
+if [ ! -f "/Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/hardhat.config.cjs" ]; then
+  echo "ERROR: Source hardhat.config.cjs not found!"
+  exit 1
+fi
 
 # Copy hardhat config and create a .env file for environment variables
 cp /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/hardhat.config.cjs packages/contracts/
 
-# Create a placeholder .env file with sample values
-cat > packages/contracts/.env << EOF
+# Create a placeholder .env file with sample values if it doesn't exist
+if [ ! -f "packages/contracts/.env" ]; then
+  cat > packages/contracts/.env << EOF
 # Private key for deployments (replace with your own for actual deployments)
 PRIVATE_KEY=your_private_key_here
 
@@ -490,34 +521,137 @@ POLYGON_MAINNET_RPC=https://polygon-rpc.com
 POLYGONSCAN_API_KEY=your_polygonscan_api_key_here
 EOF
 
-# Add .env to .gitignore to avoid committing sensitive information
-echo "packages/contracts/.env" >> .gitignore
+  # Add .env to .gitignore to avoid committing sensitive information
+  if ! grep -q "packages/contracts/.env" .gitignore; then
+    echo "packages/contracts/.env" >> .gitignore
+  fi
+fi
+
+# Install dependencies
+echo "Installing contract package dependencies..."
+cd packages/contracts && npm install
+cd ../..
+
+# Verify the common package can be required from the contracts package
+echo "Verifying @proof-of-funds/common can be imported from contracts package..."
+node -e "try { require('@proof-of-funds/common'); console.log('✅ Common package dependency verified.'); } catch(e) { console.error('❌ Error importing common package:', e.message); process.exit(1); }"
 ```
 
-Step 2: Migrate Contract Files
+Step 2: Migrate Contract Files with Verification
 
 ```bash
-# Create contract directories
-mkdir -p packages/contracts/contracts
-mkdir -p packages/contracts/scripts
-mkdir -p packages/contracts/test
+# Verify source directories exist
+for dir in contracts scripts test; do
+  if [ ! -d "/Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/$dir" ]; then
+    echo "ERROR: Source directory /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/$dir not found!"
+    exit 1
+  fi
+done
 
-# Copy contract files
+# Count files in source directories to verify later
+contract_count=$(find /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/contracts -name "*.sol" | wc -l)
+script_count=$(find /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/scripts -name "*.js" | wc -l)
+test_count=$(find /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/test -name "*.js" | wc -l)
+
+echo "Source files found: $contract_count contracts, $script_count scripts, $test_count tests"
+
+# Copy contract files with verification
+echo "Copying contract files..."
 cp /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/contracts/*.sol packages/contracts/contracts/
+
+# Verify contracts were copied successfully
+copied_contract_count=$(find packages/contracts/contracts -name "*.sol" | wc -l)
+if [ "$copied_contract_count" -ne "$contract_count" ]; then
+  echo "ERROR: Failed to copy all contract files! Expected: $contract_count, Got: $copied_contract_count"
+  exit 1
+fi
+echo "✅ Successfully copied $copied_contract_count contract files"
+
+# Copy script files with verification
+echo "Copying script files..."
 cp /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/scripts/*.js packages/contracts/scripts/
+
+# Verify scripts were copied successfully
+copied_script_count=$(find packages/contracts/scripts -name "*.js" | wc -l)
+if [ "$copied_script_count" -ne "$script_count" ]; then
+  echo "ERROR: Failed to copy all script files! Expected: $script_count, Got: $copied_script_count"
+  exit 1
+fi
+echo "✅ Successfully copied $copied_script_count script files"
+
+# Copy test files with verification
+echo "Copying test files..."
 cp /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/test/*.js packages/contracts/test/
 
+# Verify tests were copied successfully
+copied_test_count=$(find packages/contracts/test -name "*.js" | wc -l)
+if [ "$copied_test_count" -ne "$test_count" ]; then
+  echo "ERROR: Failed to copy all test files! Expected: $test_count, Got: $copied_test_count"
+  exit 1
+fi
+echo "✅ Successfully copied $copied_test_count test files"
+
 # Update import paths in test files to use the common package
+echo "Updating import paths in test files..."
 sed -i '' 's|require("../../lib/zk")|require("@proof-of-funds/common")|g' packages/contracts/test/*.js
 
-# Test the contracts
+# Check for additional import patterns that might need updating
+other_imports=$(grep -l "../lib/zk" packages/contracts/test/*.js || true)
+if [ -n "$other_imports" ]; then
+  echo "Found additional import patterns to update in these files: $other_imports"
+  sed -i '' 's|from "../lib/zk"|from "@proof-of-funds/common"|g' packages/contracts/test/*.js
+  sed -i '' 's|import "../lib/zk"|import "@proof-of-funds/common"|g' packages/contracts/test/*.js
+fi
+
+# Check for contract interface imports and update them
+interface_imports=$(grep -l "ContractInterface" packages/contracts/test/*.js || true)
+if [ -n "$interface_imports" ]; then
+  echo "Found contract interface imports to update in these files: $interface_imports"
+  sed -i '' 's|require("../../lib/zk/src/contracts/ContractInterface")|require("@proof-of-funds/common/contracts")|g' packages/contracts/test/*.js
+  sed -i '' 's|from "../../lib/zk/src/contracts/ContractInterface"|from "@proof-of-funds/common/contracts"|g' packages/contracts/test/*.js
+fi
+
+# Compile the contracts to verify they work
+echo "Compiling contracts..."
+cd packages/contracts && npm run compile
+
+# Check compilation success
+if [ $? -ne 0 ]; then
+  echo "ERROR: Contract compilation failed! Please check errors above."
+  exit 1
+fi
+echo "✅ Contract compilation successful"
+
+# Run contract tests
+echo "Running contract tests..."
 cd packages/contracts && npm run test
 
+# Check test success
+test_result=$?
+if [ $test_result -ne 0 ]; then
+  echo "❌ Contract tests failed! Please fix errors before proceeding."
+  echo "Do not remove original files until tests pass."
+  exit 1
+fi
+
+echo "✅ Contract tests successful"
+
+# Create backup before removing original files
+echo "Creating backup of original files..."
+backup_dir="/Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts-backup-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup_dir"
+cp -r /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/contracts "$backup_dir/"
+cp -r /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/scripts "$backup_dir/"
+cp -r /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/test "$backup_dir/"
+echo "✅ Backup created at $backup_dir"
+
 # After successful testing, remove original files
-# Note: Only remove after confirming everything works
+echo "Removing original files..."
 rm -rf /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/contracts
 rm -rf /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/scripts
 rm -rf /Users/karpel/Documents/GitHub/proof-of-funds/smart-contracts/test
+
+echo "✅ Phase 3.2 completed successfully!"
 ```
 
 3.3. Migrate Frontend Package
@@ -546,7 +680,57 @@ module.exports = nextConfig;
 EOF
 ```
 
-Step 2: Migrate Frontend Files by Component Groups
+Step 2: Create Error System Initialization Utility
+
+```bash
+# Create the utils directory for the initialization function
+mkdir -p packages/frontend/utils
+
+# Create an error system initialization function
+cat > packages/frontend/utils/initializeErrorSystem.js << EOF
+/**
+ * Initializes the error logging system for the application
+ * This ensures proper error tracking and reporting throughout the app
+ */
+import { getErrorLogger } from '@proof-of-funds/common';
+
+/**
+ * Initialize the error logging system with the specified configuration
+ * @param {Object} options - Configuration options
+ * @param {string} options.logLevel - Minimum log level to record ('debug', 'info', 'warn', 'error', 'critical')
+ * @param {string} options.logDestination - Where to send logs ('console', 'server', 'storage')
+ * @param {boolean} options.developerMode - Whether to enable additional debug information
+ * @returns {Object} The initialized logger instance
+ */
+export function initializeErrorSystem(options = {}) {
+  const { 
+    logLevel = process.env.NODE_ENV === 'production' ? 'error' : 'debug',
+    logDestination = 'console',
+    developerMode = process.env.NODE_ENV !== 'production'
+  } = options;
+  
+  // Initialize the root logger
+  const rootLogger = getErrorLogger('ApplicationRoot');
+  
+  // Configure log level
+  rootLogger.updateConfig({ 
+    logLevel,
+    developerMode,
+    destinations: [logDestination]
+  });
+  
+  // Configure server-side logging if needed
+  if (logDestination === 'server') {
+    rootLogger.setLogDestination('/api/logs');
+  }
+  
+  console.log(\`Error logging system initialized with level: \${logLevel}\`);
+  return rootLogger;
+}
+EOF
+```
+
+Step 3: Migrate Frontend Files by Component Groups
 
 ```bash
 # Create frontend directories
@@ -636,7 +820,30 @@ cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/index.js packages/fronten
 cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/about.js packages/frontend/pages/
 cp /Users/karpel/Documents/GitHub/proof-of-funds/pages/_app.js packages/frontend/pages/
 
-# Update imports
+# Update _app.js to initialize the error logging system
+cat > packages/frontend/pages/_app.js << EOF
+import '../styles/globals.css';
+import Layout from '../components/Layout';
+import { initializeErrorSystem } from '../utils/initializeErrorSystem';
+
+// Initialize error logging system
+const rootLogger = initializeErrorSystem({
+  logLevel: process.env.NODE_ENV === 'production' ? 'error' : 'debug',
+  developerMode: process.env.NODE_ENV !== 'production'
+});
+
+function MyApp({ Component, pageProps }) {
+  return (
+    <Layout>
+      <Component {...pageProps} />
+    </Layout>
+  );
+}
+
+export default MyApp;
+EOF
+
+# Update other pages' imports
 sed -i '' 's|from "../lib/zk"|from "@proof-of-funds/common"|g' packages/frontend/pages/*.js
 
 # Test these pages
@@ -851,6 +1058,7 @@ For each module migration:
    - Check that the component renders correctly
    - Verify functionality (e.g., wallet connection, proof creation)
    - Test with different inputs and edge cases
+   - Verify error logger initialization works by checking console for "Error logging system initialized" message
 
 Risk Assessment and Mitigation
 

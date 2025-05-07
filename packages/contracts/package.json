@@ -2,18 +2,26 @@
   "name": "@proof-of-funds/contracts",
   "version": "0.1.0",
   "description": "Smart contracts for Proof of Funds platform",
+  "type": "commonjs",
   "scripts": {
-    "build": "echo \"Note: Hardhat dependency issue will be fixed in Phase 3\" || hardhat compile",
-    "compile": "echo \"Note: Hardhat dependency issue will be fixed in Phase 3\" || hardhat compile",
-    "test": "echo \"Note: Hardhat dependency issue will be fixed in Phase 3\" || hardhat test",
+    "build": "hardhat compile",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
     "deploy:amoy": "hardhat run scripts/deploy.js --network amoy"
   },
   "dependencies": {
-    "ethers": "^6.1.0",
-    "hardhat": "^2.17.0",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
-    "chai": "^4.5.0",
+    "@openzeppelin/contracts": "^4.9.3",
     "@proof-of-funds/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "chai": "^4.3.10",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.22.19"
   }
 }
