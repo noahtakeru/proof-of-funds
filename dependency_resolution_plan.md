@@ -303,6 +303,169 @@ Phase 3: Incremental Migration Strategy (No Symlinks)
 > 3. Backup critical files before removal to allow for easy rollback if needed
 > 4. Update import paths carefully to maintain compatibility with the new structure
 
+> **Phase 3.2.5 Verification Status**:
+> - ✅ Successfully removed backup directories and .bak files
+> - ✅ Fixed broken symlinks and cleaned up bridge files
+> - ✅ Set up proper package.json with exports field for dual ESM/CJS support
+> - ✅ Created module conversion script to generate CJS versions of ESM modules
+> - ✅ Fixed test script syntax errors in compatibility tests
+> - ✅ Verified module resolution works across all formats:
+>   - ✅ ESM imports (.mjs files)
+>   - ✅ CommonJS with dynamic imports (.js files)
+>   - ⚠️ Direct CommonJS require (falling back to dynamic imports)
+> - ✅ All module compatibility tests are now passing
+
+3.2.5 Codebase Cleanup and Verification
+
+Step 1: Clean up Backup Directories and Unnecessary Files
+```bash
+# Remove unnecessary backup directories
+rm -rf lib-zk-backup-20250507-091029
+rm -rf smart-contracts-backup-20250507-085801
+rm -rf smart-contracts-backup-full-20250507-100051
+
+# Find and remove all .bak files
+find . -type f -name "*.bak" -not -path "*/node_modules/*" -delete
+```
+
+Step 2: Verify Broken Symlinks and Fix Import Paths
+```bash
+# Find broken symlinks
+broken_symlinks=$(find ./lib -type l -exec test ! -e {} \; -print)
+
+# Check if symlinks are still pointing to bridge files
+bridge_symlinks=$(find ./lib -type l | xargs ls -la | grep bridge || true)
+
+echo "Broken symlinks found:"
+echo "$broken_symlinks"
+
+echo "Symlinks to bridge files found:"
+echo "$bridge_symlinks"
+
+# For each broken symlink, update dependent files to use package-based imports
+for symlink in $broken_symlinks $bridge_symlinks; do
+  # Extract the module name from the symlink path
+  module_name=$(basename "$symlink" | sed 's/\.js$//' | sed 's/\.mjs$//')
+  
+  # Find files importing from this location
+  files_using_import=$(grep -r "from ['\"].*$module_name['\"]" --include="*.js" --include="*.ts" --include="*.mjs" . || true)
+  
+  echo "Files using imports from $module_name:"
+  echo "$files_using_import"
+  
+  # These files should be updated to use package-based imports
+  echo "These files should be updated to use @proof-of-funds/common imports"
+done
+```
+
+Step 3: Perform Thorough Verification
+```bash
+# Verify package structure
+echo "Package structure verification:"
+find ./packages -type d -maxdepth 2
+
+# Count migrated files vs original files
+echo "File count comparison:"
+echo "Files in original lib/zk/src: $(find ./lib/zk/src -type f | wc -l)"
+echo "Files in packages/common: $(find ./packages/common -type f -not -path "*/node_modules/*" | wc -l)"
+
+# Check import paths across the codebase
+echo "Import path usage:"
+echo "Files still using old import paths:"
+grep -r "from ['\"]\.\..*\/lib\/zk" --include="*.js" --include="*.ts" --include="*.mjs" .
+
+echo "Files using new package imports:"
+grep -r "from ['\"]\@proof-of-funds\/common" --include="*.js" --include="*.ts" --include="*.mjs" .
+
+# Test module resolution across packages
+echo "Testing module resolution across packages:"
+
+cat > test-module-resolution.js << EOF
+// Test importing from common package
+const { getErrorLogger } = require('@proof-of-funds/common');
+
+// Test importing from specific subpath
+const { snarkjsLoader } = require('@proof-of-funds/common/zk-core');
+
+console.log('Module resolution test:');
+console.log('- Common package:', !!getErrorLogger);
+console.log('- ZK core subpath:', !!snarkjsLoader);
+
+if (getErrorLogger && snarkjsLoader) {
+  console.log('✅ All modules resolved successfully');
+} else {
+  console.log('❌ Module resolution failed');
+  process.exit(1);
+}
+EOF
+
+node test-module-resolution.js
+```
+
+Step 4: Verify Module Format Compatibility
+```bash
+# Create an ESM test file
+cat > test-esm-compatibility.mjs << EOF
+// Test ESM imports from common package
+import { getErrorLogger } from '@proof-of-funds/common';
+import { snarkjsLoader } from '@proof-of-funds/common/zk-core';
+
+console.log('ESM import test:');
+console.log('- Common package:', !!getErrorLogger);
+console.log('- ZK core subpath:', !!snarkjsLoader);
+
+if (getErrorLogger && snarkjsLoader) {
+  console.log('✅ ESM imports working');
+} else {
+  console.log('❌ ESM imports failed');
+  process.exit(1);
+}
+EOF
+
+# Run ESM test
+node test-esm-compatibility.mjs
+
+# Create browser module import test
+cat > test-browser-compatibility.html << EOF
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Browser Module Test</title>
+</head>
+<body>
+  <h1>Browser Module Import Test</h1>
+  <div id="result"></div>
+  
+  <script type="module">
+    // Test dynamic import in browser
+    async function testImport() {
+      try {
+        const common = await import('/node_modules/@proof-of-funds/common/dist/index.mjs');
+        const zkCore = await import('/node_modules/@proof-of-funds/common/dist/zk-core/index.mjs');
+        
+        const result = document.getElementById('result');
+        result.innerHTML = '<p>✅ Browser module imports working</p>';
+        result.innerHTML += '<p>Imported modules:</p>';
+        result.innerHTML += '<ul>';
+        result.innerHTML += '<li>common: ' + (common ? 'Success' : 'Failed') + '</li>';
+        result.innerHTML += '<li>zkCore: ' + (zkCore ? 'Success' : 'Failed') + '</li>';
+        result.innerHTML += '</ul>';
+      } catch (error) {
+        const result = document.getElementById('result');
+        result.innerHTML = '<p>❌ Browser module imports failed</p>';
+        result.innerHTML += '<p>Error: ' + error.message + '</p>';
+      }
+    }
+    
+    testImport();
+  </script>
+</body>
+</html>
+EOF
+
+echo "Verification complete. To manually test browser compatibility, run a local HTTP server and open test-browser-compatibility.html"
+```
+
 3.1. Incremental Migration of Common Package (ZK Libraries)
 
 > **Note**: The directory structure for packages/common has already been created during Phase 2. This step involves migrating the actual implementations.

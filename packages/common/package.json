@@ -2,10 +2,42 @@
   "name": "@proof-of-funds/common",
   "version": "0.1.0",
   "description": "Common utilities for Proof of Funds",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./zk-core": {
+      "import": "./dist/zk-core/index.js",
+      "require": "./dist/zk-core/index.cjs"
+    },
+    "./error-handling": {
+      "import": "./dist/error-handling/index.js",
+      "require": "./dist/error-handling/index.cjs"
+    },
+    "./system": {
+      "import": "./dist/system/index.js",
+      "require": "./dist/system/index.cjs"
+    },
+    "./config": {
+      "import": "./dist/config/index.js",
+      "require": "./dist/config/index.cjs"
+    },
+    "./utils": {
+      "import": "./dist/utils/index.js",
+      "require": "./dist/utils/index.cjs"
+    },
+    "./resources": {
+      "import": "./dist/resources/index.js",
+      "require": "./dist/resources/index.cjs"
+    }
+  },
   "scripts": {
-    "build": "echo \"Build script will be implemented in future phases\""
+    "build": "cp -r src/* dist/ && npm run build:cjs",
+    "build:cjs": "node ../../scripts/convert-to-cjs.js"
   },
   "dependencies": {
     "ethers": "^6.1.0",
