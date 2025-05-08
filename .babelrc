@@ -1,9 +1,0 @@
-{
-    "presets": [
-        "next/babel"
-    ],
-    "sourceType": "unambiguous",
-    "assumptions": {
-        "setPublicClassFields": true
-    }
-}

@@ -44,6 +44,7 @@ next-env.d.ts
 # local env files
 .env*.local
 .env
+packages/contracts/.env
 
 # contract artifacts
 /artifacts

@@ -6,8 +6,8 @@
  */
 
 // Export all from the error handling system
-export * from './zkErrorHandler.mjs';
-export * from './zkErrorLogger.mjs';
+Object.assign(exports, require('./zkErrorHandler.mjs.cjs'));
+Object.assign(exports, require('./zkErrorLogger.mjs.cjs'));
 
 // Ensure backward compatibility with any code that might be using these exports directly
 import { 
