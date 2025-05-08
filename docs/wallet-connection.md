@@ -11,7 +11,6 @@ Our application supports both Ethereum (via MetaMask) and Solana (via Phantom) w
 3. View all connected accounts in a dropdown menu
 4. Select specific accounts when creating proofs
 5. Disconnect individual accounts as needed
-ree
 
 ## How It Works
 
