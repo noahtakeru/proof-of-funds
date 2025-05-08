@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.9.3",
-    "@proof-of-funds/common": "workspace:*"
+    "@proof-of-funds/common": "^0.1.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
