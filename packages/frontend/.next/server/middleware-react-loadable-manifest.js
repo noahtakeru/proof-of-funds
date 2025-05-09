@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"pages/_app.js -> ../components/Layout\":{\"id\":\"pages/_app.js -> ../components/Layout\",\"files\":[\"static/chunks/components_Layout_js.js\"]},\"pages/_app.js -> next/router\":{\"id\":\"pages/_app.js -> next/router\",\"files\":[\"static/chunks/node_modules_next_router_js.js\"]}}"
