@@ -170,69 +170,119 @@ export async function connectMetaMask() {
  * @param {string} walletType - Type of wallet (evm, solana)
  * @param {string} address - Wallet address to disconnect
  * @returns {Promise<boolean>} Success or failure
+ * @throws {Error} If parameters are invalid or disconnection fails
  */
 export async function disconnectWallet(walletType, address) {
-  console.log(`Disconnecting wallet: ${walletType} ${address}`);
-  
-  // In a real implementation, this would handle the specific disconnection logic
-  // for different wallet types.
-  
-  if (typeof window !== 'undefined' && window.wagmiDisconnect && walletType === 'evm') {
-    // Use wagmi disconnect when available for EVM wallets
-    await window.wagmiDisconnect();
+  if (!walletType) {
+    throw new Error('walletType is required');
   }
   
-  // Update localStorage
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const walletData = localStorage.getItem('walletData');
-      if (walletData) {
-        const wallets = JSON.parse(walletData);
-        const updatedWallets = wallets.filter(wallet => 
-          !(wallet.type === walletType && wallet.fullAddress === address)
-        );
-        localStorage.setItem('walletData', JSON.stringify(updatedWallets));
+  if (!address) {
+    throw new Error('address is required');
+  }
+  
+  // Handle different wallet types
+  if (walletType === 'evm') {
+    // Disconnect EVM wallet (MetaMask, etc.)
+    if (typeof window !== 'undefined' && window.ethereum) {
+      try {
+        // Some providers have a disconnect method
+        if (window.ethereum.disconnect && typeof window.ethereum.disconnect === 'function') {
+          await window.ethereum.disconnect();
+        }
+        
+        // For wagmi integration
+        if (window.wagmiDisconnect && typeof window.wagmiDisconnect === 'function') {
+          await window.wagmiDisconnect();
+        }
+      } catch (error) {
+        console.warn('Could not disconnect from provider directly:', error.message);
+        // Continue to remove from local storage even if provider disconnect fails
       }
-    } catch (error) {
-      console.error('Error updating wallet data:', error);
-      return false;
+    }
+  } else if (walletType === 'solana') {
+    // Disconnect Solana wallet (Phantom, etc.)
+    if (typeof window !== 'undefined' && window.solana) {
+      try {
+        // Try to disconnect if the wallet supports it
+        if (window.solana.disconnect && typeof window.solana.disconnect === 'function') {
+          await window.solana.disconnect();
+        }
+      } catch (error) {
+        console.warn('Could not disconnect Solana wallet:', error.message);
+        // Continue to remove from local storage even if wallet disconnect fails
+      }
     }
   }
   
-  return true;
+  // Update localStorage regardless of provider disconnect result
+  if (typeof localStorage === 'undefined') {
+    throw new Error('Local storage is not available in this environment');
+  }
+  
+  try {
+    const walletData = localStorage.getItem('walletData');
+    if (walletData) {
+      const wallets = JSON.parse(walletData);
+      // Filter out the disconnected wallet
+      const updatedWallets = wallets.filter(wallet => 
+        !(wallet.type === walletType && (wallet.address === address || wallet.fullAddress === address))
+      );
+      localStorage.setItem('walletData', JSON.stringify(updatedWallets));
+    }
+    
+    return true;
+  } catch (error) {
+    const enhancedError = new Error(`Failed to update wallet data: ${error.message}`);
+    enhancedError.originalError = error;
+    enhancedError.walletType = walletType;
+    enhancedError.address = address;
+    throw enhancedError;
+  }
 }
 
 /**
  * Scan for assets across multiple blockchains
- * Placeholder implementation
+ * @returns {Promise<Array>} Array of found assets
+ * @throws {Error} If scanning fails
  */
 export async function scanMultiChainAssets() {
-  return [];
+  throw new Error('scanMultiChainAssets function not implemented');
 }
 
 /**
  * Convert cryptocurrency asset values to USD
- * Placeholder implementation 
+ * @param {Object} assets - Assets to convert
+ * @returns {Promise<Object>} USD values for assets
+ * @throws {Error} If conversion fails
  */
-export async function convertAssetsToUSD() {
-  return {};
+export async function convertAssetsToUSD(assets) {
+  if (!assets) {
+    throw new Error('Assets parameter is required');
+  }
+  
+  throw new Error('convertAssetsToUSD function not implemented');
 }
 
 /**
  * Generate a proof hash for verification
- * Placeholder implementation
+ * @param {Object} data - Data to hash
+ * @returns {string} Generated hash
+ * @throws {Error} If hash generation fails
  */
-export function generateProofHash() {
-  return "0x0000000000000000000000000000000000000000000000000000000000000000";
+export function generateProofHash(data) {
+  if (!data) {
+    throw new Error('Data parameter is required');
+  }
+  
+  throw new Error('generateProofHash function not implemented');
 }
 
 /**
  * Generate a temporary wallet for proof submission
- * Placeholder implementation
+ * @returns {Promise<Object>} Temporary wallet
+ * @throws {Error} If wallet generation fails
  */
 export async function generateTemporaryWallet() {
-  return {
-    address: "0x0000000000000000000000000000000000000000",
-    privateKey: ""
-  };
+  throw new Error('generateTemporaryWallet function not implemented');
 }

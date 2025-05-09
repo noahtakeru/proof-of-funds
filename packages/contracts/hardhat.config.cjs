@@ -1,4 +1,6 @@
-require("@nomicfoundation/hardhat-toolbox");
+// Basic hardhat setup with ethers v5 support
+require("@nomiclabs/hardhat-ethers"); // ethers v5 plugin
+require("@nomiclabs/hardhat-waffle"); // testing plugin
 require("dotenv").config();
 
 // Get Polygonscan API key from .env

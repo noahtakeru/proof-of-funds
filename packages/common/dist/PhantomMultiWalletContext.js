@@ -40,16 +40,40 @@ export function PhantomMultiWalletProvider({ children }) {
     setIsConnecting(true);
     setError(null);
     try {
-      // In a real implementation, this would connect to the Phantom wallet
-      const dummyWallet = {
-        address: `phantom-${Date.now().toString(16)}`,
-        publicKey: `pk-${Date.now().toString(16)}`,
+      // Check if Phantom is available
+      if (typeof window === 'undefined') {
+        throw new Error('Cannot connect to Phantom in a non-browser environment');
+      }
+      
+      if (!window.solana || !window.solana.isPhantom) {
+        throw new Error('Phantom wallet is not installed');
+      }
+      
+      // Try to connect to Phantom
+      const solanaProvider = window.solana;
+      
+      // Request connection
+      await solanaProvider.connect();
+      
+      if (!solanaProvider.isConnected) {
+        throw new Error('Failed to connect to Phantom wallet');
+      }
+      
+      if (!solanaProvider.publicKey) {
+        throw new Error('No public key available from Phantom wallet');
+      }
+      
+      // Create wallet object
+      const wallet = {
+        address: solanaProvider.publicKey.toString(),
+        publicKey: solanaProvider.publicKey.toString(),
         chain: 'solana',
         type: 'phantom',
         connectedAt: new Date().toISOString()
       };
       
-      const updatedWallets = [...connectedWallets, dummyWallet];
+      // Update state
+      const updatedWallets = [...connectedWallets, wallet];
       setConnectedWallets(updatedWallets);
       
       // Save to localStorage
@@ -57,11 +81,12 @@ export function PhantomMultiWalletProvider({ children }) {
         localStorage.setItem('phantomWallets', JSON.stringify(updatedWallets));
       }
       
-      return dummyWallet;
+      return wallet;
     } catch (err) {
-      setError(err.message || 'Failed to connect to Phantom wallet');
+      const errorMessage = err.message || 'Failed to connect to Phantom wallet';
+      setError(errorMessage);
       console.error('Phantom wallet connection error:', err);
-      throw err;
+      throw new Error(errorMessage);
     } finally {
       setIsConnecting(false);
     }

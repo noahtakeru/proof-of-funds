@@ -7,11 +7,24 @@ describe("ProofOfFunds", function () {
     let user1;
     let user2;
 
+    // Helper function for parsing ether that works with both ethers v5 and v6
+    const parseEther = (value) => {
+        if (typeof ethers.parseEther === 'function') {
+            // ethers v6
+            return ethers.parseEther(value);
+        } else if (typeof ethers.utils?.parseEther === 'function') {
+            // ethers v5
+            return ethers.utils.parseEther(value);
+        } else {
+            throw new Error('Cannot find parseEther function in ethers');
+        }
+    };
+
     beforeEach(async function () {
         // Deploy the contract
         const ProofOfFunds = await ethers.getContractFactory("ProofOfFunds");
         proofOfFunds = await ProofOfFunds.deploy();
-        await proofOfFunds.waitForDeployment();
+        await proofOfFunds.deployed(); // ethers v5 uses deployed() instead of waitForDeployment()
 
         // Get signers
         [owner, user1, user2] = await ethers.getSigners();
@@ -20,7 +33,7 @@ describe("ProofOfFunds", function () {
     describe("Proof Hash Generation", function () {
         it("Should generate different hashes for different proof types", async function () {
             const address = await user1.getAddress();
-            const amount = ethers.parseEther("10");
+            const amount = parseEther("10");
 
             // Generate hashes for different proof types
             const standardHash = await proofOfFunds.generateProofHash(address, amount, 0); // STANDARD
@@ -36,7 +49,7 @@ describe("ProofOfFunds", function () {
 
     describe("Standard Proof", function () {
         it("Should verify standard proof with correct amount", async function () {
-            const amount = ethers.parseEther("10");
+            const amount = parseEther("10");
             const address = await user1.getAddress();
 
             // Current timestamp plus 1 day
@@ -60,14 +73,14 @@ describe("ProofOfFunds", function () {
             expect(isValid).to.be.true;
 
             // Verify with incorrect amount
-            const isInvalid = await proofOfFunds.verifyStandardProof(address, ethers.parseEther("5"));
+            const isInvalid = await proofOfFunds.verifyStandardProof(address, parseEther("5"));
             expect(isInvalid).to.be.false;
         });
     });
 
     describe("Threshold Proof", function () {
         it("Should verify threshold proof for amounts at or above the threshold", async function () {
-            const thresholdAmount = ethers.parseEther("10");
+            const thresholdAmount = parseEther("10");
             const address = await user1.getAddress();
 
             // Current timestamp plus 1 day
@@ -91,18 +104,18 @@ describe("ProofOfFunds", function () {
             expect(isValidExact).to.be.true;
 
             // Verify with amount below threshold
-            const isValidBelow = await proofOfFunds.verifyThresholdProof(address, ethers.parseEther("5"));
+            const isValidBelow = await proofOfFunds.verifyThresholdProof(address, parseEther("5"));
             expect(isValidBelow).to.be.true;
 
             // Verify with amount above threshold
-            const isInvalidAbove = await proofOfFunds.verifyThresholdProof(address, ethers.parseEther("15"));
+            const isInvalidAbove = await proofOfFunds.verifyThresholdProof(address, parseEther("15"));
             expect(isInvalidAbove).to.be.false;
         });
     });
 
     describe("Maximum Proof", function () {
         it("Should verify maximum proof for amounts at or below the maximum", async function () {
-            const maximumAmount = ethers.parseEther("10");
+            const maximumAmount = parseEther("10");
             const address = await user1.getAddress();
 
             // Current timestamp plus 1 day
@@ -126,18 +139,18 @@ describe("ProofOfFunds", function () {
             expect(isValidExact).to.be.true;
 
             // Verify with amount above maximum
-            const isValidAbove = await proofOfFunds.verifyMaximumProof(address, ethers.parseEther("15"));
+            const isValidAbove = await proofOfFunds.verifyMaximumProof(address, parseEther("15"));
             expect(isValidAbove).to.be.true;
 
             // Verify with amount below maximum
-            const isInvalidBelow = await proofOfFunds.verifyMaximumProof(address, ethers.parseEther("5"));
+            const isInvalidBelow = await proofOfFunds.verifyMaximumProof(address, parseEther("5"));
             expect(isInvalidBelow).to.be.false;
         });
     });
 
     describe("Expiration", function () {
         it("Should not verify expired proofs", async function () {
-            const amount = ethers.parseEther("10");
+            const amount = parseEther("10");
             const address = await user1.getAddress();
 
             // Current timestamp minus 1 day (already expired)
@@ -162,7 +175,7 @@ describe("ProofOfFunds", function () {
 
     describe("Revocation", function () {
         it("Should allow users to revoke their proofs", async function () {
-            const amount = ethers.parseEther("10");
+            const amount = parseEther("10");
             const address = await user1.getAddress();
 
             // Current timestamp plus 1 day
@@ -193,4 +206,4 @@ describe("ProofOfFunds", function () {
             expect(isValidAfter).to.be.false;
         });
     });
-}); 
+});
