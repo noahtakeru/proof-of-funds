@@ -13,9 +13,10 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { PhantomMultiWalletProvider } from '@proof-of-funds/common/PhantomMultiWalletContext';
 import Script from 'next/script';
-
-// Create mock components to avoid dependency issues with wagmi
-const MockWagmiConfig = ({ children }) => <>{children}</>;
+import { WagmiConfig, createConfig, configureChains } from 'wagmi';
+import { mainnet, polygon, polygonMumbai } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 
 /**
  * Polygon Amoy Testnet Configuration
@@ -32,13 +33,30 @@ const polygonAmoy = {
         symbol: 'MATIC',
     },
     rpcUrls: {
-        default: 'https://rpc-amoy.polygon.technology/',
+        default: { http: ['https://rpc-amoy.polygon.technology/'] },
+        public: { http: ['https://rpc-amoy.polygon.technology/'] },
     },
     blockExplorers: {
         default: { name: 'PolygonScan', url: 'https://amoy.polygonscan.com/' },
     },
     testnet: true,
 };
+
+// Configure chains and providers for Wagmi
+const { chains, publicClient, webSocketPublicClient } = configureChains(
+    [mainnet, polygon, polygonMumbai, polygonAmoy],
+    [publicProvider()]
+);
+
+// Create Wagmi configuration with MetaMask connector
+const config = createConfig({
+    autoConnect: true,
+    publicClient,
+    webSocketPublicClient,
+    connectors: [
+        new MetaMaskConnector({ chains }),
+    ],
+});
 
 /**
  * Dynamically import Layout component
@@ -116,13 +134,13 @@ function MyApp({ Component, pageProps }) {
                     `,
                 }}
             />
-            <MockWagmiConfig>
+            <WagmiConfig config={config}>
                 <PhantomMultiWalletProvider>
                     <Layout>
                         <Component {...pageProps} />
                     </Layout>
                 </PhantomMultiWalletProvider>
-            </MockWagmiConfig>
+            </WagmiConfig>
         </>
     );
 }

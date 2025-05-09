@@ -2219,20 +2219,6 @@ export default function CreatePage() {
                             <div className="grid grid-cols-2 gap-3">
                                 <button
                                     type="button"
-                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'standard'
-                                        ? 'bg-primary-600 text-white border-primary-600'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                        }`}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setProofCategory('standard');
-                                    }}
-                                >
-                                    Standard Proofs
-                                </button>
-                                <button
-                                    type="button"
                                     className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'zk'
                                         ? 'bg-zk-accent text-white border-zk-accent'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -2244,6 +2230,20 @@ export default function CreatePage() {
                                     }}
                                 >
                                     Zero-Knowledge Proofs
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'standard'
+                                        ? 'bg-primary-600 text-white border-primary-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setProofCategory('standard');
+                                    }}
+                                >
+                                    Standard Proofs
                                 </button>
                             </div>
                             <p className="mt-2 text-sm text-gray-500">
@@ -2371,7 +2371,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
@@ -2395,7 +2395,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
@@ -2419,7 +2419,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
@@ -2498,11 +2498,11 @@ export default function CreatePage() {
                                         setSuccess(false);
                                     }}
                                     className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofCategory === 'zk'
-                                        ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                        ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                         : 'border-gray-300 hover:bg-gray-50'
                                         }`}
                                 >
-                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                         </svg>
@@ -2613,7 +2613,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
@@ -2637,7 +2637,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
@@ -2661,7 +2661,7 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
