@@ -125,6 +125,6 @@ class DeviceCapabilitiesClass {
 }
 
 // Export singleton instances of the classes
-const MemoryManager; exports.MemoryManager = new MemoryManagerClass();
-const SecureStorage; exports.SecureStorage = new SecureStorageClass();
-const DeviceCapabilities; exports.DeviceCapabilities = new DeviceCapabilitiesClass();
+const MemoryManager = exports.MemoryManager = new MemoryManagerClass();
+const SecureStorage = exports.SecureStorage = new SecureStorageClass();
+const DeviceCapabilities = exports.DeviceCapabilities = new DeviceCapabilitiesClass();

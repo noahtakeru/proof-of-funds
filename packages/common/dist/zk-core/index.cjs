@@ -11,7 +11,7 @@
  */
 
 // Constant definitions that match the original implementation
-const ZK_PROOF_TYPES; exports.ZK_PROOF_TYPES = {
+const ZK_PROOF_TYPES = exports.ZK_PROOF_TYPES = {
   STANDARD: 0,
   THRESHOLD: 1,
   MAXIMUM: 2
@@ -37,8 +37,7 @@ export async function verifyZKProof(proof, publicSignals, proofType, options = {
  * @throws {Error} - This function will throw during Phase 2 setup
  * @returns {never}
  */
-function serializeZKProof; exports.serializeZKProof = serializeZKProof
-function serializeZKProof(proof, publicSignals) {
+export function serializeZKProof(proof, publicSignals) {
   throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
 }
 
@@ -46,8 +45,7 @@ function serializeZKProof(proof, publicSignals) {
  * @throws {Error} - This function will throw during Phase 2 setup
  * @returns {never}
  */
-function deserializeZKProof; exports.deserializeZKProof = deserializeZKProof
-function deserializeZKProof(serializedProof, serializedPublicSignals) {
+export function deserializeZKProof(serializedProof, serializedPublicSignals) {
   throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
 }
 
@@ -55,4 +53,4 @@ function deserializeZKProof(serializedProof, serializedPublicSignals) {
  * This will be the SNARK field size constant used in the actual implementation
  * Matches the value in zkUtils.mjs
  */
-const SNARK_FIELD_SIZE; exports.SNARK_FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const SNARK_FIELD_SIZE = exports.SNARK_FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;

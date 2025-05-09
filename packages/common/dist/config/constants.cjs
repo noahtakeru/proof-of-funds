@@ -22,18 +22,18 @@
 // This was previously incorrectly set to a wallet address
 // The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
 // IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-const CONTRACT_ADDRESS; exports.CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ZK_VERIFIER_ADDRESS; exports.ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
-const POLYGON_AMOY_CHAIN_ID; exports.POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+const CONTRACT_ADDRESS = exports.CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
+const ZK_VERIFIER_ADDRESS = exports.ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
+const POLYGON_AMOY_CHAIN_ID = exports.POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 
 // Polygon Amoy Testnet RPC URL
-const POLYGON_AMOY_RPC_URL; exports.POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
+const POLYGON_AMOY_RPC_URL = exports.POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
 
 // Add Hardhat local network configuration
-const HARDHAT_CHAIN_ID; exports.HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
+const HARDHAT_CHAIN_ID = exports.HARDHAT_CHAIN_ID = 31337; // Hardhat local network chain ID
 
 // Proof types enum values
-const PROOF_TYPES; exports.PROOF_TYPES = {
+const PROOF_TYPES = exports.PROOF_TYPES = {
     STANDARD: 0,
     THRESHOLD: 1,
     MAXIMUM: 2,
@@ -41,14 +41,14 @@ const PROOF_TYPES; exports.PROOF_TYPES = {
 };
 
 // ZK Proof types enum values
-const ZK_PROOF_TYPES; exports.ZK_PROOF_TYPES = {
+const ZK_PROOF_TYPES = exports.ZK_PROOF_TYPES = {
     STANDARD: 0,
     THRESHOLD: 1,
     MAXIMUM: 2
 };
 
 // Expiry options in seconds
-const EXPIRY_OPTIONS; exports.EXPIRY_OPTIONS = [
+const EXPIRY_OPTIONS = exports.EXPIRY_OPTIONS = [
     { id: 'one_day', label: '1 Day', seconds: 86400 },
     { id: 'seven_days', label: '7 Days', seconds: 604800 },
     { id: 'thirty_days', label: '30 Days', seconds: 2592000 },
@@ -56,7 +56,7 @@ const EXPIRY_OPTIONS; exports.EXPIRY_OPTIONS = [
 ];
 
 // Legacy expiry options - will be removed in future
-const EXPIRY_TIME_OPTIONS; exports.EXPIRY_TIME_OPTIONS = {
+const EXPIRY_TIME_OPTIONS = exports.EXPIRY_TIME_OPTIONS = {
     ONE_DAY: 86400,
     ONE_WEEK: 604800,
     ONE_MONTH: 2592000,
@@ -66,7 +66,7 @@ const EXPIRY_TIME_OPTIONS; exports.EXPIRY_TIME_OPTIONS = {
 };
 
 // Signature message templates
-const SIGNATURE_MESSAGE_TEMPLATES; exports.SIGNATURE_MESSAGE_TEMPLATES = [
+const SIGNATURE_MESSAGE_TEMPLATES = exports.SIGNATURE_MESSAGE_TEMPLATES = [
     {
         id: 'fund_verification',
         name: 'Fund Verification',
@@ -89,7 +89,7 @@ const SIGNATURE_MESSAGE_TEMPLATES; exports.SIGNATURE_MESSAGE_TEMPLATES = [
     },
 ];
 
-const CONTRACT_ABI; exports.CONTRACT_ABI = [
+const CONTRACT_ABI = exports.CONTRACT_ABI = [
     {
         "inputs": [
             { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
@@ -188,7 +188,7 @@ const CONTRACT_ABI; exports.CONTRACT_ABI = [
     }
 ];
 
-const ZK_VERIFIER_ABI; exports.ZK_VERIFIER_ABI = [
+const ZK_VERIFIER_ABI = exports.ZK_VERIFIER_ABI = [
     {
         "inputs": [
             { "internalType": "bytes", "name": "_proof", "type": "bytes" },
@@ -257,7 +257,7 @@ const ZK_VERIFIER_ABI; exports.ZK_VERIFIER_ABI = [
 ];
 
 // We now use the modern implementation of signature templates defined at the top of this file
-// const SIGNATURE_MESSAGE_TEMPLATES; exports.SIGNATURE_MESSAGE_TEMPLATES = [
+// const SIGNATURE_MESSAGE_TEMPLATES = exports.SIGNATURE_MESSAGE_TEMPLATES = [
 //    "Loan application for {institution} - Reference #{reference}",
 //    "Investment verification for {project} - Amount: {amount}",
 //    "Membership qualification for {organization} - {date}",
@@ -266,7 +266,7 @@ const ZK_VERIFIER_ABI; exports.ZK_VERIFIER_ABI = [
 // ]; 
 
 // Supported blockchain networks
-const SUPPORTED_CHAINS; exports.SUPPORTED_CHAINS = {
+const SUPPORTED_CHAINS = exports.SUPPORTED_CHAINS = {
     ETHEREUM: {
         name: 'Ethereum',
         chainId: 1,
@@ -325,10 +325,10 @@ const SUPPORTED_CHAINS; exports.SUPPORTED_CHAINS = {
 };
 
 // Price API endpoints
-const PRICE_API; exports.PRICE_API = {
+const PRICE_API = exports.PRICE_API = {
     COINGECKO: 'https://api.coingecko.com/api/v3/simple/price',
     COINMARKETCAP: 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest'
 };
 
 // Multi-chain proof data structure version
-const PROOF_DATA_VERSION; exports.PROOF_DATA_VERSION = '1.0.0'; 
+const PROOF_DATA_VERSION = exports.PROOF_DATA_VERSION = '1.0.0'; 

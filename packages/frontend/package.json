@@ -9,10 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "ethers": "^5.7.2", 
+    "@heroicons/react": "^2.2.0",
+    "@proof-of-funds/common": "^0.1.0",
+    "ethers": "^5.7.2",
     "next": "^14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@proof-of-funds/common": "workspace:*"
+    "wagmi": "^1.4.13"
   }
 }

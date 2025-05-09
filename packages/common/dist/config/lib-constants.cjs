@@ -6,7 +6,7 @@
  */
 
 // ZK Proof types supported by the application
-const ZK_PROOF_TYPES; exports.ZK_PROOF_TYPES = {
+const ZK_PROOF_TYPES = exports.ZK_PROOF_TYPES = {
   STANDARD: 'standard',  // Exact amount proof
   THRESHOLD: 'threshold', // At-least amount proof
   MAXIMUM: 'maximum',   // At-most amount proof
@@ -14,7 +14,7 @@ const ZK_PROOF_TYPES; exports.ZK_PROOF_TYPES = {
 };
 
 // Mapping of proof types to human-readable names
-const PROOF_TYPE_NAMES; exports.PROOF_TYPE_NAMES = {
+const PROOF_TYPE_NAMES = exports.PROOF_TYPE_NAMES = {
   standard: 'Standard Proof (Exact Amount)',
   threshold: 'Threshold Proof (Minimum Amount)',
   maximum: 'Maximum Proof (Maximum Amount)',
@@ -22,7 +22,7 @@ const PROOF_TYPE_NAMES; exports.PROOF_TYPE_NAMES = {
 };
 
 // Default networks supported by the application
-const SUPPORTED_NETWORKS; exports.SUPPORTED_NETWORKS = {
+const SUPPORTED_NETWORKS = exports.SUPPORTED_NETWORKS = {
   ETHEREUM: 'ethereum',
   POLYGON: 'polygon',
   AVALANCHE: 'avalanche',
@@ -32,7 +32,7 @@ const SUPPORTED_NETWORKS; exports.SUPPORTED_NETWORKS = {
 };
 
 // Default currency symbols
-const CURRENCY_SYMBOLS; exports.CURRENCY_SYMBOLS = {
+const CURRENCY_SYMBOLS = exports.CURRENCY_SYMBOLS = {
   ethereum: 'ETH',
   polygon: 'MATIC',
   avalanche: 'AVAX',
@@ -42,7 +42,7 @@ const CURRENCY_SYMBOLS; exports.CURRENCY_SYMBOLS = {
 };
 
 // Network name mapping for display
-const NETWORK_NAMES; exports.NETWORK_NAMES = {
+const NETWORK_NAMES = exports.NETWORK_NAMES = {
   ethereum: 'Ethereum',
   polygon: 'Polygon',
   avalanche: 'Avalanche',

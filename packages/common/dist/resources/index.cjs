@@ -5,12 +5,12 @@
  */
 
 // Export all resource management modules
-Object.assign(exports, require('./ResourceMonitor.js.cjs'));
-Object.assign(exports, require('./ResourceAllocator.js.cjs'));
-Object.assign(exports, require('./AdaptiveComputation.js.cjs'));
-Object.assign(exports, require('./ComputationStrategies.js.cjs'));
+Object.assign(exports, require('./ResourceMonitor.js'));
+Object.assign(exports, require('./ResourceAllocator.js'));
+Object.assign(exports, require('./AdaptiveComputation.js'));
+Object.assign(exports, require('./ComputationStrategies.js'));
 
 // Export default for each module
-export { default as ResourceMonitor } from './ResourceMonitor.js';
-export { default as ResourceAllocator } from './ResourceAllocator.js';
-export { default as AdaptiveComputation } from './AdaptiveComputation.js';
+module.exports = { default as ResourceMonitor } from './ResourceMonitor.js';
+module.exports = { default as ResourceAllocator } from './ResourceAllocator.js';
+module.exports = { default as AdaptiveComputation } from './AdaptiveComputation.js';
