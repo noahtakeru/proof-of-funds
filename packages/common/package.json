@@ -26,13 +26,85 @@
       "import": "./dist/config/index.js",
       "require": "./dist/config/index.cjs"
     },
+    "./config/constants": {
+      "import": "./dist/config/constants.js",
+      "require": "./dist/config/constants.cjs"
+    },
     "./utils": {
       "import": "./dist/utils/index.js",
       "require": "./dist/utils/index.cjs"
     },
+    "./utils/ethersUtils": {
+      "import": "./dist/utils/ethersUtils.js",
+      "require": "./dist/utils/ethersUtils.cjs"
+    },
     "./resources": {
       "import": "./dist/resources/index.js",
       "require": "./dist/resources/index.cjs"
+    },
+    "./zk": {
+      "import": "./dist/zk-core/index.js",
+      "require": "./dist/zk-core/index.cjs"
+    },
+    "./zk/src/snarkjsLoader": {
+      "import": "./dist/zk-core/snarkjsLoader.js",
+      "require": "./dist/zk-core/snarkjsLoader.cjs"
+    },
+    "./zk/src/telemetry": {
+      "import": "./dist/zk-core/telemetry.js",
+      "require": "./dist/zk-core/telemetry.cjs"
+    },
+    "./zk/src/zkProxyClient": {
+      "import": "./dist/zk-core/zkProxyClient.js",
+      "require": "./dist/zk-core/zkProxyClient.cjs"
+    },
+    "./zk/src/security/NonceValidator": {
+      "import": "./dist/zk-core/security/NonceValidator.js",
+      "require": "./dist/zk-core/security/NonceValidator.cjs"
+    },
+    "./zk/src/security/RequestSignatureVerifier": {
+      "import": "./dist/zk-core/security/RequestSignatureVerifier.js",
+      "require": "./dist/zk-core/security/RequestSignatureVerifier.cjs"
+    },
+    "./zk/src/security/InputValidator": {
+      "import": "./dist/zk-core/security/InputValidator.js",
+      "require": "./dist/zk-core/security/InputValidator.cjs"
+    },
+    "./zk/src/security/ResponseSigner": {
+      "import": "./dist/zk-core/security/ResponseSigner.js",
+      "require": "./dist/zk-core/security/ResponseSigner.cjs"
+    },
+    "./zk/config/real-zk-config": {
+      "import": "./dist/zk/config/real-zk-config.js",
+      "require": "./dist/zk/config/real-zk-config.cjs"
+    },
+    "./zk/config/real-zk-config.mjs": {
+      "import": "./dist/zk/config/real-zk-config.js",
+      "require": "./dist/zk/config/real-zk-config.cjs"
+    },
+    "./analytics/bigQueryClient": {
+      "import": "./dist/analytics/bigQueryClient.js",
+      "require": "./dist/analytics/bigQueryClient.cjs"
+    },
+    "./utils/walletHelpers": {
+      "import": "./dist/utils/walletHelpers.js",
+      "require": "./dist/utils/walletHelpers.cjs"
+    },
+    "./utils/wallet": {
+      "import": "./dist/utils/wallet.js",
+      "require": "./dist/utils/wallet.cjs"
+    },
+    "./PhantomMultiWalletContext": {
+      "import": "./dist/PhantomMultiWalletContext.js",
+      "require": "./dist/PhantomMultiWalletContext.cjs"
+    },
+    "./walletHelpers": {
+      "import": "./dist/utils/walletHelpers.js",
+      "require": "./dist/utils/walletHelpers.cjs"
+    },
+    "./ethersUtils": {
+      "import": "./dist/utils/ethersUtils.js",
+      "require": "./dist/utils/ethersUtils.cjs"
     }
   },
   "scripts": {

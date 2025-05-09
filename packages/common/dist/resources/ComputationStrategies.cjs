@@ -10,7 +10,7 @@
 /**
  * Strategy for optimizing memory usage
  */
-const MemoryOptimizedStrategy; exports.MemoryOptimizedStrategy = {
+const MemoryOptimizedStrategy = exports.MemoryOptimizedStrategy = {
   name: 'memory-optimized',
   batchSize: 10,
   useWorkers: false,
@@ -21,7 +21,7 @@ const MemoryOptimizedStrategy; exports.MemoryOptimizedStrategy = {
 /**
  * Strategy for optimizing performance
  */
-const PerformanceOptimizedStrategy; exports.PerformanceOptimizedStrategy = {
+const PerformanceOptimizedStrategy = exports.PerformanceOptimizedStrategy = {
   name: 'performance-optimized',
   batchSize: 100,
   useWorkers: true,
@@ -33,7 +33,7 @@ const PerformanceOptimizedStrategy; exports.PerformanceOptimizedStrategy = {
 /**
  * Strategy for balanced optimization
  */
-const BalancedStrategy; exports.BalancedStrategy = {
+const BalancedStrategy = exports.BalancedStrategy = {
   name: 'balanced',
   batchSize: 50,
   useWorkers: true,
@@ -45,7 +45,7 @@ const BalancedStrategy; exports.BalancedStrategy = {
 /**
  * Low-power device strategy
  */
-const LowPowerStrategy; exports.LowPowerStrategy = {
+const LowPowerStrategy = exports.LowPowerStrategy = {
   name: 'low-power',
   batchSize: 5,
   useWorkers: false,
@@ -57,7 +57,7 @@ const LowPowerStrategy; exports.LowPowerStrategy = {
  * Computation strategies enum object
  * This is the export expected by zkUtils.mjs
  */
-const COMPUTATION_STRATEGIES; exports.COMPUTATION_STRATEGIES = {
+const COMPUTATION_STRATEGIES = exports.COMPUTATION_STRATEGIES = {
   FULL_COMPUTATION: 'full',
   PROGRESSIVE_COMPUTATION: 'progressive',
   FALLBACK_COMPUTATION: 'fallback',
@@ -73,14 +73,13 @@ const COMPUTATION_STRATEGIES; exports.COMPUTATION_STRATEGIES = {
  * @param {Object} capabilities - Device capabilities
  * @returns {Object} Selected strategy
  */
-function selectStrategy; exports.selectStrategy = selectStrategy
-function selectStrategy(capabilities) {
+export function selectStrategy(capabilities) {
   // Simplified implementation always returns balanced strategy
   return BalancedStrategy;
 }
 
 // Default export for ESM compatibility
-export default {
+module.exports = {
   MemoryOptimizedStrategy,
   PerformanceOptimizedStrategy,
   BalancedStrategy,

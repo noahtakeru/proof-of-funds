@@ -128,7 +128,7 @@ if (typeof module !== 'undefined' && module.exports) {
 module.exports = ethersUtils;
 
 // Named exports
-export {
+module.exports = {
   getEthers,
   isValidAmount,
   parseAmount

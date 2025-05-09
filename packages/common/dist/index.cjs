@@ -6,22 +6,25 @@
  */
 
 // Error handling - contains exports from zkErrorHandler.mjs and zkErrorLogger.mjs
-Object.assign(exports, require('./error-handling/index.js.cjs'));
+Object.assign(exports, require('./error-handling/index.js'));
 
 // Core ZK modules - contains exports from zkUtils.mjs, zkCircuitRegistry.mjs, and zkCircuitInputs.mjs
-Object.assign(exports, require('./zk-core/index.js.cjs'));
+Object.assign(exports, require('./zk-core/index.js'));
+
+// ZK implementation
+Object.assign(exports, require('./zk/index.js'));
 
 // System utilities - contains exports from memoryManager.mjs, secureStorage.mjs, and SecureKeyManager.js
-Object.assign(exports, require('./system/index.js.cjs'));
+Object.assign(exports, require('./system/index.js'));
 
 // Configuration - contains exports from real-zk-config.js, constants.js, and lib-constants.js
-Object.assign(exports, require('./config/index.js.cjs'));
+Object.assign(exports, require('./config/index.js'));
 
-// Utilities - contains exports from ethersUtils.js
-Object.assign(exports, require('./utils/index.js.cjs'));
+// Utilities - contains exports from ethersUtils.js, walletHelpers.js, wallet.js
+Object.assign(exports, require('./utils/index.js'));
 
 // Resources - contains resource management modules
-Object.assign(exports, require('./resources/index.js.cjs'));
+Object.assign(exports, require('./resources/index.js'));
 
-// Utilities - contains exports from ethersUtils.js
-Object.assign(exports, require('./utils/index.js.cjs'));
+// Phantom wallet context
+Object.assign(exports, require('./PhantomMultiWalletContext.js'));

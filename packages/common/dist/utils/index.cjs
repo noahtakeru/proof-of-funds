@@ -4,6 +4,8 @@
  * Exports utility functions from the utils package
  */
 
-// Export ethers utilities
-Object.assign(exports, require('./ethersUtils.js.cjs'));
-export { default as ethersUtils } from './ethersUtils.js';
+// Export utilities
+Object.assign(exports, require('./ethersUtils.js'));
+module.exports = { default as ethersUtils } from './ethersUtils.js';
+Object.assign(exports, require('./walletHelpers.js'));
+Object.assign(exports, require('./wallet.js'));

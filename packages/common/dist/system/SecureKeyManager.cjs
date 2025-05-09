@@ -24,7 +24,7 @@
  * and ensures compliance with security best practices for financial applications.
  */
 
-const errorHandlerModule = require('../error-handling/zkErrorHandler.mjs.cjs');;
+const errorHandlerModule = require('../error-handling/zkErrorHandler.mjs');
 const {
   SecurityError,
   InputError,
@@ -997,5 +997,5 @@ class SecureKeyManager {
 
 /* #ESM-COMPAT */
 // Export the class for both CommonJS and ESM
-export { SecureKeyManager };
+module.exports = { SecureKeyManager };
 module.exports = SecureKeyManager;

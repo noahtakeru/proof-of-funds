@@ -9,7 +9,7 @@
  */
 
 // Resource types enum
-const ResourceType; exports.ResourceType = {
+const ResourceType = exports.ResourceType = {
   CPU: 'cpu',
   MEMORY: 'memory',
   NETWORK: 'network',
@@ -19,7 +19,7 @@ const ResourceType; exports.ResourceType = {
 };
 
 // Sampling strategy enum
-const SamplingStrategy; exports.SamplingStrategy = {
+const SamplingStrategy = exports.SamplingStrategy = {
   CONTINUOUS: 'continuous',
   ON_DEMAND: 'on-demand',
   OPERATION_BOUNDARY: 'operation-boundary',
