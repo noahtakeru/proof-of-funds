@@ -256,41 +256,84 @@ export default function CreatePage() {
 
         // When wagmi reports a connected wallet, ensure localStorage is synchronized
         if (isConnected && address) {
-            // Check if this address is already in localStorage walletData
-            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
-
-            // If we don't have this address in walletData.wallets.metamask, add it
-            const existingWallets = walletData?.wallets?.metamask || [];
-            const hasAddress = existingWallets.some(addr => {
-                // Check if addr is a string before calling toLowerCase
-                if (typeof addr !== 'string') {
-                    return false;
-                }
-                return addr.toLowerCase() === address.toLowerCase();
+            // Use the centralized wallet helper functions to check if wallet exists
+            // Note: getConnectedWallets() handles different wallet formats consistently
+            const connectedWallets = getConnectedWallets();
+            
+            // Explicitly check for duplicates by normalizing addresses
+            const normalizedAddress = address.toLowerCase();
+            const hasAddress = connectedWallets.some(wallet => {
+                // Check both fullAddress and address fields with normalized case comparison
+                const walletAddr = (wallet.fullAddress || wallet.address || '').toLowerCase();
+                return walletAddr === normalizedAddress;
             });
 
             if (!hasAddress) {
                 console.log("Synchronizing wagmi connected address with localStorage:", address);
 
-                // Add the address to localStorage
-                if (!walletData.wallets.metamask) {
-                    walletData.wallets.metamask = [];
+                // Use the proper saveWalletConnection helper instead of directly modifying localStorage
+                // This ensures consistent wallet object format and prevents duplicates
+                try {
+                    saveWalletConnection('metamask', [address]);
+                    localStorage.setItem('userInitiatedConnection', 'true');
+
+                    // Explicitly clean up any malformed wallet entries to prevent duplicates
+                    cleanupWalletStorage();
+                    
+                    // Trigger a wallet connection changed event
+                    const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                        detail: { timestamp: Date.now() }
+                    });
+                    window.dispatchEvent(walletChangeEvent);
+                } catch (error) {
+                    console.error("Error saving wallet connection:", error);
                 }
-                walletData.wallets.metamask.push(address);
-                walletData.timestamp = Date.now();
-
-                // Save updated wallet data
-                localStorage.setItem('walletData', JSON.stringify(walletData));
-                localStorage.setItem('userInitiatedConnection', 'true');
-
-                // Trigger a wallet connection changed event
-                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
-                    detail: { timestamp: Date.now() }
-                });
-                window.dispatchEvent(walletChangeEvent);
+            } else {
+                console.log("Wallet already exists in localStorage, skipping synchronization");
             }
         }
     }, [isConnected, address]);
+    
+    // Helper function to clean up any malformed wallet entries
+    function cleanupWalletStorage() {
+        try {
+            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
+            
+            // Ensure wallet object has expected structure
+            if (!walletData.wallets) {
+                walletData.wallets = {};
+            }
+            
+            // Clean up metamask entries
+            if (walletData.wallets.metamask && Array.isArray(walletData.wallets.metamask)) {
+                // Remove any duplicate addresses by normalizing and comparing
+                const seenAddresses = new Set();
+                walletData.wallets.metamask = walletData.wallets.metamask.filter(entry => {
+                    if (!entry) return false; // Remove null/undefined entries
+                    
+                    // Get address from either string or object format
+                    const addr = typeof entry === 'string' ? 
+                        entry.toLowerCase() : 
+                        ((entry.address || entry.fullAddress || '').toLowerCase());
+                    
+                    // If we've seen this address before, filter it out
+                    if (seenAddresses.has(addr)) return false;
+                    
+                    // Otherwise, record and keep it
+                    if (addr) seenAddresses.add(addr);
+                    return !!addr; // Keep entries with valid addresses
+                });
+                
+                // Update timestamp
+                walletData.timestamp = Date.now();
+                
+                // Save cleaned data
+                localStorage.setItem('walletData', JSON.stringify(walletData));
+            }
+        } catch (error) {
+            console.error("Error cleaning up wallet storage:", error);
+        }
+    }
 
     // --- REFS FOR STATE TRACKING ---
     // Used to track previous values to avoid infinite loops in effects
