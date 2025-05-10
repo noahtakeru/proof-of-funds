@@ -123,6 +123,11 @@ export default function ConnectWallet() {
     const updateConnectedWallets = () => {
         const wallets = getConnectedWallets();
         console.log('Updated wallet list in ConnectWallet:', wallets);
+        
+        // Check specifically for Phantom wallets to ensure they're being loaded
+        const phantomWallets = wallets.filter(wallet => wallet.type === 'phantom');
+        console.log('Phantom wallets loaded:', phantomWallets.length);
+        
         setConnectedWallets(wallets);
     };
 
@@ -181,8 +186,26 @@ export default function ConnectWallet() {
             // Use the centralized disconnect helper which now handles wagmi disconnect
             await disconnectWallet(wallet.type, wallet.fullAddress);
 
+            // Clear any walletConnectChoice to prevent auto-reconnect
+            if (typeof localStorage !== 'undefined') {
+                // Clear any additional connection flags for this specific wallet
+                try {
+                    // Explicitly clear provider state for this wallet
+                    if (wallet.type === 'evm' || wallet.provider === 'metamask') {
+                        if (window.ethereum && window.ethereum.isMetaMask) {
+                            console.log('Clearing MetaMask connection state');
+                            // This additional cleanup might help prevent auto-reconnect
+                            localStorage.removeItem(`${wallet.address.toLowerCase()}_disconnected`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error cleaning up wallet specific state:', e);
+                }
+            }
+            
             // Force an immediate update of the wallet list
             setTimeout(() => {
+                // Double check all wallets are properly removed
                 updateConnectedWallets();
                 setDisconnectingWallets(prev => ({
                     ...prev,
@@ -191,9 +214,12 @@ export default function ConnectWallet() {
 
                 // Dispatch an event to notify other components about wallet changes
                 const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
-                    detail: { timestamp: Date.now() }
+                    detail: { timestamp: Date.now(), disconnected: true }
                 });
                 window.dispatchEvent(walletChangeEvent);
+                
+                // Close the menu after disconnecting the wallet
+                setShowWalletMenu(false);
             }, 300);
         } catch (error) {
             console.error('Error disconnecting wallet:', error);
@@ -369,33 +395,33 @@ export default function ConnectWallet() {
                 {showWalletMenu && (
                     <div
                         ref={walletMenuRef}
-                        className="absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg z-10 py-1"
+                        className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50 py-1 border border-gray-200"
                     >
                         <div className="px-4 py-2 text-sm text-gray-700 font-medium border-b border-gray-200">
                             Connected Wallets
                         </div>
 
-                        <div className="max-h-80 overflow-y-auto py-1">
+                        <div className="py-1">
                             {connectedWallets.length > 0 ? (
                                 connectedWallets.map(wallet => (
                                     <div
                                         key={wallet.id}
-                                        className="px-4 py-2 hover:bg-gray-50 flex justify-between items-center"
+                                        className="px-4 py-3 hover:bg-gray-50 flex justify-between items-center"
                                     >
                                         <div className="flex items-center">
-                                            <div className="mr-2">
+                                            <div className="mr-2 flex-shrink-0">
                                                 {getWalletIcon(wallet.type)}
                                             </div>
-                                            <div>
-                                                <div className="text-sm font-medium">{wallet.name}</div>
-                                                <div className="text-xs text-gray-500">{wallet.address}</div>
+                                            <div className="flex-grow min-w-0 mr-2">
+                                                <div className="text-sm font-medium truncate">{wallet.name}</div>
+                                                <div className="text-xs text-gray-500 truncate">{wallet.displayAddress || wallet.address}</div>
                                                 <div className="text-xs text-gray-400">{wallet.chain}</div>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => handleDisconnect(wallet.id)}
                                             disabled={disconnectingWallets[wallet.id]}
-                                            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                                            className="text-xs bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 disabled:opacity-50 py-1 px-2 rounded flex-shrink-0"
                                         >
                                             {disconnectingWallets[wallet.id] ? 'Disconnecting...' : 'Disconnect'}
                                         </button>
@@ -409,12 +435,15 @@ export default function ConnectWallet() {
                             )}
                         </div>
 
-                        <div className="border-t border-gray-200 px-4 py-2">
+                        <div className="border-t border-gray-200 px-4 py-3">
                             <button
                                 onClick={handleAddWallet}
-                                className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
+                                className="w-full text-center text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-800 py-2 px-4 rounded-md flex items-center justify-center"
                             >
-                                + Add Wallet
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                Add Wallet
                             </button>
                         </div>
                     </div>

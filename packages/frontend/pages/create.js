@@ -25,18 +25,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/walletHelpers';
+import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 // Directly define isValidAmount function to bypass import issues
 const isValidAmount = (amount) => {
-  if (!amount || amount.trim() === '') return false;
-  const num = Number(amount);
-  if (isNaN(num)) return false;
-  if (num < 0) return false;
-  return true;
+    if (!amount || amount.trim() === '') return false;
+    const num = Number(amount);
+    if (isNaN(num)) return false;
+    if (num < 0) return false;
+    return true;
 };
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { generateZKProof } from '@proof-of-funds/common/zk';
@@ -261,9 +261,13 @@ export default function CreatePage() {
 
             // If we don't have this address in walletData.wallets.metamask, add it
             const existingWallets = walletData?.wallets?.metamask || [];
-            const hasAddress = existingWallets.some(addr =>
-                addr.toLowerCase() === address.toLowerCase()
-            );
+            const hasAddress = existingWallets.some(addr => {
+                // Check if addr is a string before calling toLowerCase
+                if (typeof addr !== 'string') {
+                    return false;
+                }
+                return addr.toLowerCase() === address.toLowerCase();
+            });
 
             if (!hasAddress) {
                 console.log("Synchronizing wagmi connected address with localStorage:", address);
@@ -2212,45 +2216,59 @@ export default function CreatePage() {
                         )}
 
                         {/* Proof Category */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Proof Category
                             </label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <button
                                     type="button"
-                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'standard'
-                                        ? 'bg-primary-600 text-white border-primary-600'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                        }`}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                    onClick={() => {
                                         setProofCategory('standard');
+                                        setSuccess(false);
                                     }}
+                                    className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofCategory === 'standard'
+                                        ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                        : 'border-gray-300 hover:bg-gray-50'
+                                        }`}
                                 >
-                                    Standard Proofs
+                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-medium mb-1">Standard Proof</h3>
+                                        <p className="text-sm text-gray-500">
+                                            Create a standard verification of funds with specified amount.
+                                        </p>
+                                    </div>
                                 </button>
+
                                 <button
                                     type="button"
-                                    className={`py-2 px-4 text-sm font-medium rounded-md border ${proofCategory === 'zk'
-                                        ? 'bg-zk-accent text-white border-zk-accent'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                        }`}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                    onClick={() => {
                                         setProofCategory('zk');
+                                        setSuccess(false);
                                     }}
+                                    className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofCategory === 'zk'
+                                        ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
+                                        : 'border-gray-300 hover:bg-gray-50'
+                                        }`}
                                 >
-                                    Zero-Knowledge Proofs
+                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-medium mb-1">Zero-Knowledge Proof</h3>
+                                        <p className="text-sm text-gray-500">
+                                            Create a private verification without revealing exact amounts.
+                                        </p>
+                                    </div>
                                 </button>
                             </div>
-                            <p className="mt-2 text-sm text-gray-500">
-                                {proofCategory === 'standard'
-                                    ? 'Standard proofs verify funds while revealing the exact amount.'
-                                    : 'Zero-knowledge proofs allow verification without revealing the actual amount.'}
-                            </p>
                         </div>
 
                         {/* Proof Type Selection - Shown for both Standard and ZK Proof Categories */}
@@ -2371,11 +2389,11 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
@@ -2395,11 +2413,11 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                             </svg>
@@ -2419,11 +2437,11 @@ export default function CreatePage() {
                                             setSuccess(false);
                                         }}
                                         className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
+                                            ? 'bg-zk-light border-zk-accent ring-2 ring-zk-accent'
                                             : 'border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
+                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-zk-light text-zk-accent mb-3">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
                                             </svg>
@@ -2457,226 +2475,6 @@ export default function CreatePage() {
                                             without revealing your actual balance on the blockchain.
                                         </p>
                                     )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Proof Category Selection - Standard vs ZK Proof */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Proof Category
-                            </label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setProofCategory('standard');
-                                        setSuccess(false);
-                                    }}
-                                    className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofCategory === 'standard'
-                                        ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                        : 'border-gray-300 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-medium mb-1">Standard Proof</h3>
-                                        <p className="text-sm text-gray-500">
-                                            Create a standard verification of funds with specified amount.
-                                        </p>
-                                    </div>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setProofCategory('zk');
-                                        setSuccess(false);
-                                    }}
-                                    className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofCategory === 'zk'
-                                        ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                        : 'border-gray-300 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-medium mb-1">Zero-Knowledge Proof</h3>
-                                        <p className="text-sm text-gray-500">
-                                            Create a private verification without revealing exact amounts.
-                                        </p>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Standard Proof Type Selection - Shown only when Standard Proof Category is selected */}
-                        {proofCategory === 'standard' && (
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Proof Type
-                                </label>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setProofType('standard');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'standard'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Standard Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Verify that the wallet has exactly this amount of funds.
-                                            </p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setProofType('threshold');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'threshold'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Threshold Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Verify that the wallet has at least this amount of funds.
-                                            </p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setProofType('maximum');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${proofType === 'maximum'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Maximum Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Verify that the wallet has at most this amount of funds.
-                                            </p>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ZK Proof Type Selection - Shown only when ZK Proof Category is selected */}
-                        {proofCategory === 'zk' && (
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    ZK Proof Type
-                                </label>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setZkProofType('standard');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'standard'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Standard ZK Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Private verification of exact amount without revealing details.
-                                            </p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setZkProofType('threshold');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'threshold'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Threshold ZK Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Private verification that wallet has at least this amount.
-                                            </p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setZkProofType('maximum');
-                                            setSuccess(false);
-                                        }}
-                                        className={`p-4 border rounded-md flex flex-col items-center justify-between text-left transition-colors ${zkProofType === 'maximum'
-                                            ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-500'
-                                            : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary-100 text-primary-600 mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-medium mb-1">Maximum ZK Proof</h3>
-                                            <p className="text-sm text-gray-500">
-                                                Private verification that wallet has at most this amount.
-                                            </p>
-                                        </div>
-                                    </button>
                                 </div>
                             </div>
                         )}

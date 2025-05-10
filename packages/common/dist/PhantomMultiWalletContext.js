@@ -21,18 +21,76 @@ export function PhantomMultiWalletProvider({ children }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load saved wallet connections on component mount
+  // Load saved wallet connections on component mount and listen for changes
   useEffect(() => {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const savedWallets = localStorage.getItem('phantomWallets');
-        if (savedWallets) {
-          setConnectedWallets(JSON.parse(savedWallets));
+    const loadWallets = () => {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          // Try to get wallets from the main wallet storage
+          const walletData = localStorage.getItem('walletData');
+          if (walletData) {
+            const parsedData = JSON.parse(walletData);
+            if (parsedData && parsedData.wallets && parsedData.wallets.phantom && Array.isArray(parsedData.wallets.phantom)) {
+              // Convert wallet objects to our expected format
+              const phantomWallets = parsedData.wallets.phantom.map(wallet => {
+                // If it's already a wallet object
+                if (typeof wallet === 'object' && wallet !== null && wallet.address) {
+                  return {
+                    address: wallet.address,
+                    publicKey: wallet.address,
+                    chain: wallet.chain || 'solana',
+                    type: 'phantom',
+                    connectedAt: wallet.connectedAt || new Date().toISOString()
+                  };
+                } 
+                // If it's just a string address
+                else if (typeof wallet === 'string') {
+                  return {
+                    address: wallet,
+                    publicKey: wallet,
+                    chain: 'solana',
+                    type: 'phantom',
+                    connectedAt: new Date().toISOString()
+                  };
+                }
+                return null;
+              }).filter(Boolean); // Remove any null entries
+              
+              console.log('Loaded Phantom wallets from central storage:', phantomWallets);
+              setConnectedWallets(phantomWallets);
+            } else {
+              // Fallback to legacy storage
+              const legacyWallets = localStorage.getItem('phantomWallets');
+              if (legacyWallets) {
+                console.log('Using legacy Phantom wallet storage');
+                setConnectedWallets(JSON.parse(legacyWallets));
+              }
+            }
+          }
         }
+      } catch (err) {
+        console.error('Error loading saved Phantom wallets:', err);
       }
-    } catch (err) {
-      console.error('Error loading saved Phantom wallets:', err);
-    }
+    };
+    
+    // Load wallets initially
+    loadWallets();
+    
+    // Listen for wallet connection changes
+    const handleStorageChange = (e) => {
+      if (e.key === 'walletData' || e.key === 'wallet-connection-changed') {
+        console.log('Wallet storage changed, updating Phantom wallet list');
+        loadWallets();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('wallet-connection-changed', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('wallet-connection-changed', handleStorageChange);
+    };
   }, []);
 
   // Connect to a Phantom wallet
@@ -76,9 +134,58 @@ export function PhantomMultiWalletProvider({ children }) {
       const updatedWallets = [...connectedWallets, wallet];
       setConnectedWallets(updatedWallets);
       
-      // Save to localStorage
+      // Save to localStorage using both formats for compatibility
       if (typeof localStorage !== 'undefined') {
+        // Update legacy storage
         localStorage.setItem('phantomWallets', JSON.stringify(updatedWallets));
+        
+        // Update central wallet storage
+        try {
+          const walletData = localStorage.getItem('walletData');
+          let parsedData = walletData ? JSON.parse(walletData) : { wallets: {} };
+          
+          // Ensure wallets object exists
+          if (!parsedData.wallets) {
+            parsedData.wallets = {};
+          }
+          
+          // Ensure phantom wallets array exists
+          if (!parsedData.wallets.phantom || !Array.isArray(parsedData.wallets.phantom)) {
+            parsedData.wallets.phantom = [];
+          }
+          
+          // Add the new wallet if it doesn't exist
+          const walletAddress = wallet.address;
+          const existingIndex = parsedData.wallets.phantom.findIndex(w => 
+            (typeof w === 'string' && w === walletAddress) || 
+            (typeof w === 'object' && w && w.address === walletAddress)
+          );
+          
+          if (existingIndex === -1) {
+            parsedData.wallets.phantom.push({
+              id: `phantom-${walletAddress.substring(0, 8)}`,
+              address: walletAddress,
+              displayAddress: `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`,
+              fullAddress: walletAddress,
+              type: 'phantom',
+              chain: 'solana',
+              name: `Phantom ${walletAddress.substring(0, 6)}...`,
+              connected: true,
+              connectedAt: new Date().toISOString()
+            });
+          }
+          
+          // Save updated data
+          localStorage.setItem('walletData', JSON.stringify(parsedData));
+          
+          // Trigger wallet connection change event
+          const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+            detail: { timestamp: Date.now(), walletType: 'phantom' }
+          });
+          window.dispatchEvent(walletChangeEvent);
+        } catch (e) {
+          console.error('Error updating central wallet storage:', e);
+        }
       }
       
       return wallet;
@@ -100,9 +207,42 @@ export function PhantomMultiWalletProvider({ children }) {
       );
       setConnectedWallets(updatedWallets);
       
-      // Save to localStorage
+      // Save to localStorage - update both formats
       if (typeof localStorage !== 'undefined') {
+        // Update legacy storage
         localStorage.setItem('phantomWallets', JSON.stringify(updatedWallets));
+        
+        // Update central wallet storage
+        try {
+          const walletData = localStorage.getItem('walletData');
+          if (walletData) {
+            const parsedData = JSON.parse(walletData);
+            
+            // If wallet structure exists
+            if (parsedData.wallets && parsedData.wallets.phantom && Array.isArray(parsedData.wallets.phantom)) {
+              // Filter out the disconnected wallet
+              parsedData.wallets.phantom = parsedData.wallets.phantom.filter(w => {
+                if (typeof w === 'string') {
+                  return w !== walletAddress;
+                } else if (typeof w === 'object' && w) {
+                  return w.address !== walletAddress;
+                }
+                return true;
+              });
+              
+              // Save updated data
+              localStorage.setItem('walletData', JSON.stringify(parsedData));
+              
+              // Trigger wallet connection change event
+              const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
+                detail: { timestamp: Date.now(), walletType: 'phantom', disconnected: true }
+              });
+              window.dispatchEvent(walletChangeEvent);
+            }
+          }
+        } catch (e) {
+          console.error('Error updating central wallet storage during disconnect:', e);
+        }
       }
     } catch (err) {
       console.error('Error disconnecting Phantom wallet:', err);

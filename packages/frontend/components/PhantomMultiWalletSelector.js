@@ -19,7 +19,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { saveWalletConnection } from '@proof-of-funds/common/walletHelpers';
+import { saveWalletConnection } from '@proof-of-funds/common/utils/walletHelpers';
 import { usePhantomMultiWallet } from '@proof-of-funds/common/PhantomMultiWalletContext';
 
 export default function PhantomMultiWalletSelector({ onClose }) {
@@ -37,38 +37,64 @@ export default function PhantomMultiWalletSelector({ onClose }) {
     const detectedPublicKeysRef = useRef(new Set());
     const accountChangeListenerRef = useRef(null);
 
-    // Set up account change listener
+    // Set up account change listener - only triggered after explicit user action
     useEffect(() => {
-        // Function to handle wallet account changes
+        // Function to handle wallet account changes - ONLY after explicit authentication
         const handleAccountChange = (publicKey) => {
-            if (!publicKey) {
-                console.log('Phantom wallet disconnected');
+            // Skip automatic detection on initial load - require explicit auth first
+            if (status === 'initial' || !publicKey) {
+                console.log('Phantom wallet disconnected or initial state - skipping auto-detection');
                 return;
             }
 
             const walletAddress = publicKey.toString();
             console.log('Phantom wallet account changed:', walletAddress);
 
+            // Make sure this is coming from Phantom - prevent cross-wallet detection
+            if (!window.solana || !window.solana.isPhantom) {
+                console.log('Ignoring wallet event - not from Phantom');
+                return;
+            }
+            
+            // Ensure this wallet address is from Phantom, not another provider
+            const matchesCurrentPhantomWallet = window.solana.publicKey && 
+                                               window.solana.publicKey.toString() === walletAddress;
+            if (!matchesCurrentPhantomWallet) {
+                console.log('Ignoring wallet address - not from current Phantom connection');
+                return;
+            }
+
             // Only add to our list if not already there
             if (!detectedPublicKeysRef.current.has(walletAddress)) {
-                const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                // Ensure walletAddress is a string before using substring
+                const displayAddress = typeof walletAddress === 'string' && walletAddress.length > 10
+                    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
+                    : walletAddress;
+                
+                // Create unique ID specifically for Phantom to prevent ID collisions
+                const phantomPrefix = 'phantom-wallet-';
+                const uniqueId = `${phantomPrefix}${walletAddress.substring(0, 10)}`;
+                
                 const newWallet = {
-                    id: `phantom-${walletAddress}`,
+                    id: uniqueId,
                     address: walletAddress,
                     displayAddress: displayAddress,
                     type: 'phantom',
+                    provider: 'phantom',
                     name: `Phantom Wallet ${detectedWallets.length + 1}`
                 };
 
                 setDetectedWallets(prev => [...prev, newWallet]);
                 detectedPublicKeysRef.current.add(walletAddress);
 
-                // Auto-select newly detected wallets
-                setSelectedWalletIds(prev => {
-                    const newSet = new Set(prev);
-                    newSet.add(newWallet.id);
-                    return newSet;
-                });
+                // Auto-select newly detected wallets ONLY in listening mode (explicit user action)
+                if (status === 'detecting' || status === 'listening') {
+                    setSelectedWalletIds(prev => {
+                        const newSet = new Set(prev);
+                        newSet.add(uniqueId);
+                        return newSet;
+                    });
+                }
 
                 if (status === 'listening') {
                     setMessage(`New wallet ${displayAddress} detected!`);
@@ -76,20 +102,24 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 }
             } else if (status === 'listening') {
                 // If wallet is already detected but we're in listening mode, provide feedback
-                const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                // Ensure walletAddress is a string before using substring
+                const displayAddress = typeof walletAddress === 'string' && walletAddress.length > 10
+                    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
+                    : walletAddress;
                 setMessage(`Wallet ${displayAddress} already detected. Try switching to a different wallet in Phantom.`);
             }
         };
 
-        // Only set up the listener if Phantom is available
-        if (window.solana && window.solana.isPhantom) {
+        // Only set up the listener if Phantom is available AND after explicit user action
+        if (window.solana && window.solana.isPhantom && status !== 'initial') {
             // Set the listener and save reference
             console.log('Setting up Phantom account change listener');
             accountChangeListenerRef.current = handleAccountChange;
             window.solana.on('accountChanged', handleAccountChange);
-
-            // Check if a wallet is already connected
-            if (window.solana.isConnected && window.solana.publicKey) {
+            
+            // Only check current connection in detecting/listening modes (after user action)
+            if ((status === 'detecting' || status === 'listening') && 
+                window.solana.isConnected && window.solana.publicKey) {
                 handleAccountChange(window.solana.publicKey);
             }
         }
@@ -106,6 +136,12 @@ export default function PhantomMultiWalletSelector({ onClose }) {
 
     // Toggle wallet selection
     const toggleWalletSelection = (walletId) => {
+        // Ensure we're only selecting Phantom wallets by validating ID
+        if (!walletId.startsWith('phantom-wallet-')) {
+            console.warn('Attempted to select non-Phantom wallet:', walletId);
+            return;
+        }
+        
         setSelectedWalletIds(prev => {
             const newSet = new Set(prev);
             if (newSet.has(walletId)) {
@@ -117,10 +153,14 @@ export default function PhantomMultiWalletSelector({ onClose }) {
         });
     };
 
-    // Select all wallets
+    // Select all wallets - only Phantom wallets
     const selectAllWallets = () => {
-        const allIds = detectedWallets.map(wallet => wallet.id);
-        setSelectedWalletIds(new Set(allIds));
+        // Filter for only Phantom wallets
+        const phantomWalletIds = detectedWallets
+            .filter(wallet => wallet.type === 'phantom' && wallet.id.startsWith('phantom-wallet-'))
+            .map(wallet => wallet.id);
+        
+        setSelectedWalletIds(new Set(phantomWalletIds));
     };
 
     // Deselect all wallets
@@ -133,7 +173,14 @@ export default function PhantomMultiWalletSelector({ onClose }) {
         try {
             // Reset state
             setError('');
-            setMessage('Connecting to Phantom wallet...');
+            setMessage('Preparing to connect to Phantom wallet...');
+            
+            // Always start fresh - clear any existing wallets
+            setDetectedWallets([]);
+            setSelectedWalletIds(new Set());
+            detectedPublicKeysRef.current.clear();
+            
+            // Update status to detecting - this will enable the account change listener
             setStatus('detecting');
 
             // Check if Phantom is installed
@@ -143,47 +190,24 @@ export default function PhantomMultiWalletSelector({ onClose }) {
                 return;
             }
 
-            // Check for previously discovered wallets first
-            const storedWallets = getStoredPhantomWallets();
-            if (storedWallets.length > 0) {
-                setMessage(`Found ${storedWallets.length} previously connected Phantom ${storedWallets.length > 1 ? 'wallets' : 'wallet'}!`);
+            // Clear any previously discovered wallets to ensure clean start
+            try {
+                // Clear localStorage items related to Phantom wallet discovery
+                localStorage.removeItem('phantomDiscoveredWallets');
                 
-                // Add these wallets to our detected list
-                const walletPromises = storedWallets.map(address => {
-                    const displayAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-                    const newWallet = {
-                        id: `phantom-${address}`,
-                        address: address,
-                        displayAddress: displayAddress,
-                        type: 'phantom',
-                        name: `Phantom Wallet ${detectedWallets.length + 1}`
-                    };
-                    
-                    // Only add wallets that aren't already in our list
-                    if (!detectedPublicKeysRef.current.has(address)) {
-                        detectedPublicKeysRef.current.add(address);
-                        return newWallet;
+                // Explicitly disconnect any existing Phantom connections
+                if (window.solana.isConnected) {
+                    try {
+                        await window.solana.disconnect();
+                        console.log('Disconnected existing Phantom connection for fresh start');
+                    } catch (disconnectErr) {
+                        console.log('Disconnect attempt (expected):', disconnectErr);
                     }
-                    return null;
-                });
-                
-                // Filter out any null entries and add to state
-                const validWallets = (await Promise.all(walletPromises)).filter(Boolean);
-                
-                if (validWallets.length > 0) {
-                    setDetectedWallets(prev => [...prev, ...validWallets]);
-                    
-                    // Auto-select all previously discovered wallets
-                    setSelectedWalletIds(prev => {
-                        const newSet = new Set(prev);
-                        validWallets.forEach(wallet => newSet.add(wallet.id));
-                        return newSet;
-                    });
                 }
                 
-                // Even with stored wallets, we still need to detect the current one
-                // to establish a connection - this will populate the Phantom context
-                setMessage('Connecting to current Phantom wallet...');
+                setMessage('Please approve connection in the Phantom wallet popup...');
+            } catch (e) {
+                console.warn('Error clearing previous wallet data:', e);
             }
 
             // Now detect the initial wallet
@@ -196,29 +220,29 @@ export default function PhantomMultiWalletSelector({ onClose }) {
         }
     };
     
-    // Helper function to get stored Phantom wallets
+    // Helper function to get currently authenticated Phantom wallets
+    // This now only returns the currently authenticated wallet
     const getStoredPhantomWallets = () => {
         try {
-            // First check phantomDiscoveredWallets (from our enhanced PhantomMultiWallet)
-            const discoveredWallets = JSON.parse(localStorage.getItem('phantomDiscoveredWallets') || '[]');
+            // Only get officially authenticated and currently connected wallets
+            // by checking if Phantom is connected and has a public key
+            if (window.solana && 
+                window.solana.isPhantom && 
+                window.solana.isConnected && 
+                window.solana.publicKey) {
+                
+                // Get the current wallet address
+                const currentWallet = window.solana.publicKey.toString();
+                console.log('Retrieved currently authenticated Phantom wallet:', currentWallet);
+                
+                // Return just the authenticated wallet
+                return [currentWallet];
+            }
             
-            // Also check phantomWalletState for wallet performance data
-            const walletState = JSON.parse(localStorage.getItem('phantomWalletState') || '{}');
-            
-            // Check standard wallet data storage
-            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{}}');
-            const savedPhantomWallets = walletData?.wallets?.phantom || [];
-            
-            // Combine all unique addresses (Set automatically deduplicates)
-            const allAddresses = new Set([
-                ...discoveredWallets,
-                ...savedPhantomWallets,
-                ...Object.keys(walletState)
-            ]);
-            
-            return [...allAddresses];
+            console.log('No currently authenticated Phantom wallets found');
+            return [];
         } catch (e) {
-            console.error("Error getting stored Phantom wallets:", e);
+            console.error("Error getting authenticated Phantom wallet:", e);
             return [];
         }
     };
@@ -235,21 +259,34 @@ export default function PhantomMultiWalletSelector({ onClose }) {
 
             let response = null;
 
-            // If already connected, we'll use the current connection
-            if (window.solana.isConnected && window.solana.publicKey) {
-                response = { publicKey: window.solana.publicKey };
-                console.log("Already connected to Phantom wallet");
-            } else {
-                // Otherwise make a new connection
-                response = await window.solana.connect({ onlyIfTrusted: false });
-                console.log("Connection response:", response);
+            // Force a new connection with authentication to ensure user explicitly approves
+            try {
+                // First disconnect to ensure we get a fresh auth popup
+                if (window.solana.isConnected) {
+                    try {
+                        await window.solana.disconnect();
+                    } catch (disconnectErr) {
+                        console.log("Disconnection attempt (expected):", disconnectErr);
+                    }
+                }
+
+                // Always make a new connection with explicit auth popup
+                response = await window.solana.connect({ 
+                    onlyIfTrusted: false // Force showing the popup
+                });
+                console.log("Phantom connection response with auth:", response);
+            } catch (connectErr) {
+                throw new Error(`Phantom connection failed: ${connectErr.message}`);
             }
 
             const walletAddress = response.publicKey.toString();
             console.log("Connected to wallet:", walletAddress);
 
             // Format wallet address for display
-            const displayAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
+            // Ensure walletAddress is a string before using substring
+            const displayAddress = typeof walletAddress === 'string' && walletAddress.length > 10
+                ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
+                : walletAddress;
 
             // Request a signature to establish trust - but make it non-blocking
             try {
@@ -276,20 +313,25 @@ export default function PhantomMultiWalletSelector({ onClose }) {
 
             // Only add this wallet to our list if it's not already there
             if (!isAlreadyDetected) {
+                // Create unique ID specifically for Phantom to prevent ID collisions
+                const phantomPrefix = 'phantom-wallet-';
+                const uniqueId = `${phantomPrefix}${walletAddress.substring(0, 10)}`;
+                
                 const newWallet = {
-                    id: `phantom-${walletAddress}`,
+                    id: uniqueId,
                     address: walletAddress,
                     displayAddress: displayAddress,
-                    type: 'phantom',
+                    type: 'phantom', 
+                    provider: 'phantom',
                     name: `Phantom Wallet ${detectedWallets.length + 1}`
                 };
                 setDetectedWallets(prev => [...prev, newWallet]);
                 detectedPublicKeysRef.current.add(walletAddress);
 
-                // Auto-select the first detected wallet
+                // Auto-select the detected wallet
                 setSelectedWalletIds(prev => {
                     const newSet = new Set(prev);
-                    newSet.add(newWallet.id);
+                    newSet.add(uniqueId);
                     return newSet;
                 });
 
@@ -338,57 +380,30 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             // Force open the Phantom wallet popup by requesting a connection
             if (window.solana && window.solana.isPhantom) {
                 try {
-                    // Try a direct method to open the selector
-                    console.log("Attempting to open Phantom wallet selector...");
-
-                    // First, check if we're connected and have a publicKey
-                    if (window.solana.isConnected && window.solana.publicKey) {
+                    // First disconnect to ensure we get a fresh auth popup
+                    if (window.solana.isConnected) {
                         try {
-                            // We'll use a simple message signature to force open the wallet
-                            // This is more reliable than reconnect attempts
-                            const timestamp = Date.now();
-                            const message = `Proof of Funds: Wallet Selection\n\nPlease use the Phantom extension to switch to a different wallet you'd like to detect.\n\nAfter confirming this message, you can switch wallets using the dropdown in the Phantom extension.`;
-                            const encodedMessage = new TextEncoder().encode(message);
-
-                            // We don't actually need the result, just need to trigger the UI
-                            window.solana.signMessage(encodedMessage, "utf8")
-                                .catch(err => {
-                                    // This is expected - the goal is just to show the popup
-                                    console.log("Signature dialogue shown:", err);
-                                });
-
-                            console.log("Signature request sent to open Phantom wallet");
-                            setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
-                        } catch (signError) {
-                            console.error("Failed to open wallet with signature:", signError);
-
-                            // Fallback to disconnect/reconnect
-                            try {
-                                // Try disconnect then connect to force open the UI
-                                await window.solana.disconnect();
-                                await new Promise(resolve => setTimeout(resolve, 500)); // Short delay
-
-                                window.solana.connect({ onlyIfTrusted: false })
-                                    .catch(err => {
-                                        // This is expected - we just need the popup to show
-                                        console.log("Connection prompt displayed via fallback:", err);
-                                    });
-
-                                setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
-                            } catch (fallbackErr) {
-                                console.error("Fallback method failed:", fallbackErr);
-                                setMessage('Please open your Phantom extension manually and switch wallets.');
-                            }
+                            await window.solana.disconnect();
+                        } catch (err) {
+                            console.log("Disconnection attempt (expected):", err);
                         }
-                    } else {
-                        // Not connected - use simple connect
-                        window.solana.connect({ onlyIfTrusted: false })
-                            .catch(err => {
-                                // This is expected - we just need the popup to show
-                                console.log("Connection prompt displayed for new connection:", err);
-                            });
-
-                        setMessage('Please change wallets in your Phantom extension. We\'ll automatically detect the new wallet.');
+                    }
+                    
+                    // Request a new connection with proper authentication
+                    console.log("Requesting new Phantom wallet connection...");
+                    setMessage('Please approve connection in the Phantom popup...');
+                    
+                    try {
+                        // Request a new connection (force auth popup)
+                        const response = await window.solana.connect({ 
+                            onlyIfTrusted: false // Force showing the popup
+                        });
+                        
+                        console.log("New wallet connected:", response.publicKey.toString());
+                        setMessage('New wallet connected! You can now select this wallet.');
+                    } catch (connectErr) {
+                        console.log("Connection attempt result:", connectErr);
+                        setMessage('Please try connecting a wallet using the Phantom extension.');
                     }
                 } catch (error) {
                     console.error("Error opening Phantom wallet:", error);
@@ -414,7 +429,7 @@ export default function PhantomMultiWalletSelector({ onClose }) {
     }, []);
 
     // Complete the detection process and save selected wallets
-    const handleFinish = () => {
+    const handleFinish = async () => {
         try {
             // Get selected wallet addresses
             const selectedWallets = detectedWallets.filter(wallet =>
@@ -430,16 +445,50 @@ export default function PhantomMultiWalletSelector({ onClose }) {
             setStatus('success');
             setMessage('Saving your selected wallets...');
 
-            // Get selected wallet addresses
+            // Get selected wallet addresses, but verify they're actually authenticated
             const selectedWalletAddresses = selectedWallets.map(wallet => wallet.address);
 
-            // Save each selected wallet connection individually
-            for (const walletAddress of selectedWalletAddresses) {
-                saveWalletConnection('phantom', [walletAddress]);
+            // Get the currently authenticated Phantom wallet to verify
+            let currentlyAuthenticatedWallet = null;
+            if (window.solana && window.solana.isPhantom && window.solana.isConnected && window.solana.publicKey) {
+                currentlyAuthenticatedWallet = window.solana.publicKey.toString();
             }
+
+            console.log("Currently authenticated Phantom wallet:", currentlyAuthenticatedWallet);
+            console.log("Selected wallets to save:", selectedWalletAddresses);
+
+            // Keep track of which wallets we successfully saved
+            const savedWallets = [];
+
+            // Only save wallets that have been properly authenticated
+            for (const walletAddress of selectedWalletAddresses) {
+                // Verify this is a wallet we detected through proper authentication
+                const isDetectedWallet = detectedPublicKeysRef.current.has(walletAddress);
+                
+                if (isDetectedWallet) {
+                    // This wallet was properly detected through the Phantom popup
+                    await saveWalletConnection('phantom', [walletAddress]);
+                    savedWallets.push(walletAddress);
+                    console.log(`Saved authenticated wallet: ${walletAddress}`);
+                } else {
+                    console.warn(`Skipped saving unauthenticated wallet: ${walletAddress}`);
+                }
+            }
+            
+            // Update message to show how many were actually saved
+            setMessage(`Successfully saved ${savedWallets.length} authenticated wallet(s)!`);
+            
+            // Force refresh of wallet UI in all components
+            const refreshEvent = new CustomEvent('wallet-connection-changed', {
+                detail: { timestamp: Date.now(), walletType: 'phantom', refreshUI: true }
+            });
+            window.dispatchEvent(refreshEvent);
 
             // Mark as user initiated to start asset scanning
             localStorage.setItem('userInitiatedConnection', 'true');
+            
+            // Clear any previous disconnection flag since user is explicitly connecting
+            localStorage.removeItem('user_disconnected_wallets');
 
             // Dispatch an event to notify other components about the wallet connection change
             const walletChangeEvent = new CustomEvent('wallet-connection-changed', {

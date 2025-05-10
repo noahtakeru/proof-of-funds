@@ -13,9 +13,10 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { PhantomMultiWalletProvider } from '@proof-of-funds/common/PhantomMultiWalletContext';
 import Script from 'next/script';
-
-// Create mock components to avoid dependency issues with wagmi
-const MockWagmiConfig = ({ children }) => <>{children}</>;
+import { WagmiConfig, createConfig, configureChains } from 'wagmi';
+import { mainnet, polygon, polygonMumbai } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 
 /**
  * Polygon Amoy Testnet Configuration
@@ -32,13 +33,31 @@ const polygonAmoy = {
         symbol: 'MATIC',
     },
     rpcUrls: {
-        default: 'https://rpc-amoy.polygon.technology/',
+        default: { http: ['https://rpc-amoy.polygon.technology/'] },
+        public: { http: ['https://rpc-amoy.polygon.technology/'] },
     },
     blockExplorers: {
         default: { name: 'PolygonScan', url: 'https://amoy.polygonscan.com/' },
     },
     testnet: true,
 };
+
+// Configure chains and providers for Wagmi
+const { chains, publicClient, webSocketPublicClient } = configureChains(
+    [mainnet, polygon, polygonMumbai, polygonAmoy],
+    [publicProvider()]
+);
+
+// Create Wagmi configuration with MetaMask connector
+// Setting autoConnect to false to prevent automatic reconnection after disconnect
+const config = createConfig({
+    autoConnect: false, // Don't automatically reconnect wallets
+    publicClient,
+    webSocketPublicClient,
+    connectors: [
+        new MetaMaskConnector({ chains }),
+    ],
+});
 
 /**
  * Dynamically import Layout component
@@ -82,6 +101,18 @@ function MyApp({ Component, pageProps }) {
     useEffect(() => {
         // Only run in browser
         if (typeof window !== 'undefined') {
+            // Check if user has explicitly disconnected wallets
+            const hasDisconnected = localStorage.getItem('user_disconnected_wallets') === 'true';
+            
+            // If user has explicitly disconnected, ensure all connection flags are cleared
+            if (hasDisconnected) {
+                console.log('User has explicitly disconnected wallets, clearing connection state');
+                localStorage.removeItem('wagmi.connected');
+                localStorage.removeItem('wagmi.connectors');
+                localStorage.removeItem('userInitiatedConnection');
+                return; // Skip checking for connections if disconnection is explicit
+            }
+            
             // Check if user has initiated connection
             const userInitiatedConnection = localStorage.getItem('userInitiatedConnection') === 'true';
 
@@ -116,13 +147,13 @@ function MyApp({ Component, pageProps }) {
                     `,
                 }}
             />
-            <MockWagmiConfig>
+            <WagmiConfig config={config}>
                 <PhantomMultiWalletProvider>
                     <Layout>
                         <Component {...pageProps} />
                     </Layout>
                 </PhantomMultiWalletProvider>
-            </MockWagmiConfig>
+            </WagmiConfig>
         </>
     );
 }
