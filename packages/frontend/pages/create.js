@@ -256,31 +256,19 @@ export default function CreatePage() {
 
         // When wagmi reports a connected wallet, ensure localStorage is synchronized
         if (isConnected && address) {
-            // Check if this address is already in localStorage walletData
-            const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
-
-            // If we don't have this address in walletData.wallets.metamask, add it
-            const existingWallets = walletData?.wallets?.metamask || [];
-            const hasAddress = existingWallets.some(addr => {
-                // Check if addr is a string before calling toLowerCase
-                if (typeof addr !== 'string') {
-                    return false;
-                }
-                return addr.toLowerCase() === address.toLowerCase();
-            });
+            // Use the centralized wallet helper functions to check if wallet exists
+            const connectedWallets = getConnectedWallets();
+            const hasAddress = connectedWallets.some(wallet => 
+                wallet.type === 'evm' && 
+                wallet.fullAddress.toLowerCase() === address.toLowerCase()
+            );
 
             if (!hasAddress) {
                 console.log("Synchronizing wagmi connected address with localStorage:", address);
 
-                // Add the address to localStorage
-                if (!walletData.wallets.metamask) {
-                    walletData.wallets.metamask = [];
-                }
-                walletData.wallets.metamask.push(address);
-                walletData.timestamp = Date.now();
-
-                // Save updated wallet data
-                localStorage.setItem('walletData', JSON.stringify(walletData));
+                // Use the proper saveWalletConnection helper instead of direct manipulation
+                // This ensures consistent wallet object format and prevents duplicates
+                saveWalletConnection('metamask', [address]);
                 localStorage.setItem('userInitiatedConnection', 'true');
 
                 // Trigger a wallet connection changed event
