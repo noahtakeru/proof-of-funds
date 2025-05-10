@@ -49,8 +49,9 @@ const { chains, publicClient, webSocketPublicClient } = configureChains(
 );
 
 // Create Wagmi configuration with MetaMask connector
+// Setting autoConnect to false to prevent automatic reconnection after disconnect
 const config = createConfig({
-    autoConnect: true,
+    autoConnect: false, // Don't automatically reconnect wallets
     publicClient,
     webSocketPublicClient,
     connectors: [
@@ -100,6 +101,18 @@ function MyApp({ Component, pageProps }) {
     useEffect(() => {
         // Only run in browser
         if (typeof window !== 'undefined') {
+            // Check if user has explicitly disconnected wallets
+            const hasDisconnected = localStorage.getItem('user_disconnected_wallets') === 'true';
+            
+            // If user has explicitly disconnected, ensure all connection flags are cleared
+            if (hasDisconnected) {
+                console.log('User has explicitly disconnected wallets, clearing connection state');
+                localStorage.removeItem('wagmi.connected');
+                localStorage.removeItem('wagmi.connectors');
+                localStorage.removeItem('userInitiatedConnection');
+                return; // Skip checking for connections if disconnection is explicit
+            }
+            
             // Check if user has initiated connection
             const userInitiatedConnection = localStorage.getItem('userInitiatedConnection') === 'true';
 

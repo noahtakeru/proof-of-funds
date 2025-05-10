@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { connectMetaMask, connectPhantom, saveWalletConnection } from '@proof-of-funds/common/utils/walletHelpers';
+import { connectMetaMask, connectPhantom, saveWalletConnection, isMetaMaskAvailable } from '@proof-of-funds/common/utils/walletHelpers';
 import PhantomMultiWalletSelector from './PhantomMultiWalletSelector';
 import { SUPPORTED_CHAINS } from '@proof-of-funds/common/config/constants';
 import { useConnect } from '@proof-of-funds/common/utils/wallet';
@@ -103,8 +103,11 @@ export default function WalletSelector({ onClose }) {
             try {
                 console.log('Checking for installed wallets...');
 
-                // Check for MetaMask
-                const isMetaMaskAvailable = typeof window !== 'undefined' &&
+                // Use our improved MetaMask availability check
+                const isMetaMaskWorking = await isMetaMaskAvailable();
+                
+                // Simple check for MetaMask presence
+                const isMetaMaskPresent = typeof window !== 'undefined' &&
                     window.ethereum &&
                     (window.ethereum.isMetaMask ||
                         (window.ethereum.providers &&
@@ -116,14 +119,21 @@ export default function WalletSelector({ onClose }) {
                     window.solana.isPhantom;
 
                 console.log('Wallet availability:', {
-                    metamask: isMetaMaskAvailable,
+                    metamaskPresent: isMetaMaskPresent,
+                    metamaskWorking: isMetaMaskWorking,
                     phantom: isPhantomAvailable
                 });
 
                 setAvailableWallets(prev =>
                     prev.map(wallet => {
                         if (wallet.id === 'metamask') {
-                            return { ...wallet, isInstalled: isMetaMaskAvailable };
+                            return { 
+                                ...wallet, 
+                                isInstalled: isMetaMaskWorking,
+                                statusMessage: isMetaMaskPresent && !isMetaMaskWorking ? 
+                                    "MetaMask detected but not responding. Try unlocking it." : 
+                                    undefined
+                            };
                         } else if (wallet.id === 'phantomMulti') {
                             return { ...wallet, isInstalled: isPhantomAvailable };
                         }
@@ -137,10 +147,14 @@ export default function WalletSelector({ onClose }) {
         };
 
         checkWallets();
+        
+        // Set up interval to periodically check wallet availability
+        const checkInterval = setInterval(checkWallets, 5000);
 
         // Make sure the modal is properly cleaned up on unmount
         return () => {
             console.log('WalletSelector component unmounting');
+            clearInterval(checkInterval);
         };
     }, []);
 
@@ -170,9 +184,46 @@ export default function WalletSelector({ onClose }) {
         setError('');
         setConnecting(true);
         setSelectedWallet(walletId);
+        
+        // Add a short delay to ensure UI updates before proceeding
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         try {
             if (walletId === 'metamask') {
+                // First check if MetaMask is available
+                const metamaskAvailable = await isMetaMaskAvailable();
+                if (!metamaskAvailable) {
+                    console.error('MetaMask not available or not responding');
+                    setError('MetaMask not available. Please make sure MetaMask extension is installed and unlocked.');
+                    setConnecting(false);
+                    return;
+                }
+                
+                // Clear any existing connection data to force fresh authentication
+                try {
+                    if (typeof localStorage !== 'undefined') {
+                        // Clear wagmi connection state
+                        localStorage.removeItem('wagmi.connected');
+                        localStorage.removeItem('wagmi.connectors');
+                        localStorage.removeItem('wagmi.injected.shimDisconnect');
+                        
+                        // Clear MetaMask cached connections
+                        if (window.ethereum && window.ethereum.isMetaMask) {
+                            console.log('Preparing MetaMask for fresh connection...');
+                            try {
+                                // Attempt to disconnect current session
+                                if (window.ethereum._state && window.ethereum._state.accounts && window.ethereum._state.accounts.length) {
+                                    console.log('Found active MetaMask session, forcing fresh auth...');
+                                }
+                            } catch (e) {
+                                console.log('Non-critical pre-connection error:', e);
+                            }
+                        }
+                    }
+                } catch (preConnectErr) {
+                    console.log('Pre-connection cleanup (non-critical):', preConnectErr);
+                }
+                
                 // Find the MetaMask connector from wagmi
                 const metaMaskConnector = connectors.find(c => c.id === 'metaMask');
 
@@ -180,8 +231,15 @@ export default function WalletSelector({ onClose }) {
                     // First try to connect using wagmi
                     console.log('Connecting with wagmi MetaMask connector...');
                     try {
-                        // Use wagmi connect with MetaMask connector
-                        const result = await wagmiConnect({ connector: metaMaskConnector });
+                        // Set force reconnect flag to ensure popup appears
+                        const reconnectOptions = { 
+                            connector: metaMaskConnector,
+                            chainId: undefined,
+                            force: true // Force reconnect to show the popup
+                        };
+                        
+                        // Use wagmi connect with MetaMask connector and force flag
+                        const result = await wagmiConnect(reconnectOptions);
 
                         if (result?.account) {
                             console.log('Wagmi connection successful:', result);
@@ -191,6 +249,9 @@ export default function WalletSelector({ onClose }) {
 
                             // Mark as user initiated to start asset scanning
                             localStorage.setItem('userInitiatedConnection', 'true');
+                            
+                            // Clear any previous disconnection flag since user is explicitly connecting
+                            localStorage.removeItem('user_disconnected_wallets');
 
                             // Dispatch event for connection change
                             const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
@@ -214,14 +275,25 @@ export default function WalletSelector({ onClose }) {
                 }
 
                 // Fallback to our custom connection method if wagmi fails
-                const accounts = await connectMetaMask();
-                console.log('MetaMask accounts:', accounts);
+                console.log('Attempting to connect via direct MetaMask method...');
+                try {
+                    const wallet = await connectMetaMask();
+                    console.log('MetaMask wallet connected:', wallet);
+                } catch (err) {
+                    console.error('Direct MetaMask connection failed:', err);
+                    setError(`MetaMask connection failed: ${err.message}`);
+                    setConnecting(false);
+                    return; // Exit early on failure
+                }
 
-                // Save the connection data
-                saveWalletConnection('metamask', accounts);
+                // The connection data is already saved in connectMetaMask()
+                // No need to call saveWalletConnection here
 
                 // Mark as user initiated to start asset scanning
                 localStorage.setItem('userInitiatedConnection', 'true');
+                
+                // Clear any previous disconnection flag since user is explicitly connecting
+                localStorage.removeItem('user_disconnected_wallets');
 
                 // Dispatch an event to notify other components about the wallet connection change
                 const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
@@ -314,7 +386,16 @@ export default function WalletSelector({ onClose }) {
 
             {error && (
                 <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-                    {error}
+                    <div className="font-bold">Connection Error:</div>
+                    <div className="mt-1">{error}</div>
+                    <div className="mt-3 text-sm">
+                        <ul className="list-disc pl-5">
+                            <li>Make sure MetaMask extension is installed</li>
+                            <li>Ensure your wallet is unlocked</li>
+                            <li>Try refreshing the page</li>
+                            <li>Check if you have multiple wallet extensions that might conflict</li>
+                        </ul>
+                    </div>
                 </div>
             )}
 
@@ -345,6 +426,9 @@ export default function WalletSelector({ onClose }) {
                             <div className="ml-3 flex-1">
                                 <div className={`font-medium ${wallet.id === 'metamask' ? 'text-orange-900' : wallet.id === 'phantomMulti' ? 'text-indigo-900' : 'text-blue-900'}`}>{wallet.name}</div>
                                 <div className={`text-sm ${wallet.id === 'metamask' ? 'text-orange-700' : wallet.id === 'phantomMulti' ? 'text-indigo-700' : 'text-blue-700'}`}>{wallet.chain}</div>
+                                {wallet.statusMessage && (
+                                    <div className="text-xs text-yellow-600 mt-1">{wallet.statusMessage}</div>
+                                )}
                             </div>
                             <div className="ml-3 text-xs flex flex-wrap justify-end gap-1 max-w-[120px]">
                                 {wallet.supportedChains.map((chain, idx) => (

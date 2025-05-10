@@ -2,7 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/tech": "pages/tech.js",
-  "/create": "pages/create.js",
-  "/about": "pages/about.js"
+  "/": "pages/index.js",
+  "/about": "pages/about.js",
+  "/verify": "pages/verify.js",
+  "/create": "pages/create.js"
 }
