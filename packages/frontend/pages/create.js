@@ -80,8 +80,27 @@ const signMessage = async (walletAddress, message) => {
         const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
         const { ethers } = await getEthers();
 
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
+        console.log('Ethers version check in signMessage:', {
+            hasProviders: !!ethers.providers,
+            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+            hasBrowserProvider: !!ethers.BrowserProvider
+        });
+
+        // Handle both ethers v5 and v6 API
+        let signer;
+        if (ethers.providers && ethers.providers.Web3Provider) {
+            // ethers v5
+            console.log('Using ethers v5 Web3Provider in signMessage');
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+        } else if (ethers.BrowserProvider) {
+            // ethers v6
+            console.log('Using ethers v6 BrowserProvider in signMessage');
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            signer = await provider.getSigner();
+        } else {
+            throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+        }
         const signature = await signer.signMessage(message);
         return signature;
     } catch (error) {
@@ -979,9 +998,39 @@ export default function CreatePage() {
                         throw new Error(`You selected a different account than required. Please select account ${wallet.fullAddress} in MetaMask.`);
                     }
 
-                    // Get the signer from ethers
-                    const ethersProvider = new ethers.providers.Web3Provider(provider);
-                    const signer = ethersProvider.getSigner();
+                    // Get the signer from ethers - handle both v5 and v6 API
+                    let signer;
+                    try {
+                        // Check if ethers is properly loaded
+                        if (!ethers) {
+                            throw new Error('Ethers library not loaded properly');
+                        }
+
+                        console.log('Ethers version check:', {
+                            hasProviders: !!ethers.providers,
+                            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+                            hasBrowserProvider: !!ethers.BrowserProvider
+                        });
+
+                        // ethers v5 approach
+                        if (ethers.providers && ethers.providers.Web3Provider) {
+                            console.log('Using ethers v5 Web3Provider');
+                            const ethersProvider = new ethers.providers.Web3Provider(provider);
+                            signer = ethersProvider.getSigner();
+                        } 
+                        // ethers v6 approach
+                        else if (ethers.BrowserProvider) {
+                            console.log('Using ethers v6 BrowserProvider');
+                            const ethersProvider = new ethers.BrowserProvider(provider);
+                            signer = await ethersProvider.getSigner();
+                        }
+                        else {
+                            throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+                        }
+                    } catch (providerError) {
+                        console.error('Error creating provider:', providerError);
+                        throw new Error(`Failed to initialize wallet provider: ${providerError.message}`);
+                    }
 
                     // Double-check the signer address matches our target
                     const signerAddress = await signer.getAddress();
@@ -1439,8 +1488,25 @@ export default function CreatePage() {
                                 return;
                             }
 
-                            // Get provider for gas price calculation
-                            const provider = new ethers.providers.Web3Provider(window.ethereum);
+                            // Get provider for gas price calculation - handle both ethers v5 and v6
+                            let provider;
+                            console.log('Ethers version check for gas price:', {
+                                hasProviders: !!ethers.providers,
+                                hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+                                hasBrowserProvider: !!ethers.BrowserProvider
+                            });
+                            
+                            if (ethers.providers && ethers.providers.Web3Provider) {
+                                // ethers v5
+                                console.log('Using ethers v5 Web3Provider for gas price');
+                                provider = new ethers.providers.Web3Provider(window.ethereum);
+                            } else if (ethers.BrowserProvider) {
+                                // ethers v6
+                                console.log('Using ethers v6 BrowserProvider for gas price');
+                                provider = new ethers.BrowserProvider(window.ethereum);
+                            } else {
+                                throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+                            }
 
                             // Format parameters 
                             const numericProofType = Number(proofTypeValue);

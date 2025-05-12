@@ -20,12 +20,24 @@ const getEthers = async () => {
         try {
             // Try dynamic import (ESM style)
             if (typeof require === 'undefined') {
+                console.log('Using ESM dynamic import for ethers');
                 const ethers = await import('ethers');
                 ethersInstance = { ethers };
             } else {
                 // CommonJS style
+                console.log('Using CommonJS require for ethers');
                 ethersInstance = { ethers: require('ethers') };
             }
+            
+            // Log information about the imported ethers instance to help with debugging
+            const version = ethersInstance.ethers.version || 'unknown';
+            console.log(`Loaded ethers.js version: ${version}`);
+            console.log('Ethers library features:', {
+                hasProviders: !!ethersInstance.ethers.providers,
+                hasWeb3Provider: !!(ethersInstance.ethers.providers && ethersInstance.ethers.providers.Web3Provider),
+                hasBrowserProvider: !!ethersInstance.ethers.BrowserProvider,
+                hasUtils: !!ethersInstance.ethers.utils
+            });
         } catch (error) {
             console.error('Failed to load ethers.js library:', error);
             throw new Error('Failed to load ethers.js library. This functionality requires ethers.js to be installed.');
@@ -72,8 +84,18 @@ const parseAmount = async (amount, decimals = 18) => {
             return '0';
         }
 
-        // Parse the amount using ethers utils
-        return ethers.utils.parseUnits(amount, decimals).toString();
+        // Parse the amount using ethers utils - handle v5 and v6 differences
+        if (ethers.utils && ethers.utils.parseUnits) {
+            // ethers v5
+            console.log('Using ethers v5 parseUnits');
+            return ethers.utils.parseUnits(amount, decimals).toString();
+        } else if (ethers.parseUnits) {
+            // ethers v6
+            console.log('Using ethers v6 parseUnits');
+            return ethers.parseUnits(amount, decimals).toString();
+        } else {
+            throw new Error('Unsupported ethers.js version - could not find parseUnits function');
+        }
     } catch (error) {
         console.error('Error parsing amount:', error);
         throw new Error(`Failed to parse amount: ${error.message}`);
