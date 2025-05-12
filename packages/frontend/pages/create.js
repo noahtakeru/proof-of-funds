@@ -80,8 +80,27 @@ const signMessage = async (walletAddress, message) => {
         const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
         const { ethers } = await getEthers();
 
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
+        console.log('Ethers version check in signMessage:', {
+            hasProviders: !!ethers.providers,
+            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+            hasBrowserProvider: !!ethers.BrowserProvider
+        });
+
+        // Handle both ethers v5 and v6 API
+        let signer;
+        if (ethers.providers && ethers.providers.Web3Provider) {
+            // ethers v5
+            console.log('Using ethers v5 Web3Provider in signMessage');
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+        } else if (ethers.BrowserProvider) {
+            // ethers v6
+            console.log('Using ethers v6 BrowserProvider in signMessage');
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            signer = await provider.getSigner();
+        } else {
+            throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+        }
         const signature = await signer.signMessage(message);
         return signature;
     } catch (error) {
@@ -215,6 +234,9 @@ export default function CreatePage() {
 
     // Whether USD values are currently being calculated
     const [isConvertingUSD, setIsConvertingUSD] = useState(false);
+    
+    // Whether assets are being manually refreshed
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // --- UI STATE ---
     // Controls expansion/collapse of the asset summary section
@@ -495,7 +517,7 @@ export default function CreatePage() {
             return;
         }
 
-        const loadAssets = async () => {
+        const loadAssets = async (forceRefresh = false) => {
             // Only proceed if we have selected wallets
             if (selectedWalletsRef.current.length === 0) {
                 if (isMounted) setAssetSummary(null);
@@ -517,16 +539,106 @@ export default function CreatePage() {
                     throw new Error('No valid wallets selected');
                 }
 
-                // Scan assets across all selected wallets
-                const summary = await scanMultiChainAssets(walletObjects);
-                console.log('Asset summary:', summary);
+                // Try to get assets from session storage first for instant loading
+                // Skip cache if forceRefresh is true
+                if (!forceRefresh) {
+                    const cachedAssets = tryGetCachedAssets(walletObjects[0]?.address);
+                    if (cachedAssets) {
+                        // Immediately display cached assets
+                        if (isMounted) {
+                            setAssetSummary(cachedAssets);
+                            // If crossChain data exists in the cache, use it
+                            if (cachedAssets.crossChain) {
+                                console.log('Using cached cross-chain data:', cachedAssets.crossChain);
+                            }
+                        }
+                    }
+                } else {
+                    console.log('Force refreshing assets - skipping cache');
+                }
 
-                // Always convert to USD (removed conditional)
+                // Always scan multiple chains regardless of which network is currently selected in MetaMask
+                const scanOptions = {
+                    // Specify all chains to scan simultaneously
+                    chains: ['ethereum', 'polygon', 'bsc', 'arbitrum', 'avalanche', 'fantom'],
+                    // Only show tokens with actual balances
+                    includeZeroBalances: false,
+                    // Include all tokens regardless of popularity/spam status
+                    includePotentialSpam: true
+                };
+                // Log scan options to verify they're set properly
+
+                
+                // Scan assets across all chains independently
+                // This helps ensure all chains are processed, even if one fails
+                const summary = await Promise.all(
+                    scanOptions.chains.map(async (chainName) => {
+                        try {
+                                        // Scan this specific chain only
+                            const chainSummary = await scanMultiChainAssets(walletObjects, {
+                                chains: [chainName],
+                                includeZeroBalances: scanOptions.includeZeroBalances,
+                                includePotentialSpam: scanOptions.includePotentialSpam
+                            });
+                            return { chain: chainName, data: chainSummary };
+                        } catch (error) {
+                            console.error(`Error scanning chain ${chainName}:`, error);
+                            return { chain: chainName, error };
+                        }
+                    })
+                ).then(results => {
+                    // Combine all chain results into a single summary
+                    const mergedSummary = {
+                        totalAssets: [],
+                        totalValue: 0,
+                        totalUSDValue: 0,
+                        chains: {},
+                        walletAddresses: walletObjects.map(w => w.address || w.fullAddress),
+                    };
+                    
+                    // Process each chain's results
+                    results.forEach(result => {
+                        if (result.data && !result.error) {
+                            const chainData = result.data;
+                            
+                            // Add assets
+                            if (chainData.totalAssets && chainData.totalAssets.length > 0) {
+                                mergedSummary.totalAssets.push(...chainData.totalAssets);
+                            }
+                            
+                            // Add value
+                            mergedSummary.totalValue += (chainData.totalValue || 0);
+                            mergedSummary.totalUSDValue += (chainData.totalUSDValue || 0);
+                            
+                            // Copy chain data
+                            if (chainData.chains && Object.keys(chainData.chains).length > 0) {
+                                Object.assign(mergedSummary.chains, chainData.chains);
+                            }
+                            
+                            // Copy cross-chain data if available
+                            if (chainData.crossChain) {
+                                mergedSummary.crossChain = mergedSummary.crossChain || {};
+                                mergedSummary.crossChain.crossChainSummary = 
+                                    (mergedSummary.crossChain.crossChainSummary || [])
+                                    .concat(chainData.crossChain.crossChainSummary || []);
+                            }
+                        }
+                    });
+                    
+                    console.log(`Multi-chain scan complete: Found ${mergedSummary.totalAssets.length} assets across ${Object.keys(mergedSummary.chains).length} chains`);
+                    return mergedSummary;
+                });
+
+                // Always convert to USD
                 if (isMounted) setIsConvertingUSD(true);
                 const summaryWithUSD = await convertAssetsToUSD(summary);
+                
+                
                 if (isMounted) {
                     setShowUSDValues(true); // Always show USD values
                     setAssetSummary(summaryWithUSD);
+                    // Cache for next session
+                    cacheAssets(walletObjects[0]?.address, summaryWithUSD);
                     setIsConvertingUSD(false);
                 }
             } catch (error) {
@@ -539,6 +651,45 @@ export default function CreatePage() {
                 if (isMounted) setIsLoadingAssets(false);
             }
         };
+        
+        // Helper function to try getting cached assets
+        function tryGetCachedAssets(address) {
+            try {
+                if (typeof sessionStorage === 'undefined' || !address) return null;
+                
+                const cached = sessionStorage.getItem(`assets_${address.toLowerCase()}`);
+                if (cached) {
+                    const parsedCache = JSON.parse(cached);
+                    const cacheAge = Date.now() - parsedCache.timestamp;
+                    
+                    // Use cache if less than 5 minutes old
+                    if (cacheAge < 5 * 60 * 1000) {
+                        console.log(`Using cached assets for ${address}, age: ${cacheAge/1000}s`);
+                        return parsedCache.data;
+                    } else {
+                        console.log(`Cached assets for ${address} expired (${cacheAge/1000}s old)`);
+                    }
+                }
+            } catch (e) {
+                console.warn('Error reading cached assets:', e);
+            }
+            return null;
+        }
+        
+        // Helper function to cache assets
+        function cacheAssets(address, assets) {
+            try {
+                if (typeof sessionStorage === 'undefined' || !address) return;
+                
+                sessionStorage.setItem(`assets_${address.toLowerCase()}`, JSON.stringify({
+                    data: assets,
+                    timestamp: Date.now()
+                }));
+                console.log(`Cached assets for ${address}`);
+            } catch (e) {
+                console.warn('Error caching assets:', e);
+            }
+        }
 
         // Load assets when selected wallets change
         loadAssets();
@@ -847,9 +998,39 @@ export default function CreatePage() {
                         throw new Error(`You selected a different account than required. Please select account ${wallet.fullAddress} in MetaMask.`);
                     }
 
-                    // Get the signer from ethers
-                    const ethersProvider = new ethers.providers.Web3Provider(provider);
-                    const signer = ethersProvider.getSigner();
+                    // Get the signer from ethers - handle both v5 and v6 API
+                    let signer;
+                    try {
+                        // Check if ethers is properly loaded
+                        if (!ethers) {
+                            throw new Error('Ethers library not loaded properly');
+                        }
+
+                        console.log('Ethers version check:', {
+                            hasProviders: !!ethers.providers,
+                            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+                            hasBrowserProvider: !!ethers.BrowserProvider
+                        });
+
+                        // ethers v5 approach
+                        if (ethers.providers && ethers.providers.Web3Provider) {
+                            console.log('Using ethers v5 Web3Provider');
+                            const ethersProvider = new ethers.providers.Web3Provider(provider);
+                            signer = ethersProvider.getSigner();
+                        } 
+                        // ethers v6 approach
+                        else if (ethers.BrowserProvider) {
+                            console.log('Using ethers v6 BrowserProvider');
+                            const ethersProvider = new ethers.BrowserProvider(provider);
+                            signer = await ethersProvider.getSigner();
+                        }
+                        else {
+                            throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+                        }
+                    } catch (providerError) {
+                        console.error('Error creating provider:', providerError);
+                        throw new Error(`Failed to initialize wallet provider: ${providerError.message}`);
+                    }
 
                     // Double-check the signer address matches our target
                     const signerAddress = await signer.getAddress();
@@ -1307,8 +1488,25 @@ export default function CreatePage() {
                                 return;
                             }
 
-                            // Get provider for gas price calculation
-                            const provider = new ethers.providers.Web3Provider(window.ethereum);
+                            // Get provider for gas price calculation - handle both ethers v5 and v6
+                            let provider;
+                            console.log('Ethers version check for gas price:', {
+                                hasProviders: !!ethers.providers,
+                                hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
+                                hasBrowserProvider: !!ethers.BrowserProvider
+                            });
+                            
+                            if (ethers.providers && ethers.providers.Web3Provider) {
+                                // ethers v5
+                                console.log('Using ethers v5 Web3Provider for gas price');
+                                provider = new ethers.providers.Web3Provider(window.ethereum);
+                            } else if (ethers.BrowserProvider) {
+                                // ethers v6
+                                console.log('Using ethers v6 BrowserProvider for gas price');
+                                provider = new ethers.BrowserProvider(window.ethereum);
+                            } else {
+                                throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+                            }
 
                             // Format parameters 
                             const numericProofType = Number(proofTypeValue);
@@ -2032,22 +2230,28 @@ export default function CreatePage() {
             // Only attempt reconnection if we have wallets in localStorage but wagmi reports disconnected
             if (!isConnected && connectedWallets.length > 0) {
                 try {
-                    console.log("Detected wallet in localStorage but wagmi reports disconnected. Attempting to connect...");
-
                     // Make sure the connector is set globally for use in contract calls
                     const metamaskConnector = connectors.find(c => c.id === 'metaMask');
 
                     if (metamaskConnector && await metamaskConnector.isAuthorized()) {
-                        // Connect using the MetaMask connector
-                        await connect({ connector: metamaskConnector });
-
-                        // Store the connector for later use
-                        window.wagmiMetaMaskConnector = metamaskConnector;
-
-                        console.log("Successfully reconnected to wagmi");
+                        try {
+                            // Connect using the MetaMask connector without logging errors
+                            const originalConsoleError = console.error;
+                            console.error = () => {}; // Temporarily suppress console.error
+                            
+                            try {
+                                await connect({ connector: metamaskConnector });
+                                // Store the connector for later use
+                                window.wagmiMetaMaskConnector = metamaskConnector;
+                            } finally {
+                                console.error = originalConsoleError; // Restore console.error
+                            }
+                        } catch (connectError) {
+                            // Silently ignore all connection errors - they are expected in some cases
+                        }
                     }
                 } catch (error) {
-                    console.error("Failed to synchronize wagmi connection:", error);
+                    // Silently handle errors to prevent console spam
                 }
             }
         };
@@ -2184,13 +2388,13 @@ export default function CreatePage() {
 
                                 {isAssetSummaryExpanded && (
                                     <>
-                                        {isLoadingAssets || isConvertingUSD ? (
+                                        {isLoadingAssets || isConvertingUSD || isRefreshing ? (
                                             <div className="py-3 text-center text-sm text-gray-500">
                                                 <svg className="animate-spin h-5 w-5 mx-auto mb-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                 </svg>
-                                                Loading assets...
+                                                {isRefreshing ? 'Refreshing assets...' : 'Loading assets...'}
                                             </div>
                                         ) : assetSummary ? (
                                             <>
@@ -2223,6 +2427,35 @@ export default function CreatePage() {
                                                         <div className="text-sm font-medium text-gray-700 col-span-3 text-right">Total:</div>
                                                         <div className="text-sm font-medium text-gray-700 text-right">${Number(assetSummary.totalUSDValue).toFixed(2)}</div>
                                                     </div>
+                                                </div>
+                                                
+                                                {/* Refresh Button */}
+                                                <div className="flex justify-end mb-3">
+                                                    <button
+                                                        type="button"
+                                                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                                                        onClick={async () => {
+                                                            setIsRefreshing(true);
+                                                            try {
+                                                                await loadAssets(true); // Pass true to force refresh
+                                                            } finally {
+                                                                setIsRefreshing(false);
+                                                            }
+                                                        }}
+                                                        disabled={isRefreshing || isLoadingAssets || isConvertingUSD}
+                                                    >
+                                                        {isRefreshing ? (
+                                                            <>
+                                                                <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                </svg>
+                                                                Refreshing...
+                                                            </>
+                                                        ) : (
+                                                            'Refresh Assets'
+                                                        )}
+                                                    </button>
                                                 </div>
 
                                                 <div>

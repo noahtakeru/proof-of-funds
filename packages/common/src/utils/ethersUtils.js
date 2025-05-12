@@ -20,47 +20,27 @@ const getEthers = async () => {
         try {
             // Try dynamic import (ESM style)
             if (typeof require === 'undefined') {
+                console.log('Using ESM dynamic import for ethers');
                 const ethers = await import('ethers');
                 ethersInstance = { ethers };
             } else {
                 // CommonJS style
+                console.log('Using CommonJS require for ethers');
                 ethersInstance = { ethers: require('ethers') };
             }
+            
+            // Log information about the imported ethers instance to help with debugging
+            const version = ethersInstance.ethers.version || 'unknown';
+            console.log(`Loaded ethers.js version: ${version}`);
+            console.log('Ethers library features:', {
+                hasProviders: !!ethersInstance.ethers.providers,
+                hasWeb3Provider: !!(ethersInstance.ethers.providers && ethersInstance.ethers.providers.Web3Provider),
+                hasBrowserProvider: !!ethersInstance.ethers.BrowserProvider,
+                hasUtils: !!ethersInstance.ethers.utils
+            });
         } catch (error) {
-            // Silently provide a mock implementation for tests
-            ethersInstance = {
-                ethers: {
-                    utils: {
-                        parseUnits: (value, decimals) => ({ toString: () => value }),
-                        formatUnits: (value, decimals) => value.toString(),
-                        isAddress: (addr) => typeof addr === 'string' && addr.startsWith('0x'),
-                        getAddress: (addr) => addr,
-                        keccak256: (val) => '0x1234567890abcdef1234567890abcdef12345678',
-                        toUtf8Bytes: (text) => text,
-                        hexlify: (val) => typeof val.startsWith === 'function' ? (val.startsWith('0x') ? val : '0x' + val) : '0x1234',
-                        arrayify: () => new Uint8Array([1, 2, 3, 4]),
-                        recoverPublicKey: () => '0x1234',
-                        splitSignature: () => ({ r: '0x1234', s: '0x5678', v: 27 }),
-                        defaultAbiCoder: {
-                            encode: () => '0x1234'
-                        }
-                    },
-                    BigNumber: {
-                        from: (val) => ({
-                            toString: () => String(val),
-                            lt: () => false,
-                            gt: () => false
-                        })
-                    },
-                    Wallet: class MockWallet {
-                        constructor() {
-                            this.address = '0x1234567890123456789012345678901234567890';
-                        }
-                        connect() { return this; }
-                        signMessage() { return '0x1234'; }
-                    }
-                }
-            };
+            console.error('Failed to load ethers.js library:', error);
+            throw new Error('Failed to load ethers.js library. This functionality requires ethers.js to be installed.');
         }
     }
     return ethersInstance;
@@ -104,8 +84,18 @@ const parseAmount = async (amount, decimals = 18) => {
             return '0';
         }
 
-        // Parse the amount using ethers utils
-        return ethers.utils.parseUnits(amount, decimals).toString();
+        // Parse the amount using ethers utils - handle v5 and v6 differences
+        if (ethers.utils && ethers.utils.parseUnits) {
+            // ethers v5
+            console.log('Using ethers v5 parseUnits');
+            return ethers.utils.parseUnits(amount, decimals).toString();
+        } else if (ethers.parseUnits) {
+            // ethers v6
+            console.log('Using ethers v6 parseUnits');
+            return ethers.parseUnits(amount, decimals).toString();
+        } else {
+            throw new Error('Unsupported ethers.js version - could not find parseUnits function');
+        }
     } catch (error) {
         console.error('Error parsing amount:', error);
         throw new Error(`Failed to parse amount: ${error.message}`);

@@ -32,15 +32,11 @@
 
 // Import device capability detection from Phase 1
 import deviceCapabilitiesModule from './deviceCapabilities.mjs';
-// Define a fallback implementation 
+// Get device capabilities or throw if not available
 const getDeviceCapabilities = deviceCapabilitiesModule.detectCapabilities || 
-                            (() => ({
-                              availableMemory: 8 * 1024, // 8GB in MB
-                              cpuCores: 4,
-                              supportsWebAssembly: true,
-                              hasLowMemory: false,
-                              deviceClass: 'medium'
-                            }));
+                            (() => {
+                              throw new Error('Device capability detection not available');
+                            });
 
 // Import error handling classes and utilities
 import { 
