@@ -11,6 +11,7 @@ Rules (ongoing list):
 10. Blockchain testing will be done on Polygon Amoy, so keep this in mind.
 11. Do not make any UI changes. I like the way the frontend looks at the moment.
 12. Track your progress in this file. Do not make more tracking or report files. They're unnecessary.
+13. Price estimates are unacceptable. We are building for production, so it's important to prioritize building working code that doesn't rely on mock data or placeholder implementation. NOTHING "FAKE".
 
 Phase 1: Resolve All Module System Issues
 

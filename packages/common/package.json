@@ -94,6 +94,10 @@
       "import": "./dist/utils/wallet.js",
       "require": "./dist/utils/wallet.cjs"
     },
+    "./utils/moralisApi": {
+      "import": "./dist/utils/moralisApi.js", 
+      "require": "./dist/utils/moralisApi.cjs"
+    },
     "./PhantomMultiWalletContext": {
       "import": "./dist/PhantomMultiWalletContext.js",
       "require": "./dist/PhantomMultiWalletContext.cjs"
@@ -108,13 +112,14 @@
     }
   },
   "scripts": {
-    "build": "cp -r src/* dist/ && npm run build:cjs",
+    "build": "find src -name '*.bak' -delete && mkdir -p dist && cp -r src/* dist/ && npm run build:cjs",
     "build:cjs": "node ../../scripts/convert-to-cjs.js"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.98.2",
+    "buffer": "^6.0.3",
     "ethers": "^6.1.0",
     "js-sha3": "^0.8.0",
-    "buffer": "^6.0.3",
     "snarkjs": "^0.7.0"
   }
 }

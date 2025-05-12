@@ -199,118 +199,32 @@ export default function WalletSelector({ onClose }) {
                     return;
                 }
                 
-                // Clear any existing connection data to force fresh authentication
+                // Directly use the improved connectMetaMask function
                 try {
-                    if (typeof localStorage !== 'undefined') {
-                        // Clear wagmi connection state
-                        localStorage.removeItem('wagmi.connected');
-                        localStorage.removeItem('wagmi.connectors');
-                        localStorage.removeItem('wagmi.injected.shimDisconnect');
-                        
-                        // Clear MetaMask cached connections
-                        if (window.ethereum && window.ethereum.isMetaMask) {
-                            console.log('Preparing MetaMask for fresh connection...');
-                            try {
-                                // Attempt to disconnect current session
-                                if (window.ethereum._state && window.ethereum._state.accounts && window.ethereum._state.accounts.length) {
-                                    console.log('Found active MetaMask session, forcing fresh auth...');
-                                }
-                            } catch (e) {
-                                console.log('Non-critical pre-connection error:', e);
-                            }
-                        }
-                    }
-                } catch (preConnectErr) {
-                    console.log('Pre-connection cleanup (non-critical):', preConnectErr);
-                }
-                
-                // Find the MetaMask connector from wagmi
-                const metaMaskConnector = connectors.find(c => c.id === 'metaMask');
-
-                if (metaMaskConnector) {
-                    // First try to connect using wagmi
-                    console.log('Connecting with wagmi MetaMask connector...');
-                    try {
-                        // Set force reconnect flag to ensure popup appears
-                        const reconnectOptions = { 
-                            connector: metaMaskConnector,
-                            chainId: undefined,
-                            force: true // Force reconnect to show the popup
-                        };
-                        
-                        // Use wagmi connect with MetaMask connector and force flag
-                        const result = await wagmiConnect(reconnectOptions);
-
-                        if (result?.account) {
-                            console.log('Wagmi connection successful:', result);
-
-                            // Save to localStorage AFTER wagmi connection is confirmed
-                            saveWalletConnection('metamask', [result.account]);
-
-                            // Mark as user initiated to start asset scanning
-                            localStorage.setItem('userInitiatedConnection', 'true');
-                            
-                            // Clear any previous disconnection flag since user is explicitly connecting
-                            localStorage.removeItem('user_disconnected_wallets');
-
-                            // Dispatch event for connection change
-                            const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
-                                detail: { timestamp: Date.now(), walletType: 'metamask' }
-                            });
-                            window.dispatchEvent(walletChangeEvent);
-
-                            // Close the dialog after successful connection
-                            setTimeout(() => {
-                                if (typeof onClose === 'function') {
-                                    onClose();
-                                }
-                            }, 500);
-
-                            return;
-                        }
-                    } catch (wagmiError) {
-                        console.error('Wagmi connection failed, falling back to direct connection:', wagmiError);
-                        // Continue to fallback connection method
-                    }
-                }
-
-                // Fallback to our custom connection method if wagmi fails
-                console.log('Attempting to connect via direct MetaMask method...');
-                try {
+                    console.log('Connecting via direct MetaMask method...');
                     const wallet = await connectMetaMask();
-                    console.log('MetaMask wallet connected:', wallet);
+                    console.log('MetaMask wallet connected successfully:', wallet);
+                    
+                    // Connection data is already saved in connectMetaMask()
+                    // wallet-connection-changed event is also dispatched there
+                    
+                    // Close the dialog after successful connection
+                    setTimeout(() => {
+                        console.log('Connection successful, closing wallet selector');
+                        if (typeof onClose === 'function') {
+                            onClose();
+                        } else {
+                            console.error('onClose is not a function:', onClose);
+                        }
+                    }, 500);
+                    
+                    return;
                 } catch (err) {
-                    console.error('Direct MetaMask connection failed:', err);
+                    console.error('MetaMask connection failed:', err);
                     setError(`MetaMask connection failed: ${err.message}`);
                     setConnecting(false);
-                    return; // Exit early on failure
+                    return;
                 }
-
-                // The connection data is already saved in connectMetaMask()
-                // No need to call saveWalletConnection here
-
-                // Mark as user initiated to start asset scanning
-                localStorage.setItem('userInitiatedConnection', 'true');
-                
-                // Clear any previous disconnection flag since user is explicitly connecting
-                localStorage.removeItem('user_disconnected_wallets');
-
-                // Dispatch an event to notify other components about the wallet connection change
-                const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
-                    detail: { timestamp: Date.now(), walletType: 'metamask' }
-                });
-                window.dispatchEvent(walletChangeEvent);
-                console.log('Dispatched wallet-connection-changed event from WalletSelector');
-
-                // Close the dialog after successful connection
-                setTimeout(() => {
-                    console.log('Connection successful, closing wallet selector');
-                    if (typeof onClose === 'function') {
-                        onClose();
-                    } else {
-                        console.error('onClose is not a function:', onClose);
-                    }
-                }, 500);
             } else if (walletId === 'phantomMulti') {
                 // Open the multi-wallet selector
                 setShowMultiWalletSelector(true);

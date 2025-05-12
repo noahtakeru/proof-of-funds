@@ -27,40 +27,8 @@ const getEthers = async () => {
                 ethersInstance = { ethers: require('ethers') };
             }
         } catch (error) {
-            // Silently provide a mock implementation for tests
-            ethersInstance = {
-                ethers: {
-                    utils: {
-                        parseUnits: (value, decimals) => ({ toString: () => value }),
-                        formatUnits: (value, decimals) => value.toString(),
-                        isAddress: (addr) => typeof addr === 'string' && addr.startsWith('0x'),
-                        getAddress: (addr) => addr,
-                        keccak256: (val) => '0x1234567890abcdef1234567890abcdef12345678',
-                        toUtf8Bytes: (text) => text,
-                        hexlify: (val) => typeof val.startsWith === 'function' ? (val.startsWith('0x') ? val : '0x' + val) : '0x1234',
-                        arrayify: () => new Uint8Array([1, 2, 3, 4]),
-                        recoverPublicKey: () => '0x1234',
-                        splitSignature: () => ({ r: '0x1234', s: '0x5678', v: 27 }),
-                        defaultAbiCoder: {
-                            encode: () => '0x1234'
-                        }
-                    },
-                    BigNumber: {
-                        from: (val) => ({
-                            toString: () => String(val),
-                            lt: () => false,
-                            gt: () => false
-                        })
-                    },
-                    Wallet: class MockWallet {
-                        constructor() {
-                            this.address = '0x1234567890123456789012345678901234567890';
-                        }
-                        connect() { return this; }
-                        signMessage() { return '0x1234'; }
-                    }
-                }
-            };
+            console.error('Failed to load ethers.js library:', error);
+            throw new Error('Failed to load ethers.js library. This functionality requires ethers.js to be installed.');
         }
     }
     return ethersInstance;

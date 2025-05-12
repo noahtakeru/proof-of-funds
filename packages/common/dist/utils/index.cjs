@@ -9,3 +9,5 @@ Object.assign(exports, require('./ethersUtils.js'));
 module.exports = { default as ethersUtils } from './ethersUtils.js';
 Object.assign(exports, require('./walletHelpers.js'));
 Object.assign(exports, require('./wallet.js'));
+Object.assign(exports, require('./moralisApi.js'));
+module.exports = { default as moralisApi } from './moralisApi.js';
