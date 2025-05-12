@@ -1,56 +1,32 @@
 /**
  * Zero-Knowledge Proof Core Functionality
  * 
- * This module will contain core ZK utility functions migrated from the original implementation.
- * During Phase 3.1, Step 3, we will migrate the actual implementations from:
- * - /lib/zk/src/zkUtils.mjs
- * - /lib/zk/src/zkCircuitRegistry.mjs
- * - /lib/zk/src/zkCircuitInputs.mjs
+ * This module exports the core ZK utility functions from zkUtils.mjs.
  * 
  * @module zk-core
  */
 
-// Constant definitions that match the original implementation
+// Import the actual implementations from zkUtils.mjs
+const zkUtilsModule = require('./zkUtils.mjs');
+
+// Re-export the constants
 const ZK_PROOF_TYPES = exports.ZK_PROOF_TYPES = {
   STANDARD: 0,
   THRESHOLD: 1,
   MAXIMUM: 2
 };
 
-/**
- * @throws {Error} - This function will throw during Phase 2 setup
- * @returns {never}
- */
-export async function generateZKProof(input, options = {}) {
-  throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
-}
-
-/**
- * @throws {Error} - This function will throw during Phase 2 setup
- * @returns {never}
- */
-export async function verifyZKProof(proof, publicSignals, proofType, options = {}) {
-  throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
-}
-
-/**
- * @throws {Error} - This function will throw during Phase 2 setup
- * @returns {never}
- */
-export function serializeZKProof(proof, publicSignals) {
-  throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
-}
-
-/**
- * @throws {Error} - This function will throw during Phase 2 setup
- * @returns {never}
- */
-export function deserializeZKProof(serializedProof, serializedPublicSignals) {
-  throw new Error('ZK core functionality not yet migrated. This will be implemented during Phase 3.1.');
-}
-
-/**
- * This will be the SNARK field size constant used in the actual implementation
- * Matches the value in zkUtils.mjs
- */
+// Re-export the SNARK field size constant
 const SNARK_FIELD_SIZE = exports.SNARK_FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+// Re-export the core ZK functions from zkUtils.mjs
+const generateZKProof = exports.generateZKProof = zkUtilsModule.generateZKProof;
+const verifyZKProof = exports.verifyZKProof = zkUtilsModule.verifyZKProof;
+const serializeZKProof = exports.serializeZKProof = zkUtilsModule.serializeZKProof;
+const deserializeZKProof = exports.deserializeZKProof = zkUtilsModule.deserializeZKProof;
+
+// Export other useful functions
+const generateZKProofHash = exports.generateZKProofHash = zkUtilsModule.generateZKProofHash;
+const getVerificationKey = exports.getVerificationKey = zkUtilsModule.getVerificationKey;
+const stringifyBigInts = exports.stringifyBigInts = zkUtilsModule.stringifyBigInts;
+const parseBigInts = exports.parseBigInts = zkUtilsModule.parseBigInts;

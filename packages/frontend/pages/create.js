@@ -24,12 +24,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
-import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
+import { PROOF_TYPES, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS, CONTRACT_ABI } from '../config/constants';
 import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
+import { getCurrentNetwork, switchNetwork, getContractAddress, getZKVerifierAddress } from '@proof-of-funds/common/utils/networkManager';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
 // Directly define isValidAmount function to bypass import issues
 const isValidAmount = (amount) => {
     if (!amount || amount.trim() === '') return false;
@@ -39,13 +39,14 @@ const isValidAmount = (amount) => {
     return true;
 };
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { generateZKProof } from '@proof-of-funds/common/zk';
+import { generateZKProof, ZK_PROOF_TYPES } from '@proof-of-funds/common/zk';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {
     try {
-        // Dynamically import ethers
-        const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+        // Dynamically import ethers utilities - use default export
+        const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+        const { getEthers } = ethersUtilsModule.default;
         const { ethers } = await getEthers();
 
         // Use ethers.js to fetch balance
@@ -76,8 +77,9 @@ const fetchUSDValue = async (balance, chain) => {
 // Helper function to sign a message
 const signMessage = async (walletAddress, message) => {
     try {
-        // Dynamically import ethers
-        const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+        // Dynamically import ethers utilities - use default export
+        const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+        const { getEthers } = ethersUtilsModule.default;
         const { ethers } = await getEthers();
 
         console.log('Ethers version check in signMessage:', {
@@ -131,16 +133,24 @@ const generateProof = async (walletAddress, chain, proofType, amount) => {
 
         console.log(`Generating proof with: address=${walletAddress}, chain=${chain}, proofType=${proofType}, amount=${amount}`);
 
-        // Dynamically import ethers and our utils
-        const { getEthers, parseAmount } = await import('@proof-of-funds/common/ethersUtils');
-
+        // Dynamically import ethers utilities with better error handling - using default export
+        const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+        const { getEthers, parseAmount, parseEther } = ethersUtilsModule.default;
+        
         // Convert from string proof type to enum value
         let proofTypeEnum = PROOF_TYPES.STANDARD;
         if (proofType === 'threshold') proofTypeEnum = PROOF_TYPES.THRESHOLD;
         else if (proofType === 'maximum') proofTypeEnum = PROOF_TYPES.MAXIMUM;
 
-        // Convert amount to Wei with proper decimal handling
-        const amountInWei = await parseAmount(amount);
+        // Convert amount to Wei with detailed error handling
+        let amountInWei;
+        try {
+            amountInWei = await ethersUtils.parseAmount(amount);
+            console.log(`Successfully parsed amount ${amount} to wei: ${amountInWei}`);
+        } catch (parseError) {
+            console.error('Failed to parse amount:', parseError);
+            throw new Error(`Failed to parse amount: ${parseError.message}`);
+        }
         console.log(`Converted amount ${amount} to wei: ${amountInWei}`);
 
         // Generate hash based on proof type
@@ -781,8 +791,21 @@ export default function CreatePage() {
      * Contract interaction hook for standard proof submission
      * Used for normal "exactly X amount" verification
      */
+    // Network toggle state
+    const [useTestnet, setUseTestnet] = useState(true); // Default to testnet (Amoy)
+    
+    // Effect to update contract addresses when network changes
+    useEffect(() => {
+        // Switch to appropriate network
+        const networkKey = useTestnet ? 'AMOY' : 'MAINNET';
+        switchNetwork(networkKey);
+        console.log(`Network set to: ${getCurrentNetwork().name}`);
+        console.log(`Contract address: ${getContractAddress()}`);
+        console.log(`ZK Verifier address: ${getZKVerifierAddress()}`);
+    }, [useTestnet]);
+    
     const { config: standardProofConfig, error: standardProofError, write: writeStandardProof, data: dataStandard, isLoading: isStandardLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: getContractAddress(),
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -795,7 +818,7 @@ export default function CreatePage() {
      * Used for "at least X amount" verification
      */
     const { config: thresholdProofConfig, error: thresholdProofError, write: writeThresholdProof, data: dataThreshold, isLoading: isThresholdLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: getContractAddress(),
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -808,7 +831,7 @@ export default function CreatePage() {
      * Used for "at most X amount" verification
      */
     const { config: maximumProofConfig, error: maximumProofError, write: writeMaximumProof, data: dataMaximum, isLoading: isMaximumLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: getContractAddress(),
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -827,7 +850,7 @@ export default function CreatePage() {
         error: errorZK,
         data: dataZK
     } = useContractWrite({
-        address: ZK_VERIFIER_ADDRESS,
+        address: getZKVerifierAddress(),
         abi: [
             {
                 "inputs": [
@@ -924,25 +947,30 @@ export default function CreatePage() {
                 throw new Error(`Wallet with ID ${walletId} not found`);
             }
 
-            // Prepare amount value based on input type
+            // Prepare amount value based on input type - ensure we use exactly what the user entered
             let finalAmount = amount;
             let messageAmountText = '';
 
+            // Log the raw amount to help debug any precision issues
+            console.log("Raw user input amount:", amount);
+
             if (amountInputType === 'tokens') {
-                // Get selected token amounts for the message - use the amounts the user entered
+                // Get selected token amounts for the message - use the exact amounts the user entered
                 if (selectedTokens && selectedTokens.length > 0) {
-                    // List specific token amounts the user selected
+                    // List specific token amounts the user selected - use raw amount strings
                     const tokenList = selectedTokens.map(token =>
                         `${token.amount} ${token.symbol}`
                     ).join(', ');
                     messageAmountText = tokenList;
                     console.log("Using user-entered token amounts for signature:", messageAmountText);
                 } else {
+                    // Use raw amount string directly without any processing
                     messageAmountText = `${finalAmount} USD worth of tokens`;
                 }
             } else {
-                // USD amount
+                // USD amount - use raw amount string directly without any processing or formatting
                 messageAmountText = `$${finalAmount} USD`;
+                console.log("Using exact user-entered USD amount for signature:", finalAmount);
             }
 
             // Create signature message for this wallet
@@ -954,8 +982,9 @@ export default function CreatePage() {
             if (wallet.type === 'evm') {
                 // For EVM wallets (MetaMask, etc.)
                 try {
-                    // Dynamically import ethers
-                    const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+                    // Import ethers utilities correctly with properly exported path
+                    const ethersUtilsModule = await import('@proof-of-funds/common/utils/ethersUtils');
+                    const { getEthers } = ethersUtilsModule;
                     const { ethers } = await getEthers();
 
                     // Get the correct provider
@@ -1163,13 +1192,27 @@ export default function CreatePage() {
 
                 if (proofCategory === 'zk') {
                     try {
-                        // Dynamically import ethers for parsing amount
-                        const { getEthers, parseAmount } = await import('@proof-of-funds/common/ethersUtils');
+                        // Dynamically import ethers utilities with better error handling - using destructured import
+                        const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+                        const { parseAmount, getEthers } = ethersUtilsModule.default; // Use default export and extract needed functions
+                        
+                        // Explicitly log the amount for debugging
+                        console.log('Attempting to parse amount:', finalAmount);
+                        
+                        // Convert amount to Wei with detailed error handling
+                        let amountInWei;
+                        try {
+                            amountInWei = await parseAmount(finalAmount);
+                            console.log('Successfully parsed amount to Wei:', amountInWei);
+                        } catch (parseError) {
+                            console.error('Failed to parse amount:', parseError);
+                            alert(`Failed to parse amount: ${parseError.message}`);
+                            return;
+                        }
+
+                        // Get ethers instance for later use
                         const { ethers } = await getEthers();
-
-                        // Convert amount to Wei
-                        const amountInWei = await parseAmount(finalAmount);
-
+                        
                         // Get the primary wallet's address
                         const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
                         if (!primaryWallet) {
@@ -1272,8 +1315,9 @@ export default function CreatePage() {
                 throw new Error("ZK proof data is missing or incomplete");
             }
 
-            // Dynamically import ethers
-            const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+            // Import ethers utilities correctly with properly exported path
+            const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+            const { getEthers, parseEther } = ethersUtilsModule.default;
             const { ethers } = await getEthers();
 
             // Get the primary wallet data
@@ -1305,10 +1349,10 @@ export default function CreatePage() {
                 ['uint256[]'],
                 [[1, 2, 3, 4, 5, 6, 7, 8]]
             );
-
+            const parsedAmount = await parseEther(amount);
             const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
                 ['uint256[]'],
-                [[ethers.utils.parseEther(amount).toString()]]
+                [[parsedAmount.toString()]]
             );
 
             console.log("ZK contract call preparation:", {
@@ -1408,12 +1452,14 @@ export default function CreatePage() {
                     throw new Error('Primary wallet not found');
                 }
 
-                // Dynamically import ethers here to ensure it's available
+                // Dynamically import ethers utilities with better error handling - using default export
+                const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+                const { getEthers, parseEther } = ethersUtilsModule.default;
                 const { ethers } = await getEthers();
                 console.log("Ethers imported successfully");
 
-                // Convert amount to Wei for blockchain submission
-                const amountInWei = ethers.utils.parseEther(
+                // Convert amount to Wei for blockchain submission using version-agnostic function
+                const amountInWei = await parseEther(
                     amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
                 console.log("Amount converted to wei:", amountInWei.toString());
@@ -1451,7 +1497,7 @@ export default function CreatePage() {
                     // For threshold and maximum types, we use the threshold amount
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
-                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                        : await ethersUtils.parseEther('0'); // Use 0 for standard proof type
                     console.log("Threshold amount:", thresholdAmount.toString());
 
                     console.log('Calling writeStandardProof with args:', {
@@ -1520,7 +1566,7 @@ export default function CreatePage() {
                                 console.log("Using amount as threshold:", bigIntThreshold.toString());
                             } else {
                                 // For standard proof type, threshold can be 0
-                                bigIntThreshold = ethers.utils.parseEther('0');
+                                bigIntThreshold = await ethersUtils.parseEther('0');
                             }
 
                             console.log("Formatted arguments:", {
@@ -1716,14 +1762,16 @@ export default function CreatePage() {
                 }
                 console.log("Primary wallet found:", primaryWallet.fullAddress);
 
-                // Dynamically import ethers
+                // Dynamically import ethers utilities with better error handling - using default export
                 console.log("Dynamically importing ethers");
-                const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+                const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+                const { getEthers, parseEther } = ethersUtilsModule.default;
+                // Get ethers instance for other operations
                 const { ethers } = await getEthers();
                 console.log("Ethers imported successfully");
 
-                // Convert amount to Wei for blockchain submission
-                const amountInWei = ethers.utils.parseEther(
+                // Convert amount to Wei for blockchain submission using version-agnostic function
+                const amountInWei = await parseEther(
                     amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
                 console.log("Amount converted to wei:", amountInWei.toString());
@@ -1761,7 +1809,7 @@ export default function CreatePage() {
                     // For threshold and maximum types, we use the threshold amount
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
-                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                        : await ethersUtils.parseEther('0'); // Use 0 for standard proof type
                     console.log("Threshold amount:", thresholdAmount.toString());
 
                     console.log('Calling writeStandardProof with args:', {
@@ -1808,7 +1856,7 @@ export default function CreatePage() {
                                 console.log("Using amount as threshold:", bigIntThreshold.toString());
                             } else {
                                 // For standard proof type, threshold can be 0
-                                bigIntThreshold = ethers.utils.parseEther('0');
+                                bigIntThreshold = await ethersUtils.parseEther('0');
                             }
 
                             console.log("Formatted arguments:", {
@@ -2269,8 +2317,9 @@ export default function CreatePage() {
     // Add a function to check contract ABI and verify the method exists
     const verifyContractMethod = async (contractAddress, methodName) => {
         try {
-            // Dynamically import ethers
-            const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+            // Dynamically import ethers utilities with better error handling - using default export
+            const ethersUtilsModule = await import('@proof-of-funds/common/ethersUtils');
+            const { getEthers } = ethersUtilsModule.default;
             const { ethers } = await getEthers();
 
             const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -2296,10 +2345,33 @@ export default function CreatePage() {
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
-            <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
+            <div className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-bold">Create Proof of Funds</h1>
+                <div className="flex items-center">
+                    <label className="mr-2 text-gray-700 font-medium">Network:</label>
+                    <button
+                        onClick={() => setUseTestnet(!useTestnet)}
+                        className={`px-4 py-1 rounded-md transition-colors ${useTestnet 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-400' 
+                            : 'bg-purple-100 text-purple-800 border border-purple-400'}`}
+                    >
+                        {getCurrentNetwork().name}
+                    </button>
+                </div>
+            </div>
 
             <div className="bg-white p-8 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-6">Proof Creation</h2>
+                <h2 className="text-xl font-semibold mb-2">Proof Creation</h2>
+                {useTestnet && (
+                    <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
+                        Using Polygon Amoy Testnet for development and testing. Contract calls won't affect real funds.
+                    </div>
+                )}
+                {!useTestnet && (
+                    <div className="mb-4 p-2 bg-purple-50 border border-purple-200 rounded-md text-purple-800 text-sm">
+                        Using Polygon Mainnet. Contract interactions will be real and may affect funds.
+                    </div>
+                )}
 
                 <form
                     onSubmit={(e) => {
@@ -2795,14 +2867,18 @@ export default function CreatePage() {
                                 // USD Amount Input
                                 <div className="relative">
                                     <input
-                                        type="number"
+                                        type="text" 
                                         id="amount"
                                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm p-2 border"
                                         placeholder="Enter USD amount"
                                         value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        min="0"
-                                        step="0.01"
+                                        onChange={(e) => {
+                                            // Only allow valid decimal number input and preserve the exact string
+                                            const value = e.target.value;
+                                            if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
+                                                setAmount(value);
+                                            }
+                                        }}
                                     />
                                     <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                                         <span className="text-gray-500 sm:text-sm">USD</span>

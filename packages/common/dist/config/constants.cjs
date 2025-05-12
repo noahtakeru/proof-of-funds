@@ -18,15 +18,23 @@
  * rather than the entire module to improve code maintainability.
  */
 
-// Use the address from the deployment script (see deployments directory)
-// This was previously incorrectly set to a wallet address
-// The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
-// IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-const CONTRACT_ADDRESS = exports.CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ZK_VERIFIER_ADDRESS = exports.ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
-const POLYGON_AMOY_CHAIN_ID = exports.POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+// Import network configuration
+const { getNetworkConfig, DEFAULT_NETWORK } = require('./networks');
 
-// Polygon Amoy Testnet RPC URL
+// Get current network configuration
+const currentNetwork = getNetworkConfig(DEFAULT_NETWORK);
+
+// Export network-specific constants
+const CONTRACT_ADDRESS = exports.CONTRACT_ADDRESS = currentNetwork.contractAddress;
+const ZK_VERIFIER_ADDRESS = exports.ZK_VERIFIER_ADDRESS = currentNetwork.zkVerifierAddress;
+const CURRENT_CHAIN_ID = exports.CURRENT_CHAIN_ID = currentNetwork.chainId;
+const CURRENT_NETWORK_NAME = exports.CURRENT_NETWORK_NAME = currentNetwork.name;
+const CURRENT_RPC_URL = exports.CURRENT_RPC_URL = currentNetwork.rpcUrl;
+const CURRENT_BLOCK_EXPLORER = exports.CURRENT_BLOCK_EXPLORER = currentNetwork.blockExplorer;
+const IS_TESTNET = exports.IS_TESTNET = currentNetwork.isTestnet;
+
+// Keep these for backward compatibility
+const POLYGON_AMOY_CHAIN_ID = exports.POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 const POLYGON_AMOY_RPC_URL = exports.POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
 
 // Add Hardhat local network configuration

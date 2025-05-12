@@ -18,15 +18,23 @@
  * rather than the entire module to improve code maintainability.
  */
 
-// Use the address from the deployment script (see deployments directory)
-// This was previously incorrectly set to a wallet address
-// The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
-// IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-export const CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-export const ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
-export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
+// Import network configuration
+import { getNetworkConfig, DEFAULT_NETWORK } from './networks';
 
-// Polygon Amoy Testnet RPC URL
+// Get current network configuration
+const currentNetwork = getNetworkConfig(DEFAULT_NETWORK);
+
+// Export network-specific constants
+export const CONTRACT_ADDRESS = currentNetwork.contractAddress;
+export const ZK_VERIFIER_ADDRESS = currentNetwork.zkVerifierAddress;
+export const CURRENT_CHAIN_ID = currentNetwork.chainId;
+export const CURRENT_NETWORK_NAME = currentNetwork.name;
+export const CURRENT_RPC_URL = currentNetwork.rpcUrl;
+export const CURRENT_BLOCK_EXPLORER = currentNetwork.blockExplorer;
+export const IS_TESTNET = currentNetwork.isTestnet;
+
+// Keep these for backward compatibility
+export const POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 export const POLYGON_AMOY_RPC_URL = 'https://polygon-amoy-rpc.publicnode.com';
 
 // Add Hardhat local network configuration

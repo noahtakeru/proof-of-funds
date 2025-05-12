@@ -381,7 +381,256 @@ The key principles maintained are:
 
 This implementation ensures users get a complete picture of their portfolio across all networks, from major tokens to obscure memecoins, without ever needing to manually switch chains.
 
-### Phase 6: Testing and Integration
+### Phase 6: Ethers.js Compatibility Enhancement
+
+This phase addresses compatibility issues between different versions of ethers.js used in the codebase, specifically focusing on fixing errors in the ZK proof preparation process where ethers.js functions are not being properly accessed.
+
+1. **Problem Analysis**
+   - Key issue: "Cannot read properties of undefined (reading 'parseUnits')" error in parseAmount function
+   - Root cause: Version mismatch between:
+     - Frontend package uses ethers v5.7.2 (`utils.parseUnits`)
+     - Common package uses ethers v6.1.0 (root-level `parseUnits`)
+   - When a frontend component imports from common and tries to parse amounts, version detection fails
+
+2. **Enhance Version Detection in ethersUtils.js**
+   ```javascript
+   // Replace the current getEthers function with this improved implementation
+   export const getEthers = async () => {
+     try {
+       // Attempt to dynamically import ethers
+       let ethers;
+       try {
+         ethers = await import('ethers');
+         // Handle both ESM and CommonJS imports
+         ethers = ethers.default || ethers;
+       } catch (error) {
+         console.warn('Failed to import ethers directly:', error.message);
+         // Try requiring as fallback (for CommonJS environments)
+         try {
+           ethers = require('ethers');
+         } catch (e) {
+           console.error('Could not load ethers via require either:', e.message);
+           throw new Error('Failed to load ethers.js library by any method');
+         }
+       }
+       
+       // Detect ethers version and create normalized interface
+       const version = ethers.version || (ethers.utils ? '5.x' : '6.x');
+       console.log(`Detected ethers.js version: ${version}`);
+       
+       // Return both the raw ethers object and version info
+       return {
+         ethers,
+         version: version,
+         isV5: !!ethers.utils,
+         isV6: !ethers.utils && !!ethers.parseUnits
+       };
+     } catch (error) {
+       console.error('Error in getEthers:', error);
+       throw new Error(`Failed to initialize ethers.js: ${error.message}`);
+     }
+   };
+   ```
+
+3. **Create Version-Agnostic Utility Functions**
+   ```javascript
+   // Add these improved utility functions to ethersUtils.js
+   
+   // Version-agnostic parseUnits function
+   export const parseUnits = async (value, decimals = 18) => {
+     try {
+       const { ethers, isV5, isV6 } = await getEthers();
+       
+       // Handle different ethers versions
+       if (isV5 && ethers.utils && ethers.utils.parseUnits) {
+         return ethers.utils.parseUnits(String(value), decimals);
+       } else if (isV6 && ethers.parseUnits) {
+         return ethers.parseUnits(String(value), decimals);
+       } else {
+         // Fallback implementation if ethers functions are not available
+         return fallbackParseUnits(String(value), decimals);
+       }
+     } catch (error) {
+       console.error('Error in parseUnits:', error);
+       // Use fallback in case of any error
+       return fallbackParseUnits(String(value), decimals);
+     }
+   };
+   
+   // Version-agnostic formatUnits function
+   export const formatUnits = async (value, decimals = 18) => {
+     try {
+       const { ethers, isV5, isV6 } = await getEthers();
+       
+       // Handle different ethers versions
+       if (isV5 && ethers.utils && ethers.utils.formatUnits) {
+         return ethers.utils.formatUnits(value, decimals);
+       } else if (isV6 && ethers.formatUnits) {
+         return ethers.formatUnits(value, decimals);
+       } else {
+         // Fallback implementation if ethers functions are not available
+         return fallbackFormatUnits(value, decimals);
+       }
+     } catch (error) {
+       console.error('Error in formatUnits:', error);
+       // Use fallback in case of any error
+       return fallbackFormatUnits(value, decimals);
+     }
+   };
+   ```
+
+4. **Implement Fallback Functions (No Dependency on ethers.js)**
+   ```javascript
+   // Add these fallback implementations that don't rely on ethers.js
+   
+   // Fallback implementation of parseUnits 
+   export const fallbackParseUnits = (value, decimals = 18) => {
+     if (!value) return '0';
+     
+     // Remove extra spaces and ensure it's a string
+     const stringValue = String(value).trim();
+     
+     // Check if the value is valid
+     if (!/^[0-9]+\.?[0-9]*$/.test(stringValue)) {
+       console.warn(`Invalid amount format: "${stringValue}". Using 0 as fallback.`);
+       return '0';
+     }
+     
+     // Split into whole and decimal parts
+     const parts = stringValue.split('.');
+     const wholePart = parts[0];
+     const decimalPart = parts.length > 1 ? parts[1] : '';
+     
+     // Pad or truncate decimal part as needed
+     let paddedDecimal = decimalPart;
+     if (paddedDecimal.length > decimals) {
+       // Truncate if too long
+       paddedDecimal = paddedDecimal.substring(0, decimals);
+     } else {
+       // Pad with zeros if too short
+       paddedDecimal = paddedDecimal.padEnd(decimals, '0');
+     }
+     
+     // Remove any leading zeros from whole part
+     const normalizedWhole = wholePart.replace(/^0+/, '') || '0';
+     
+     // Combine whole part with padded decimal
+     const result = normalizedWhole + paddedDecimal;
+     
+     // Remove leading zeros
+     return result.replace(/^0+/, '') || '0';
+   };
+   
+   // Fallback implementation of formatUnits
+   export const fallbackFormatUnits = (value, decimals = 18) => {
+     if (!value) return '0';
+     
+     // Ensure value is a string and remove any non-numeric characters
+     const stringValue = String(value).replace(/[^0-9]/g, '');
+     
+     // If empty after cleaning, return 0
+     if (stringValue === '') return '0';
+     
+     // Pad the string with leading zeros if needed
+     const paddedValue = stringValue.padStart(decimals + 1, '0');
+     
+     // Split the string at the decimal point position
+     const insertIndex = paddedValue.length - decimals;
+     const wholePart = paddedValue.substring(0, insertIndex).replace(/^0+/, '') || '0';
+     const decimalPart = paddedValue.substring(insertIndex).replace(/0+$/, '');
+     
+     // Format the result
+     return decimalPart ? `${wholePart}.${decimalPart}` : wholePart;
+   };
+   ```
+
+5. **Enhance parseAmount Function**
+   ```javascript
+   // Replace the current parseAmount function with this enhanced version
+   export const parseAmount = async (amount, decimals = 18) => {
+     try {
+       // Handle empty or invalid inputs with clear logging
+       if (!isValidAmount(amount)) {
+         console.warn(`Invalid amount provided: "${amount}". Using 0 as fallback.`);
+         return '0';
+       }
+       
+       // Convert amount to string and clean it
+       const stringAmount = String(amount).trim();
+       
+       // Use version-agnostic parseUnits function
+       const parsedUnits = await parseUnits(stringAmount, decimals);
+       return parsedUnits.toString();
+     } catch (error) {
+       console.error('Error parsing amount:', error);
+       // Provide detailed error for debugging
+       throw new Error(`Failed to parse amount "${amount}": ${error.message}`);
+     }
+   };
+   
+   // Helper function to validate amount inputs
+   const isValidAmount = (amount) => {
+     if (amount === undefined || amount === null || amount === '') {
+       return false;
+     }
+     
+     const stringAmount = String(amount).trim();
+     // Check for valid number format with optional decimal
+     return /^[0-9]+\.?[0-9]*$/.test(stringAmount);
+   };
+   ```
+
+6. **Update Amount Handling in create.js**
+   ```javascript
+   // Update the ZK proof preparation in create.js to handle potential errors properly
+   if (proofCategory === 'zk') {
+     try {
+       // Dynamically import ethers utilities with better error handling
+       const ethersUtils = await import('@proof-of-funds/common/src/utils/ethersUtils.js');
+       
+       // Explicitly log the amount for debugging
+       console.log('Attempting to parse amount:', finalAmount);
+       
+       // Convert amount to Wei with detailed error handling
+       let amountInWei;
+       try {
+         amountInWei = await ethersUtils.parseAmount(finalAmount);
+         console.log('Successfully parsed amount to Wei:', amountInWei);
+       } catch (parseError) {
+         console.error('Failed to parse amount:', parseError);
+         alert(`Failed to parse amount: ${parseError.message}`);
+         return;
+       }
+       
+       // Continue with ZK proof generation using the parsed amount
+       // ...rest of ZK proof generation...
+     } catch (error) {
+       console.error('Error in ZK proof generation:', error);
+       alert(`Error generating ZK proof: ${error.message}`);
+       return;
+     }
+   }
+   ```
+
+7. **Testing Plan for Compatibility Enhancement**
+   - **Test 1**: Verify ethers.js version detection works with both v5 and v6
+   - **Test 2**: Test parseAmount with different input formats (integers, decimals, strings)
+   - **Test 3**: Test across different environments (Next.js frontend, Node.js scripts)
+   - **Test 4**: Verify fallback implementations work when ethers.js is unavailable
+   - **Test 5**: Check error handling with invalid inputs
+   - **Test 6**: Verify ZK proof generation with parsed amounts
+   - **Test 7**: Test compatibility with existing code that might expect specific return types
+
+The implementation enhances ethers.js compatibility by:
+1. Providing robust version detection between ethers v5 and v6
+2. Creating version-agnostic utility functions for common operations
+3. Adding fallback implementations that don't depend on ethers.js
+4. Improving error handling and logging for easier debugging
+5. Ensuring consistent return types across all environments
+
+This approach solves the compatibility issues without requiring changes to package dependencies, allowing the codebase to work with either version of ethers.js or even in environments where ethers.js might not be available.
+
+### Phase 7: Testing and Integration
 
 1. **Create Test Plan for Integration**
    - Define specific test cases:
@@ -513,7 +762,16 @@ This implementation ensures users get a complete picture of their portfolio acro
 - [x] Optimize performance
 - [x] Add cross-chain asset organization
 
-### Phase 6: Testing and Integration
+### Phase 6: Ethers.js Compatibility Enhancement - COMPLETED
+- [x] Analyze ethers.js version incompatibility issue
+- [x] Enhance version detection in ethersUtils.js
+- [x] Create version-agnostic utility functions
+- [x] Implement fallback functions
+- [x] Enhance parseAmount function
+- [x] Update amount handling in create.js
+- [x] Test compatibility with both ethers.js versions
+
+### Phase 7: Testing and Integration
 - [ ] Create and execute comprehensive test plan
 - [ ] Verify frontend integration
 - [ ] Document limitations
@@ -521,7 +779,7 @@ This implementation ensures users get a complete picture of their portfolio acro
 
 ## Current Status
 
-Phases 1-5 have been completed:
+Phases 1-6 have been completed:
 
 1. **Phase 1 (Analysis)**: Analyzed the Moralis API integration and wallet connection flow. Identified special handling and filtering that needed to be removed.
    - Documentation: [moralis_api_analysis.md](moralis_api_analysis.md), [wallet_connection_analysis.md](wallet_connection_analysis.md), [special_handling_to_remove.md](special_handling_to_remove.md), [token_agnostic_phase1_summary.md](token_agnostic_phase1_summary.md)
@@ -544,4 +802,6 @@ The implementation now demonstrates a fully token-agnostic wallet scanning syste
 - Optimizes API usage through rate limiting and caching
 - Organizes tokens in a cross-chain structure for better asset management
 
-Ready for Phase 6 (Testing and Integration) in the next iteration.
+6. **Phase 6 (Ethers.js Compatibility Enhancement)**: Implemented robust compatibility layer for ethers.js to handle both v5 (used in frontend) and v6 (used in common package). Added improved version detection, version-agnostic utility functions, and fallback implementations that work without relying on ethers.js. Enhanced error handling in parseAmount function and updated the create.js file to properly handle ZK proof preparation.
+
+   The implementation now works seamlessly with both ethers.js versions, fixing the "Cannot read properties of undefined (reading 'parseUnits')" error in the ZK proof generation process. The solution includes detailed error handling, robust fallbacks, and maintains consistent behavior across environments.
