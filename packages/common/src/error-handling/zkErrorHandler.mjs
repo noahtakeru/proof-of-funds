@@ -543,22 +543,58 @@ function getErrorLogger() {
     return _zkErrorLogger;
   }
   
-  // In Node.js environment, we can import synchronously using require
-  if (typeof require !== 'undefined') {
-    try {
-      const { zkErrorLogger } = require('./zkErrorLogger.js');
-      _zkErrorLogger = zkErrorLogger;
-    } catch (err) {
-      // Throw an error, but callers should handle this gracefully
-      throw new Error(`Failed to load zkErrorLogger: ${err.message}`);
-    }
-  } else {
-    // In ESM environment, we can't synchronously import, so throw an error
-    // Callers should handle this by implementing a fallback logger
-    throw new Error('Logger not initialized. Call initializeErrorLogger first or implement a fallback.');
-  }
+  // If we can't get the logger, provide a fallback that won't throw errors
+  const fallbackLogger = {
+    logError: (error, context = {}) => {
+      console.error('[ZK Error]', error?.message || String(error), { context });
+      return { operationId: `fallback_${Date.now()}` };
+    },
+    log: (level, message, data = {}) => {
+      console.log(`[ZK ${level}]`, message, data);
+      return { operationId: `fallback_${Date.now()}` };
+    },
+    debug: (message, data = {}) => console.debug('[ZK Debug]', message, data),
+    info: (message, data = {}) => console.info('[ZK Info]', message, data),
+    warn: (message, data = {}) => console.warn('[ZK Warning]', message, data),
+    error: (message, data = {}) => console.error('[ZK Error]', message, data),
+    critical: (message, data = {}) => console.error('[ZK CRITICAL]', message, data)
+  };
   
-  return _zkErrorLogger;
+  try {
+    // In Node.js environment, we can import synchronously using require
+    if (typeof require !== 'undefined') {
+      try {
+        const { zkErrorLogger } = require('./zkErrorLogger.js');
+        _zkErrorLogger = zkErrorLogger;
+        return _zkErrorLogger;
+      } catch (err) {
+        console.warn(`Could not load zkErrorLogger dynamically: ${err.message}`);
+        // Continue to fallback
+      }
+    }
+    
+    // Try to import from initializeErrorLogger as a fallback
+    try {
+      if (typeof require !== 'undefined') {
+        const { safeLogger } = require('./initializeErrorLogger.js');
+        if (safeLogger && typeof safeLogger.logError === 'function') {
+          _zkErrorLogger = safeLogger;
+          return _zkErrorLogger;
+        }
+      }
+    } catch (err) {
+      console.warn(`Could not load safeLogger: ${err.message}`);
+      // Continue to fallback
+    }
+    
+    // Use the fallback logger and store it as the default
+    _zkErrorLogger = fallbackLogger;
+    return _zkErrorLogger;
+  } catch (err) {
+    console.warn(`Failed to initialize any error logger: ${err.message}`);
+    // Return the fallback logger without storing it, to try again next time
+    return fallbackLogger;
+  }
 }
 
 /**
