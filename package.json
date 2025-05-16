@@ -24,5 +24,9 @@
       "@proof-of-funds/frontend": "5.7.2",
       "@proof-of-funds/contracts": "6.10.0"
     }
+  },
+  "dependencies": {
+    "@google-cloud/secret-manager": "^6.0.1",
+    "snarkjs": "^0.7.0"
   }
 }
