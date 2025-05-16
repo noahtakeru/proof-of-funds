@@ -26,16 +26,25 @@ import { useContractRead } from 'wagmi';
 import { ethers } from 'ethers';
 import { ZK_VERIFIER_ADDRESS, PROOF_TYPES, ZK_PROOF_TYPES, CONTRACT_ABI, CONTRACT_ADDRESS } from '../config/constants';
 import { verifyZKProof } from '@proof-of-funds/common/zk';
+import NetworkToggle from '../components/NetworkToggle';
+import { useNetwork } from '@proof-of-funds/common';
 
 // Browser-friendly RPC URLs that support CORS
-const RPC_OPTIONS = [
+// These will be dynamically updated based on selected network (testnet or mainnet)
+const getAmoyRPCOptions = () => [
     "https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Public Infura endpoint
     "https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42", // Gateway.fm
     "https://rpc-amoy.polygon.technology", // Official Polygon endpoint
 ];
 
+const getMainnetRPCOptions = () => [
+    "https://polygon-rpc.com", // Official Polygon endpoint
+    "https://polygon-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Public Infura endpoint
+    "https://polygon-mainnet.g.alchemy.com/v2/demo", // Alchemy demo endpoint
+];
+
 // Function to try multiple providers until one works
-const getWorkingProvider = async () => {
+const getWorkingProvider = async (isTestnet = true) => {
     // First check if window.ethereum is available (MetaMask or similar)
     if (typeof window !== 'undefined' && window.ethereum) {
         try {
@@ -47,10 +56,14 @@ const getWorkingProvider = async () => {
         }
     }
 
+    // Get appropriate RPC URLs based on network selection
+    const rpcOptions = isTestnet ? getAmoyRPCOptions() : getMainnetRPCOptions();
+    const networkName = isTestnet ? "Polygon Amoy" : "Polygon Mainnet";
+
     // Try each RPC URL until one works
-    for (const rpcUrl of RPC_OPTIONS) {
+    for (const rpcUrl of rpcOptions) {
         try {
-            console.log(`Trying RPC URL: ${rpcUrl}`);
+            console.log(`Trying ${networkName} RPC URL: ${rpcUrl}`);
             const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
             // Do a quick test call
             await provider.getNetwork();
@@ -61,10 +74,14 @@ const getWorkingProvider = async () => {
         }
     }
 
-    throw new Error("Could not connect to any Polygon Amoy provider. Please install MetaMask or try again later.");
+    throw new Error(`Could not connect to any ${networkName} provider. Please install MetaMask or try again later.`);
 };
 
 export default function VerifyPage() {
+    // Get network information
+    const { useTestNetwork, getNetworkConfig } = useNetwork();
+    const networkConfig = getNetworkConfig();
+    
     // Add a flag to track user-initiated connection, initialized from localStorage
     const [userInitiatedConnection, setUserInitiatedConnection] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -100,7 +117,7 @@ export default function VerifyPage() {
 
     // Read contract for standard proof verification
     const { data: standardProofResult, isLoading: isLoadingStandard, refetch: refetchStandard } = useContractRead({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig?.contractAddress || CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'verifyStandardProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
@@ -109,7 +126,7 @@ export default function VerifyPage() {
 
     // Read contract for threshold proof verification
     const { data: thresholdProofResult, isLoading: isLoadingThreshold, refetch: refetchThreshold } = useContractRead({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig?.contractAddress || CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'verifyThresholdProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
@@ -118,7 +135,7 @@ export default function VerifyPage() {
 
     // Read contract for maximum proof verification
     const { data: maximumProofResult, isLoading: isLoadingMaximum, refetch: refetchMaximum } = useContractRead({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig?.contractAddress || CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'verifyMaximumProof',
         args: [walletAddress || '0x0000000000000000000000000000000000000000', ethers.utils.parseEther(amount || '0')],
@@ -151,12 +168,12 @@ export default function VerifyPage() {
             setError(null);
 
             console.log("Getting proof from transaction:", txHash);
-            console.log("Contract address:", CONTRACT_ADDRESS);
+            console.log("Contract address:", contractAddr);
 
             // Try client-side verification first (using browser provider)
             try {
                 // Try to get a working provider first
-                const provider = await getWorkingProvider();
+                const provider = await getWorkingProvider(isTestnet);
                 console.log("Using ethers provider with:", provider.connection?.url || "Web3Provider");
 
                 // Get transaction receipt using ethers
@@ -181,8 +198,8 @@ export default function VerifyPage() {
 
                 // Check if this transaction was sent to our contract
                 if (txData && txData.to) {
-                    if (txData.to.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) {
-                        console.warn(`WARNING: Transaction was sent to ${txData.to}, but our contract address is ${CONTRACT_ADDRESS}`);
+                    if (txData.to.toLowerCase() !== contractAddr.toLowerCase()) {
+                        console.warn(`WARNING: Transaction was sent to ${txData.to}, but our contract address is ${contractAddr}`);
                     } else {
                         console.log("Transaction was sent to our contract address ✓");
                     }
@@ -192,17 +209,17 @@ export default function VerifyPage() {
                 const contractInterface = new ethers.utils.Interface(CONTRACT_ABI);
 
                 // Create contract instance
-                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                const contract = new ethers.Contract(contractAddr, CONTRACT_ABI, provider);
 
                 // First check if we have any logs matching our contract address
                 const contractLogs = receipt.logs.filter(log =>
-                    log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase()
+                    log.address.toLowerCase() === contractAddr.toLowerCase()
                 );
 
-                console.log(`Found ${contractLogs.length} logs for contract ${CONTRACT_ADDRESS}`);
+                console.log(`Found ${contractLogs.length} logs for contract ${contractAddr}`);
 
                 // Variable to store the actual contract address we end up using
-                let actualContractAddress = CONTRACT_ADDRESS;
+                let actualContractAddress = contractAddr;
                 let actualContract = contract;
 
                 if (contractLogs.length === 0) {
@@ -250,7 +267,7 @@ export default function VerifyPage() {
                             }
                         });
 
-                        throw new Error('No logs found for the proof contract - the CONTRACT_ADDRESS may be incorrect');
+                        throw new Error(`No logs found for the proof contract - the contract address (${contractAddr}) may be incorrect`);
                     }
                 }
 
@@ -492,6 +509,10 @@ export default function VerifyPage() {
         setVerificationStatus(null);
         setProofDetails(null);
 
+        // Get network configuration based on selected network
+        const { isTestnet } = getNetworkConfig();
+        const contractAddr = networkConfig.contractAddress;
+        
         try {
             // Only transaction-based verification now
             if (!transactionHash) {
@@ -622,6 +643,7 @@ export default function VerifyPage() {
 
     return (
         <div className="max-w-3xl mx-auto mt-8">
+            <NetworkToggle />
             <h1 className="text-3xl font-bold text-center mb-8">Verify Proof of Funds</h1>
 
             <div className="bg-white p-8 rounded-lg shadow-md">

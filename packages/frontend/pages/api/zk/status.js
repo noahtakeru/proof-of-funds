@@ -1,165 +1,106 @@
 /**
- * Server-side status endpoint for ZK operations
+ * API endpoint for checking ZK proof system status
  * 
- * This endpoint provides information about server-side capabilities,
- * current service status, rate limits, and processing times.
+ * This endpoint provides status information about the ZK proof system
+ * and can be used to check if the system is functioning correctly.
  */
 
-import { snarkjsLoader } from '@proof-of-funds/common/zk/src/snarkjsLoader';
-import { telemetry } from '@proof-of-funds/common/zk/src/telemetry';
-import { performance } from 'perf_hooks';
-import os from 'os';
+import path from 'path';
+import fs from 'fs';
 
-export default async function handler(req, res) {
-  // Set CORS headers for API access
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, X-User-Id, X-Operation-Id');
-
-  // Handle OPTIONS request for CORS preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).json({
-      error: 'Method not allowed',
-      allowedMethods: ['GET', 'POST', 'OPTIONS']
-    });
-  }
-
+/**
+ * Checks if WebAssembly files have the correct format
+ * @param {string} wasmPath - Path to WebAssembly file
+ * @returns {Object} - Result of check
+ */
+function checkWasmFormat(wasmPath) {
   try {
-    const startTime = performance.now();
-
-    // Initialize snarkjs if not already initialized
-    let snarkInitialized = false;
-    if (!snarkjsLoader.isInitialized()) {
-      const initialized = await snarkjsLoader.initialize({
-        serverSide: true,
-        maxRetries: 2
-      });
-
-      snarkInitialized = initialized;
-      if (!initialized) {
-        telemetry.recordError('status-api', 'Failed to initialize snarkjs');
-      }
-    } else {
-      snarkInitialized = true;
+    if (!fs.existsSync(wasmPath)) {
+      return { 
+        exists: false, 
+        hasValidMagicBytes: false,
+        error: 'File does not exist'
+      };
     }
-
-    // Get telemetry stats
-    const stats = telemetry.getOperationsStats();
-
-    // Calculate typical processing times based on telemetry or use defaults
-    const processingTimes = {
-      "groth16.fullProve": {
-        standard: stats.averageExecutionTimeMs || 800, // milliseconds
-        threshold: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 1.2) : 950,
-        maximum: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 1.3) : 950
-      },
-      "groth16.prove": {
-        standard: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.7) : 500,
-        threshold: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.85) : 600,
-        maximum: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.9) : 600
-      },
-      "groth16.verify": {
-        standard: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.2) : 100,
-        threshold: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.25) : 100,
-        maximum: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 0.3) : 100
-      },
-      "plonk.fullProve": {
-        standard: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 1.5) : 1200,
-        threshold: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 1.8) : 1400,
-        maximum: stats.averageExecutionTimeMs ? Math.round(stats.averageExecutionTimeMs * 2.0) : 1400
-      }
+    
+    const buffer = fs.readFileSync(wasmPath);
+    
+    if (buffer.length < 4) {
+      return { 
+        exists: true, 
+        hasValidMagicBytes: false,
+        error: 'File too small to be valid WebAssembly'
+      };
+    }
+    
+    // Check for WebAssembly magic bytes (0x00, 0x61, 0x73, 0x6d)
+    const hasValidMagicBytes = buffer[0] === 0x00 && 
+                               buffer[1] === 0x61 && 
+                               buffer[2] === 0x73 && 
+                               buffer[3] === 0x6d;
+    
+    return {
+      exists: true,
+      hasValidMagicBytes,
+      size: buffer.length,
+      error: hasValidMagicBytes ? null : 'Invalid WebAssembly magic bytes'
     };
-
-    // List available features
-    const features = [
-      'groth16.fullProve',
-      'groth16.verify'
-    ];
-
-    // Check if server is under heavy load
-    const cpuLoad = os.loadavg()[0] / os.cpus().length; // Normalized CPU load
-    const highLoad = cpuLoad > 0.7;
-
-    // Get server capabilities
-    const capabilities = {
-      cpu: {
-        cores: os.cpus().length,
-        model: os.cpus()[0].model,
-        load: cpuLoad.toFixed(2)
-      },
-      memory: {
-        total: Math.round(os.totalmem() / (1024 * 1024 * 1024)) + ' GB',
-        free: Math.round(os.freemem() / (1024 * 1024 * 1024)) + ' GB',
-        percentFree: Math.round((os.freemem() / os.totalmem()) * 100) + '%'
-      },
-      platform: os.platform(),
-      arch: os.arch(),
-      uptime: Math.round(os.uptime() / 3600) + ' hours'
-    };
-
-    // Service status info
-    const serviceStatus = {
-      healthy: snarkInitialized && !highLoad,
-      snarkjsInitialized: snarkInitialized,
-      highLoad: highLoad,
-      maintenance: false, // Set to true during maintenance periods
-      version: process.env.SERVICE_VERSION || '1.0.0'
-    };
-
-    // Rate limit information
-    const rateLimits = {
-      standard: {
-        requestsPerMinute: 10,
-        requestsPerHour: 100,
-        burstLimit: 20
-      },
-      authenticated: {
-        requestsPerMinute: 30,
-        requestsPerHour: 500,
-        burstLimit: 50
-      }
-    };
-
-    const response = {
-      available: serviceStatus.healthy,
-      version: snarkjsLoader.getVersion() || '0.7.5',
-      features,
-      processingTimes,
-      serverTiming: {
-        totalTime: performance.now() - startTime
-      },
-      telemetryStats: {
-        averageExecutionTimeMs: stats.averageExecutionTimeMs || 5000,
-        totalOperations: stats.totalOperations || 0,
-        successRate: stats.successRate || 100,
-        serverSideOperations: stats.serverSideOperations || 0
-      },
-      capabilities,
-      serviceStatus,
-      rateLimits,
-      timestamp: new Date().toISOString()
-    };
-
-    const endTime = performance.now();
-
-    telemetry.recordOperation({
-      operation: 'status-check',
-      executionTimeMs: endTime - startTime,
-      success: true,
-      serverSide: true
-    });
-
-    return res.status(200).json(response);
   } catch (error) {
-    telemetry.recordError('status-api', error.message || 'Unknown error during status check');
+    return {
+      exists: false,
+      hasValidMagicBytes: false,
+      error: `Error checking WASM file: ${error.message}`
+    };
+  }
+}
 
+/**
+ * Handles the API request for checking ZK system status
+ */
+export default async function handler(req, res) {
+  // Only accept GET requests
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
+  try {
+    const publicDir = path.resolve(process.cwd(), 'public');
+    
+    // Check circuit files for each proof type
+    const proofTypes = ['standard', 'threshold', 'maximum'];
+    const results = {};
+    
+    for (const type of proofTypes) {
+      const circuitName = `${type}Proof`;
+      const wasmPath = path.join(publicDir, 'lib', 'zk', 'circuits', `${circuitName}.wasm`);
+      const zkeyPath = path.join(publicDir, 'lib', 'zk', 'circuits', `${circuitName}.zkey`);
+      const vkeyPath = path.join(publicDir, 'lib', 'zk', 'circuits', `${circuitName}.vkey.json`);
+      
+      results[type] = {
+        wasm: checkWasmFormat(wasmPath),
+        zkey: {
+          exists: fs.existsSync(zkeyPath),
+          size: fs.existsSync(zkeyPath) ? fs.statSync(zkeyPath).size : 0
+        },
+        vkey: {
+          exists: fs.existsSync(vkeyPath),
+          size: fs.existsSync(vkeyPath) ? fs.statSync(vkeyPath).size : 0
+        }
+      };
+    }
+    
+    // Return status information
+    return res.status(200).json({
+      success: true,
+      status: 'operational',
+      message: 'ZK system status information',
+      circuits: results,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
     return res.status(500).json({
-      error: 'Failed to retrieve status',
-      message: error.message || 'Unknown error during status check'
+      error: 'Failed to check ZK system status',
+      message: error.message
     });
   }
 }
