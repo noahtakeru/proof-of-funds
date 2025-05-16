@@ -28,8 +28,13 @@ import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEM
 import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
+import NetworkToggle from '../components/NetworkToggle';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { useNetwork } from '@proof-of-funds/common';
+import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { generateZKProof } from '@proof-of-funds/common/zk';
+
 // Directly define isValidAmount function to bypass import issues
 const isValidAmount = (amount) => {
     if (!amount || amount.trim() === '') return false;
@@ -38,8 +43,6 @@ const isValidAmount = (amount) => {
     if (num < 0) return false;
     return true;
 };
-import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { generateZKProof } from '@proof-of-funds/common/zk';
 
 // Helper function to fetch wallet balance
 const fetchBalance = async (walletAddress, chain) => {
@@ -174,6 +177,10 @@ const generateProof = async (walletAddress, chain, proofType, amount) => {
 };
 
 export default function CreatePage() {
+    // Get network information
+    const { useTestNetwork, getNetworkConfig } = useNetwork();
+    const networkConfig = getNetworkConfig();
+    
     // --- PROOF CONFIGURATION STATE ---
     // Controls switching between standard proof and zero-knowledge proof modes
     const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
@@ -782,7 +789,7 @@ export default function CreatePage() {
      * Used for normal "exactly X amount" verification
      */
     const { config: standardProofConfig, error: standardProofError, write: writeStandardProof, data: dataStandard, isLoading: isStandardLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig.contractAddress,
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -795,7 +802,7 @@ export default function CreatePage() {
      * Used for "at least X amount" verification
      */
     const { config: thresholdProofConfig, error: thresholdProofError, write: writeThresholdProof, data: dataThreshold, isLoading: isThresholdLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig.contractAddress,
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -808,7 +815,7 @@ export default function CreatePage() {
      * Used for "at most X amount" verification
      */
     const { config: maximumProofConfig, error: maximumProofError, write: writeMaximumProof, data: dataMaximum, isLoading: isMaximumLoading } = useContractWrite({
-        address: CONTRACT_ADDRESS,
+        address: networkConfig.contractAddress,
         abi: CONTRACT_ABI,
         functionName: 'submitProof',
         onError: (error) => {
@@ -1176,17 +1183,57 @@ export default function CreatePage() {
                             throw new Error('No wallet selected');
                         }
 
-                        // Generate ZK proof
-                        zkProofData = await generateZKProof({
-                            walletAddress: primaryWallet.fullAddress,
-                            amount: amountInWei.toString(),
-                            proofType: ZK_PROOF_TYPES[zkProofType.toUpperCase()] || ZK_PROOF_TYPES.STANDARD
-                        });
+                        // Generate ZK proof - use server-side API to avoid browser environment issues
+                        console.log('Calling server-side API for ZK proof generation');
+                        try {
+                            const response = await fetch('/api/zk/generateProof', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    walletAddress: primaryWallet.fullAddress,
+                                    amount: amountInWei.toString(),
+                                    proofType: String(ZK_PROOF_TYPES[zkProofType.toUpperCase()] || ZK_PROOF_TYPES.STANDARD)
+                                }),
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Failed to generate ZK proof');
+                            }
+                            
+                            const result = await response.json();
+                            zkProofData = result.proof;
+                        } catch (apiError) {
+                            console.error('API error during ZK proof generation:', apiError);
+                            throw apiError;
+                        }
 
-                        // Generate temporary wallet
-                        tempWallet = await generateTemporaryWallet({
-                            chain: primaryWallet.chain.toLowerCase()
-                        });
+                        // Generate temporary wallet - use server-side API for better security
+                        console.log('Calling server-side API for temporary wallet generation');
+                        try {
+                            const response = await fetch('/api/zk/generateTempWallet', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    chain: primaryWallet.chain.toLowerCase()
+                                }),
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Failed to generate temporary wallet');
+                            }
+                            
+                            const result = await response.json();
+                            tempWallet = result.wallet;
+                        } catch (apiError) {
+                            console.error('API error during temporary wallet generation:', apiError);
+                            throw apiError;
+                        }
 
                         console.log('ZK proof generated:', zkProofData);
                         console.log('Temporary wallet generated:', tempWallet.address);
@@ -2296,6 +2343,7 @@ export default function CreatePage() {
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
+            <NetworkToggle />
             <h1 className="text-3xl font-bold text-center mb-8">Create Proof of Funds</h1>
 
             <div className="bg-white p-8 rounded-lg shadow-md">

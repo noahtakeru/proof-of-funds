@@ -50,6 +50,10 @@
       "import": "./dist/zk-core/snarkjsLoader.js",
       "require": "./dist/zk-core/snarkjsLoader.cjs"
     },
+    "./zk-core/snarkjsWrapper": {
+      "import": "./dist/zk-core/snarkjsWrapper.js",
+      "require": "./dist/zk-core/snarkjsWrapper.cjs" 
+    },
     "./zk/src/telemetry": {
       "import": "./dist/zk-core/telemetry.js",
       "require": "./dist/zk-core/telemetry.cjs"
@@ -109,6 +113,10 @@
     "./ethersUtils": {
       "import": "./dist/utils/ethersUtils.js",
       "require": "./dist/utils/ethersUtils.cjs"
+    },
+    "./context/NetworkContext": {
+      "import": "./dist/context/NetworkContext.js",
+      "require": "./dist/context/NetworkContext.cjs"
     }
   },
   "scripts": {

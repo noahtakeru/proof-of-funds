@@ -1,0 +1,7 @@
+services:
+  zk-compiler:
+    build: .
+    volumes:
+      - ../../circuits:/circuits
+    working_dir: /circuits
+    command: bash

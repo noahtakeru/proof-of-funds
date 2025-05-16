@@ -5,7 +5,28 @@
 
 // Configuration for circuit file paths
 const zkConfig = {
+  // Mapping of proof types to circuit names
+  proofTypes: {
+    'standard': 'standardProof',
+    '0': 'standardProof',
+    'threshold': 'thresholdProof',
+    '1': 'thresholdProof',
+    'maximum': 'maximumProof',
+    '2': 'maximumProof'
+  },
+  
+  // Circuit configurations
+  circuitConfig: {
+    'standard': { constraints: 100000 },
+    'threshold': { constraints: 120000 },
+    'maximum': { constraints: 120000 },
+    'standardProof': { constraints: 100000 },
+    'thresholdProof': { constraints: 120000 },
+    'maximumProof': { constraints: 120000 }
+  },
+  
   circuitPaths: {
+    // Base circuit paths
     standard: {
       wasm: '/lib/zk/circuits/standardProof.wasm',
       zkey: '/lib/zk/circuits/standardProof.zkey',
@@ -20,6 +41,58 @@ const zkConfig = {
       wasm: '/lib/zk/circuits/maximumProof.wasm',
       zkey: '/lib/zk/circuits/maximumProof.zkey',
       vkey: '/lib/zk/circuits/maximumProof.vkey.json'
+    },
+    
+    // Helper functions to get paths for a specific circuit
+    wasmPath: function(circuitName) {
+      // Convert standard/threshold/maximum to the full names if needed
+      const normalizedName = circuitName.endsWith('Proof') ? 
+        circuitName : 
+        `${circuitName}Proof`;
+        
+      // Get the right circuit config
+      const baseKey = normalizedName.replace('Proof', '');
+      if (!this[baseKey]) {
+        console.error(`Unknown circuit: ${circuitName}, baseKey: ${baseKey}`);
+        // Fallback to standard proof
+        return this.standard.wasm;
+      }
+      
+      return this[baseKey].wasm;
+    },
+    
+    zkeyPath: function(circuitName) {
+      // Convert standard/threshold/maximum to the full names if needed
+      const normalizedName = circuitName.endsWith('Proof') ? 
+        circuitName : 
+        `${circuitName}Proof`;
+        
+      // Get the right circuit config
+      const baseKey = normalizedName.replace('Proof', '');
+      if (!this[baseKey]) {
+        console.error(`Unknown circuit: ${circuitName}, baseKey: ${baseKey}`);
+        // Fallback to standard proof
+        return this.standard.zkey;
+      }
+      
+      return this[baseKey].zkey;
+    },
+    
+    vkeyPath: function(circuitName) {
+      // Convert standard/threshold/maximum to the full names if needed
+      const normalizedName = circuitName.endsWith('Proof') ? 
+        circuitName : 
+        `${circuitName}Proof`;
+        
+      // Get the right circuit config
+      const baseKey = normalizedName.replace('Proof', '');
+      if (!this[baseKey]) {
+        console.error(`Unknown circuit: ${circuitName}, baseKey: ${baseKey}`);
+        // Fallback to standard proof
+        return this.standard.vkey;
+      }
+      
+      return this[baseKey].vkey;
     }
   },
   

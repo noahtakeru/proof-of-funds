@@ -28,3 +28,6 @@ Object.assign(exports, require('./resources/index.js'));
 
 // Phantom wallet context
 Object.assign(exports, require('./PhantomMultiWalletContext.js'));
+
+// Context modules - contains NetworkContext and other context providers
+Object.assign(exports, require('./context/index.js'));

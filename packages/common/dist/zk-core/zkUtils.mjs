@@ -1238,8 +1238,19 @@ export const formatNumber = (value, options = {}) => {
  * @returns {Promise<Object>} Generated proof and public signals
  * @throws {ZKError} If proof generation fails
  */
-export const generateZKProof = async (inputs, proofType, options = {}) => {
+export const generateZKProof = async (inputs, incomingProofType, options = {}) => {
   const operationId = options.operationId || `proof_gen_${Date.now()}`;
+
+  // Convert proofType to string at the entry point
+  let proofType = typeof incomingProofType === 'string' 
+    ? incomingProofType 
+    : String(incomingProofType);
+  
+  console.log('ZK Core - generateZKProof entry point:', {
+    originalProofType: incomingProofType,
+    convertedProofType: proofType,
+    convertedTypeOf: typeof proofType
+  });
 
   try {
     // Register operation start with resource monitor
@@ -1278,14 +1289,37 @@ export const generateZKProof = async (inputs, proofType, options = {}) => {
           );
         }
 
-        // Validate proof type
-        if (!proofType || typeof proofType !== 'string') {
+        // Debug the proof type to understand what's being passed
+        console.log('ZK Core - proofType debug:', {
+          proofType,
+          typeofProofType: typeof proofType,
+          isString: typeof proofType === 'string',
+          proofTypeAsString: String(proofType),
+          proofTypeAsJSON: JSON.stringify(proofType),
+          valueEquality: proofType === String(proofType)
+        });
+        
+        // Force proofType to be a string
+        proofType = String(proofType);
+
+        // Debug the proof type after forcing it to string
+        console.log('ZK Core - proofType after string conversion:', {
+          proofType,
+          typeofProofType: typeof proofType,
+          isString: typeof proofType === 'string'
+        });
+        
+        // New validation that only checks if it's empty
+        if (!proofType) {
           throw createZKError(
             ZKErrorCode.INVALID_PROOF_TYPE,
-            'Invalid proof type: must be a string',
+            'Empty proof type',
             {
               severity: ErrorSeverity.ERROR,
-              details: { proofType: typeof proofType },
+              details: { 
+                proofType: typeof proofType,
+                value: proofType
+              },
               recoverable: false,
               userFixable: true
             }
@@ -1575,10 +1609,14 @@ async function verifyZKProofInternal(proof, publicSignals, proofType, operationI
       );
     }
 
-    if (!proofType || typeof proofType !== 'string') {
+    // Force proofType to be a string
+    proofType = String(proofType);
+    
+    // Only validate if it's empty
+    if (!proofType) {
       throw createZKError(
         ZKErrorCode.INVALID_PROOF_TYPE,
-        'Invalid proof type: must be a string',
+        'Empty proof type',
         {
           severity: ErrorSeverity.ERROR,
           details: { proofType: typeof proofType },
