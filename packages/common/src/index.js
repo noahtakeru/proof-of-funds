@@ -28,3 +28,6 @@ export * from './resources/index.js';
 
 // Phantom wallet context
 export * from './PhantomMultiWalletContext.js';
+
+// Context modules - contains NetworkContext and other context providers
+export * from './context/index.js';

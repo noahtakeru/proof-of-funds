@@ -17,6 +17,7 @@ A decentralized protocol for verifying proof of funds ownership on EVM-compatibl
 - Proof revocation capabilities
 - Multi-chain support (Ethereum, Polygon, etc.)
 - Comprehensive wallet integration
+- Token-agnostic implementation with no special handling for specific tokens
 
 ## Monorepo Structure
 
@@ -36,6 +37,7 @@ proof-of-funds/
 - Node.js 16+
 - npm or yarn
 - An Ethereum/Polygon wallet with testnet funds
+- Circom and snarkjs for ZK circuit compilation
 
 ### Environment Setup
 
@@ -56,6 +58,16 @@ proof-of-funds/
    ```
    
    Edit the `.env` file and add your private key and other required variables.
+
+4. Set up ZK dependencies and compile circuits
+   ```bash
+   # Install ZK dependencies
+   chmod +x scripts/setup-zk-dependencies.sh
+   ./scripts/setup-zk-dependencies.sh
+   
+   # Compile ZK circuits
+   node scripts/compile-circuits.js
+   ```
 
 ### Smart Contract Development
 
@@ -119,3 +131,12 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Token-Agnostic Implementation Guidelines
+
+When contributing to this project, please follow these guidelines:
+
+1. **No mock or placeholder code** - We want to know where we're failing to implement real functionality
+2. **No special handling for specific tokens or chains** - All tokens and chains should be treated equally
+3. **Handle errors gracefully** - Expose real errors rather than hiding them behind fallbacks
+4. **Maintain Zero-Knowledge integrity** - Ensure ZK proofs are cryptographically sound

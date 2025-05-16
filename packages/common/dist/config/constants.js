@@ -332,3 +332,8 @@ export const PRICE_API = {
 
 // Multi-chain proof data structure version
 export const PROOF_DATA_VERSION = '1.0.0'; 
+
+// Polygon Mainnet contract address
+export const POLYGON_MAINNET_CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564891'; // Placeholder address for mainnet, replace with actual address
+export const POLYGON_MAINNET_CHAIN_ID = 137; // Polygon Mainnet chain ID
+export const POLYGON_MAINNET_RPC_URL = 'https://polygon-rpc.com';

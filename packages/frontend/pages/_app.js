@@ -12,6 +12,7 @@ import { AppProps } from 'next/app';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { PhantomMultiWalletProvider } from '@proof-of-funds/common/PhantomMultiWalletContext';
+import { NetworkProvider } from '@proof-of-funds/common/context/NetworkContext';
 import Script from 'next/script';
 import { WagmiConfig, createConfig, configureChains } from 'wagmi';
 import { mainnet, polygon, polygonMumbai } from 'wagmi/chains';
@@ -148,11 +149,13 @@ function MyApp({ Component, pageProps }) {
                 }}
             />
             <WagmiConfig config={config}>
-                <PhantomMultiWalletProvider>
-                    <Layout>
-                        <Component {...pageProps} />
-                    </Layout>
-                </PhantomMultiWalletProvider>
+                <NetworkProvider>
+                    <PhantomMultiWalletProvider>
+                        <Layout>
+                            <Component {...pageProps} />
+                        </Layout>
+                    </PhantomMultiWalletProvider>
+                </NetworkProvider>
             </WagmiConfig>
         </>
     );

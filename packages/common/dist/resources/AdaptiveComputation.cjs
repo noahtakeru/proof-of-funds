@@ -3,6 +3,8 @@
  * This provides a minimal implementation to break circular dependencies.
  */
 
+const { COMPUTATION_STRATEGIES } = require('./ComputationStrategies.js');
+
 /**
  * AdaptiveComputation class for optimizing resource usage
  * This class is used for dynamic adjustment of computation strategies
@@ -18,20 +20,31 @@ export class AdaptiveComputation {
   constructor(resourceMonitor = null, resourceAllocator = null, options = {}) {
     this.resourceMonitor = resourceMonitor;
     this.resourceAllocator = resourceAllocator;
-    this.mode = options.mode || 'auto';
+    
+    // Default options
+    this.options = {
+      enabledStrategies: [
+        COMPUTATION_STRATEGIES.FULL_COMPUTATION,
+        COMPUTATION_STRATEGIES.PROGRESSIVE_COMPUTATION,
+        COMPUTATION_STRATEGIES.FALLBACK_COMPUTATION
+      ],
+      maxMemoryUsagePercent: 80,
+      maxCpuUsagePercent: 85,
+      ...options
+    };
+    this.mode = this.options.mode || 'auto';
     this.optimizations = {
       memory: true,
       parallelism: true,
       batching: true,
       ...options.optimizations
     };
-    this.options = {
-      enabledStrategies: options.enabledStrategies || ['full', 'progressive', 'fallback'],
-      maxMemoryUsagePercent: options.maxMemoryUsagePercent || 80,
-      maxCpuUsagePercent: options.maxCpuUsagePercent || 85
-    };
+    
+    // Additional instance properties
+    this.currentStrategy = null;
+    this.fallbackStrategies = [];
   }
-
+  
   /**
    * Set computational mode
    * 
@@ -81,25 +94,42 @@ export class AdaptiveComputation {
    * @returns {Promise<Object>} Computation result
    */
   async executeComputation(operationId, computeFunction, profile = {}) {
+    if (!operationId) {
+      console.warn('No operation ID provided for adaptive computation');
+      operationId = `comp_${Date.now()}`;
+    }
+    
     try {
       // Start resource monitoring if available
       if (this.resourceMonitor) {
-        await this.resourceMonitor.markOperationStart(operationId);
+        try {
+          await this.resourceMonitor.markOperationStart(operationId);
+        } catch (err) {
+          console.warn(`Failed to mark operation start: ${err.message}`);
+        }
       }
 
-      // Execute the computation
-      const result = await computeFunction({ operationId, profile });
-
+      // Select computation strategy (simplified for this implementation)
+      this.currentStrategy = COMPUTATION_STRATEGIES.FULL_COMPUTATION;
+    
+      // Execute the computation with the selected strategy
+      console.log(`Executing computation with strategy: ${this.currentStrategy}`);
+      const result = await computeFunction();
+      
       // End resource monitoring if available
       if (this.resourceMonitor) {
-        await this.resourceMonitor.markOperationEnd(operationId);
+        try {
+          await this.resourceMonitor.markOperationEnd(operationId);
+        } catch (err) {
+          console.warn(`Failed to mark operation end: ${err.message}`);
+        }
       }
 
       return {
         success: true,
         result,
-        strategy: this.mode,
-        elapsedTime: 0,
+        strategy: this.currentStrategy,
+        elapsedTime: 0, // Would normally calculate this
         resourcesUsed: {}
       };
     } catch (error) {
@@ -109,18 +139,32 @@ export class AdaptiveComputation {
           await this.resourceMonitor.markOperationEnd(operationId);
         } catch (e) {
           // Ignore errors in cleanup
+          console.warn(`Failed to mark operation end: ${e.message}`);
         }
       }
 
+      console.error(`Computation failed: ${error.message}`);
+      
       return {
         success: false,
         error,
-        strategy: this.mode,
-        elapsedTime: 0,
+        strategy: this.currentStrategy,
+        elapsedTime: 0, // Would normally calculate this
         resourcesUsed: {}
       };
     }
   }
+  
+  // Class properties
+  static DEFAULT_OPTIONS = {
+    enabledStrategies: [
+      COMPUTATION_STRATEGIES.FULL_COMPUTATION,
+      COMPUTATION_STRATEGIES.PROGRESSIVE_COMPUTATION,
+      COMPUTATION_STRATEGIES.FALLBACK_COMPUTATION
+    ],
+    maxMemoryUsagePercent: 80,
+    maxCpuUsagePercent: 85
+  };
 }
 
 // Also provide a singleton instance as default export for backward compatibility
