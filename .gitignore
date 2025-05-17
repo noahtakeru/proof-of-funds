@@ -55,5 +55,8 @@ packages/contracts/.env
 # GCP configuration
 /config/gcp/*.json
 service-account-key.json
+gcp-sa-key.json
+proof-of-funds-*.json
+*.json
 
 **/.claude/settings.local.json
