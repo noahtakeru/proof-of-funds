@@ -22,7 +22,7 @@
  * - Multi-chain asset scanning with support for custom token selection
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
 import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
@@ -506,13 +506,177 @@ export default function CreatePage() {
     }, [showUSDValues, assetSummary]);
 
     /**
+     * Load assets from selected wallets
+     * @param {boolean} forceRefresh - Force refresh bypassing cache
+     */
+    const loadAssets = useCallback(async (forceRefresh = false) => {
+        // Only proceed if we have selected wallets
+        if (selectedWalletsRef.current.length === 0) {
+            setAssetSummary(null);
+            return;
+        }
+
+        try {
+            setIsLoadingAssets(true);
+            setAssetError('');
+
+            // Get the wallet objects for selected IDs
+            const walletObjects = connectedWalletsRef.current.filter(wallet =>
+                selectedWalletsRef.current.includes(wallet.id)
+            );
+
+            if (walletObjects.length === 0) {
+                throw new Error('No valid wallets selected');
+            }
+
+            // Try to get assets from session storage first for instant loading
+            // Skip cache if forceRefresh is true
+            if (!forceRefresh) {
+                const cachedAssets = tryGetCachedAssets(walletObjects[0]?.address);
+                if (cachedAssets) {
+                    // Immediately display cached assets
+                    setAssetSummary(cachedAssets);
+                    // If crossChain data exists in the cache, use it
+                    if (cachedAssets.crossChain) {
+                        console.log('Using cached cross-chain data:', cachedAssets.crossChain);
+                    }
+                }
+            } else {
+                console.log('Force refreshing assets - skipping cache');
+            }
+
+            // Always scan multiple chains regardless of which network is currently selected in MetaMask
+            const scanOptions = {
+                // Specify all chains to scan simultaneously
+                chains: ['ethereum', 'polygon', 'bsc', 'arbitrum', 'avalanche', 'fantom'],
+                // Only show tokens with actual balances
+                includeZeroBalances: false,
+                // Include all tokens regardless of popularity/spam status
+                includePotentialSpam: true
+            };
+
+            // Scan assets across all chains independently
+            const summary = await Promise.all(
+                scanOptions.chains.map(async (chainName) => {
+                    try {
+                        // Scan this specific chain only
+                        const chainSummary = await scanMultiChainAssets(walletObjects, {
+                            chains: [chainName],
+                            includeZeroBalances: scanOptions.includeZeroBalances,
+                            includePotentialSpam: scanOptions.includePotentialSpam
+                        });
+                        return { chain: chainName, data: chainSummary };
+                    } catch (error) {
+                        console.error(`Error scanning chain ${chainName}:`, error);
+                        return { chain: chainName, error };
+                    }
+                })
+            ).then(results => {
+                // Combine all chain results into a single summary
+                const mergedSummary = {
+                    totalAssets: [],
+                    totalValue: 0,
+                    totalUSDValue: 0,
+                    chains: {},
+                    walletAddresses: walletObjects.map(w => w.address || w.fullAddress),
+                };
+                
+                // Process each chain's results
+                results.forEach(result => {
+                    if (result.data && !result.error) {
+                        const chainData = result.data;
+                        
+                        // Add assets
+                        if (chainData.totalAssets && chainData.totalAssets.length > 0) {
+                            mergedSummary.totalAssets.push(...chainData.totalAssets);
+                        }
+                        
+                        // Add value
+                        mergedSummary.totalValue += (chainData.totalValue || 0);
+                        mergedSummary.totalUSDValue += (chainData.totalUSDValue || 0);
+                        
+                        // Copy chain data
+                        if (chainData.chains && Object.keys(chainData.chains).length > 0) {
+                            Object.assign(mergedSummary.chains, chainData.chains);
+                        }
+                        
+                        // Copy cross-chain data if available
+                        if (chainData.crossChain) {
+                            mergedSummary.crossChain = mergedSummary.crossChain || {};
+                            mergedSummary.crossChain.crossChainSummary = 
+                                (mergedSummary.crossChain.crossChainSummary || [])
+                                .concat(chainData.crossChain.crossChainSummary || []);
+                        }
+                    }
+                });
+                
+                console.log(`Multi-chain scan complete: Found ${mergedSummary.totalAssets.length} assets across ${Object.keys(mergedSummary.chains).length} chains`);
+                return mergedSummary;
+            });
+
+            // Always convert to USD
+            setIsConvertingUSD(true);
+            const summaryWithUSD = await convertAssetsToUSD(summary);
+            
+            setShowUSDValues(true); // Always show USD values
+            setAssetSummary(summaryWithUSD);
+            // Cache for next session
+            cacheAssets(walletObjects[0]?.address, summaryWithUSD);
+            setIsConvertingUSD(false);
+        } catch (error) {
+            console.error('Error loading wallet assets:', error);
+            setAssetError(`Failed to load assets: ${error.message || 'Unknown error'}`);
+            setAssetSummary(null);
+        } finally {
+            setIsLoadingAssets(false);
+        }
+    }, []);
+
+    // Helper function to try getting cached assets
+    function tryGetCachedAssets(address) {
+        try {
+            if (typeof sessionStorage === 'undefined' || !address) return null;
+            
+            const cached = sessionStorage.getItem(`assets_${address.toLowerCase()}`);
+            if (cached) {
+                const parsedCache = JSON.parse(cached);
+                const cacheAge = Date.now() - parsedCache.timestamp;
+                
+                // Use cache if less than 5 minutes old
+                if (cacheAge < 5 * 60 * 1000) {
+                    console.log(`Using cached assets for ${address}, age: ${cacheAge/1000}s`);
+                    return parsedCache.data;
+                } else {
+                    console.log(`Cached assets for ${address} expired (${cacheAge/1000}s old)`);
+                }
+            }
+        } catch (e) {
+            console.warn('Error reading cached assets:', e);
+        }
+        return null;
+    }
+    
+    // Helper function to cache assets
+    function cacheAssets(address, assets) {
+        try {
+            if (typeof sessionStorage === 'undefined' || !address) return;
+            
+            sessionStorage.setItem(`assets_${address.toLowerCase()}`, JSON.stringify({
+                data: assets,
+                timestamp: Date.now()
+            }));
+            console.log(`Cached assets for ${address}`);
+        } catch (e) {
+            console.warn('Error caching assets:', e);
+        }
+    }
+
+    /**
      * Asset Loading Effect
      * Triggers when selected wallets change to load assets from all selected wallets
      * Handles loading states, errors, and USD conversion
      */
     useEffect(() => {
-        let isMounted = true;
-
         // Set up refs to prevent closure issues
         selectedWalletsRef.current = selectedWallets;
         connectedWalletsRef.current = connectedWallets;
@@ -520,192 +684,13 @@ export default function CreatePage() {
 
         // Only load assets when we have at least one wallet selected
         if (selectedWallets.length === 0) {
-            if (isMounted) setAssetSummary(null);
+            setAssetSummary(null);
             return;
-        }
-
-        const loadAssets = async (forceRefresh = false) => {
-            // Only proceed if we have selected wallets
-            if (selectedWalletsRef.current.length === 0) {
-                if (isMounted) setAssetSummary(null);
-                return;
-            }
-
-            try {
-                if (isMounted) {
-                    setIsLoadingAssets(true);
-                    setAssetError('');
-                }
-
-                // Get the wallet objects for selected IDs
-                const walletObjects = connectedWalletsRef.current.filter(wallet =>
-                    selectedWalletsRef.current.includes(wallet.id)
-                );
-
-                if (walletObjects.length === 0) {
-                    throw new Error('No valid wallets selected');
-                }
-
-                // Try to get assets from session storage first for instant loading
-                // Skip cache if forceRefresh is true
-                if (!forceRefresh) {
-                    const cachedAssets = tryGetCachedAssets(walletObjects[0]?.address);
-                    if (cachedAssets) {
-                        // Immediately display cached assets
-                        if (isMounted) {
-                            setAssetSummary(cachedAssets);
-                            // If crossChain data exists in the cache, use it
-                            if (cachedAssets.crossChain) {
-                                console.log('Using cached cross-chain data:', cachedAssets.crossChain);
-                            }
-                        }
-                    }
-                } else {
-                    console.log('Force refreshing assets - skipping cache');
-                }
-
-                // Always scan multiple chains regardless of which network is currently selected in MetaMask
-                const scanOptions = {
-                    // Specify all chains to scan simultaneously
-                    chains: ['ethereum', 'polygon', 'bsc', 'arbitrum', 'avalanche', 'fantom'],
-                    // Only show tokens with actual balances
-                    includeZeroBalances: false,
-                    // Include all tokens regardless of popularity/spam status
-                    includePotentialSpam: true
-                };
-                // Log scan options to verify they're set properly
-
-                
-                // Scan assets across all chains independently
-                // This helps ensure all chains are processed, even if one fails
-                const summary = await Promise.all(
-                    scanOptions.chains.map(async (chainName) => {
-                        try {
-                                        // Scan this specific chain only
-                            const chainSummary = await scanMultiChainAssets(walletObjects, {
-                                chains: [chainName],
-                                includeZeroBalances: scanOptions.includeZeroBalances,
-                                includePotentialSpam: scanOptions.includePotentialSpam
-                            });
-                            return { chain: chainName, data: chainSummary };
-                        } catch (error) {
-                            console.error(`Error scanning chain ${chainName}:`, error);
-                            return { chain: chainName, error };
-                        }
-                    })
-                ).then(results => {
-                    // Combine all chain results into a single summary
-                    const mergedSummary = {
-                        totalAssets: [],
-                        totalValue: 0,
-                        totalUSDValue: 0,
-                        chains: {},
-                        walletAddresses: walletObjects.map(w => w.address || w.fullAddress),
-                    };
-                    
-                    // Process each chain's results
-                    results.forEach(result => {
-                        if (result.data && !result.error) {
-                            const chainData = result.data;
-                            
-                            // Add assets
-                            if (chainData.totalAssets && chainData.totalAssets.length > 0) {
-                                mergedSummary.totalAssets.push(...chainData.totalAssets);
-                            }
-                            
-                            // Add value
-                            mergedSummary.totalValue += (chainData.totalValue || 0);
-                            mergedSummary.totalUSDValue += (chainData.totalUSDValue || 0);
-                            
-                            // Copy chain data
-                            if (chainData.chains && Object.keys(chainData.chains).length > 0) {
-                                Object.assign(mergedSummary.chains, chainData.chains);
-                            }
-                            
-                            // Copy cross-chain data if available
-                            if (chainData.crossChain) {
-                                mergedSummary.crossChain = mergedSummary.crossChain || {};
-                                mergedSummary.crossChain.crossChainSummary = 
-                                    (mergedSummary.crossChain.crossChainSummary || [])
-                                    .concat(chainData.crossChain.crossChainSummary || []);
-                            }
-                        }
-                    });
-                    
-                    console.log(`Multi-chain scan complete: Found ${mergedSummary.totalAssets.length} assets across ${Object.keys(mergedSummary.chains).length} chains`);
-                    return mergedSummary;
-                });
-
-                // Always convert to USD
-                if (isMounted) setIsConvertingUSD(true);
-                const summaryWithUSD = await convertAssetsToUSD(summary);
-                
-                
-                if (isMounted) {
-                    setShowUSDValues(true); // Always show USD values
-                    setAssetSummary(summaryWithUSD);
-                    // Cache for next session
-                    cacheAssets(walletObjects[0]?.address, summaryWithUSD);
-                    setIsConvertingUSD(false);
-                }
-            } catch (error) {
-                console.error('Error loading wallet assets:', error);
-                if (isMounted) {
-                    setAssetError(`Failed to load assets: ${error.message || 'Unknown error'}`);
-                    setAssetSummary(null);
-                }
-            } finally {
-                if (isMounted) setIsLoadingAssets(false);
-            }
-        };
-        
-        // Helper function to try getting cached assets
-        function tryGetCachedAssets(address) {
-            try {
-                if (typeof sessionStorage === 'undefined' || !address) return null;
-                
-                const cached = sessionStorage.getItem(`assets_${address.toLowerCase()}`);
-                if (cached) {
-                    const parsedCache = JSON.parse(cached);
-                    const cacheAge = Date.now() - parsedCache.timestamp;
-                    
-                    // Use cache if less than 5 minutes old
-                    if (cacheAge < 5 * 60 * 1000) {
-                        console.log(`Using cached assets for ${address}, age: ${cacheAge/1000}s`);
-                        return parsedCache.data;
-                    } else {
-                        console.log(`Cached assets for ${address} expired (${cacheAge/1000}s old)`);
-                    }
-                }
-            } catch (e) {
-                console.warn('Error reading cached assets:', e);
-            }
-            return null;
-        }
-        
-        // Helper function to cache assets
-        function cacheAssets(address, assets) {
-            try {
-                if (typeof sessionStorage === 'undefined' || !address) return;
-                
-                sessionStorage.setItem(`assets_${address.toLowerCase()}`, JSON.stringify({
-                    data: assets,
-                    timestamp: Date.now()
-                }));
-                console.log(`Cached assets for ${address}`);
-            } catch (e) {
-                console.warn('Error caching assets:', e);
-            }
         }
 
         // Load assets when selected wallets change
         loadAssets();
-
-        // Cleanup function
-        return () => {
-            isMounted = false;
-        };
-    }, [selectedWallets]); // Only depend on selectedWallets to trigger asset loading
+    }, [selectedWallets, loadAssets]); // Depend on selectedWallets and loadAssets
 
     /**
      * Toggles between showing native asset values and USD-converted values
@@ -1183,18 +1168,25 @@ export default function CreatePage() {
                             throw new Error('No wallet selected');
                         }
 
-                        // Generate ZK proof - use server-side API to avoid browser environment issues
-                        console.log('Calling server-side API for ZK proof generation');
+                        // Generate ZK proof - use server-side API with Cloud Storage
+                        console.log('Calling server-side API for ZK proof generation with Cloud Storage');
                         try {
-                            const response = await fetch('/api/zk/generateProof', {
+                            const response = await fetch('/api/zk/generateProofCloudStorage', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    walletAddress: primaryWallet.fullAddress,
-                                    amount: amountInWei.toString(),
-                                    proofType: String(ZK_PROOF_TYPES[zkProofType.toUpperCase()] || ZK_PROOF_TYPES.STANDARD)
+                                    proofType: zkProofType.toLowerCase(),
+                                    input: {
+                                        balance: amountInWei.toString(),
+                                        threshold: amountInWei.toString(),
+                                        maxBalance: amountInWei.toString(),
+                                        totalBalance: amountInWei.toString(),
+                                        userAddress: primaryWallet.fullAddress,
+                                        networkId: networkConfig.chainId || 1,
+                                        networks: [1, 137, 42161, 10] // Supported networks
+                                    }
                                 }),
                             });
                             
@@ -1204,7 +1196,8 @@ export default function CreatePage() {
                             }
                             
                             const result = await response.json();
-                            zkProofData = result.proof;
+                            // The API returns { proof, publicSignals, verified, ... }
+                            zkProofData = result;
                         } catch (apiError) {
                             console.error('API error during ZK proof generation:', apiError);
                             throw apiError;
@@ -1346,16 +1339,24 @@ export default function CreatePage() {
 
             console.log("ZK proof type:", zkProofType, "enum value:", zkProofTypeValue);
 
-            // Create mock proof and public signals for testing
-            // In production, we would use the actual ZK proof data
-            const mockProof = ethers.utils.defaultAbiCoder.encode(
+            // Use the actual ZK proof data
+            const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
+            
+            // Convert proof object to array format for ABI encoding
+            const proofArray = [
+                proof.pi_a[0], proof.pi_a[1],
+                proof.pi_b[0][0], proof.pi_b[0][1], proof.pi_b[1][0], proof.pi_b[1][1],
+                proof.pi_c[0], proof.pi_c[1]
+            ];
+            
+            const encodedProof = ethers.utils.defaultAbiCoder.encode(
                 ['uint256[]'],
-                [[1, 2, 3, 4, 5, 6, 7, 8]]
+                [proofArray]
             );
 
-            const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+            const encodedPublicSignals = ethers.utils.defaultAbiCoder.encode(
                 ['uint256[]'],
-                [[ethers.utils.parseEther(amount).toString()]]
+                [publicSignals]
             );
 
             console.log("ZK contract call preparation:", {
@@ -1371,8 +1372,8 @@ export default function CreatePage() {
                     // Attempt to call the contract
                     writeZKProof({
                         args: [
-                            mockProof,
-                            mockPublicSignals,
+                            encodedProof,
+                            encodedPublicSignals,
                             BigInt(expiryTime),
                             zkProofTypeValue,
                             signatureMessage,
@@ -1765,14 +1766,13 @@ export default function CreatePage() {
 
                 // Dynamically import ethers
                 console.log("Dynamically importing ethers");
-                const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
-                const { ethers } = await getEthers();
-                console.log("Ethers imported successfully");
+                const { parseAmount } = await import('@proof-of-funds/common/ethersUtils');
+                console.log("Ethers utils imported successfully");
 
                 // Convert amount to Wei for blockchain submission
-                const amountInWei = ethers.utils.parseEther(
-                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
-                );
+                const amountValue = amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString();
+                console.log("Amount to convert:", amountValue);
+                const amountInWei = await parseAmount(amountValue, 18);
                 console.log("Amount converted to wei:", amountInWei.toString());
 
                 const expiryTime = getExpiryTimestamp(expiryDays);
@@ -1892,17 +1892,65 @@ export default function CreatePage() {
                     }
 
                     console.log("Contract interaction completed");
-                } else if (proofCategory === 'zk') {
-                    console.log("Preparing ZK proof submission");
+                }
                     // Zero-knowledge proofs handling
-                    const mockProof = ethers.utils.defaultAbiCoder.encode(
+                    
+                    // Import ethers for ABI encoding
+                    const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+                    const ethersData = await getEthers();
+                    const { ethers } = ethersData;
+                    
+                    // For ethers v5 compatibility - use the right ABI coder
+                    const abiCoder = ethers.utils ? ethers.utils.defaultAbiCoder : ethers.AbiCoder.defaultAbiCoder();
+                    
+                    // Log the actual structure of proofData
+                    console.log("Proof data structure:", JSON.stringify(proofData, null, 2));
+                    
+                    // Use the actual proof data from proofData state
+                    // Note: The proof is stored as zkProof and zkPublicSignals
+                    const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
+                    
+                    // Check if proof exists and has the expected structure
+                    if (!proof) {
+                        throw new Error('Proof data is missing');
+                    }
+                    
+                    console.log("Proof object keys:", Object.keys(proof));
+                    console.log("Public signals:", publicSignals);
+                    
+                    // Convert proof object to array format for ABI encoding
+                    // Handle different possible proof structures
+                    let proofArray;
+                    if (proof.pi_a) {
+                        // Standard snarkjs format
+                        proofArray = [
+                            proof.pi_a[0], proof.pi_a[1],
+                            proof.pi_b[0][0], proof.pi_b[0][1], proof.pi_b[1][0], proof.pi_b[1][1],
+                            proof.pi_c[0], proof.pi_c[1]
+                        ];
+                    } else if (proof.a) {
+                        // Alternative format
+                        proofArray = [
+                            proof.a[0], proof.a[1],
+                            proof.b[0][0], proof.b[0][1], proof.b[1][0], proof.b[1][1],
+                            proof.c[0], proof.c[1]
+                        ];
+                    } else if (Array.isArray(proof)) {
+                        // Already in array format
+                        proofArray = proof;
+                    } else {
+                        console.error("Unknown proof format:", proof);
+                        throw new Error('Unknown proof format');
+                    }
+                    
+                    const encodedProof = abiCoder.encode(
                         ['uint256[]'],
-                        [[1, 2, 3, 4, 5, 6, 7, 8]]
+                        [proofArray]
                     );
 
-                    const mockPublicSignals = ethers.utils.defaultAbiCoder.encode(
+                    const encodedPublicSignals = abiCoder.encode(
                         ['uint256[]'],
-                        [[amountInWei.toString()]]
+                        [publicSignals]
                     );
 
                     let zkProofTypeValue;
@@ -1927,8 +1975,8 @@ export default function CreatePage() {
                     // Apply similar formatting as with standard proofs
                     try {
                         console.log("Preparing ZK contract arguments with types:");
-                        console.log("- mockProof (length):", mockProof.length);
-                        console.log("- mockPublicSignals (length):", mockPublicSignals.length);
+                        console.log("- encodedProof (length):", encodedProof.length);
+                        console.log("- encodedPublicSignals (length):", encodedPublicSignals.length);
                         console.log("- expiryTime:", expiryTime, "type:", typeof expiryTime);
                         console.log("- zkProofTypeValue:", zkProofTypeValue, "type:", typeof zkProofTypeValue);
                         console.log("- signatureMessage:", signatureMessage, "type:", typeof signatureMessage);
@@ -1941,8 +1989,8 @@ export default function CreatePage() {
                                 // Fix the args structure to match the expected contract format
                                 writeZKProof({
                                     args: [
-                                        mockProof,
-                                        mockPublicSignals,
+                                        encodedProof,
+                                        encodedPublicSignals,
                                         BigInt(expiryTime),
                                         zkProofTypeValue,
                                         signatureMessage,

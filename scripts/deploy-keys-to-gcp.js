@@ -3,6 +3,7 @@
  * Run this after generating keys to upload them securely
  */
 
+require('dotenv').config();
 const ZKeyManager = require('../packages/backend/utils/zkeyManager');
 const path = require('path');
 

@@ -4,6 +4,15 @@
 echo "===== Completing GCP Setup ====="
 echo ""
 
+# Source the .env file
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+    echo "✅ Loaded environment variables from .env"
+else
+    echo "❌ Error: .env file not found!"
+    exit 1
+fi
+
 # Check if the key file exists
 if [ ! -f "./gcp-sa-key.json" ]; then
     echo "❌ Error: gcp-sa-key.json not found!"

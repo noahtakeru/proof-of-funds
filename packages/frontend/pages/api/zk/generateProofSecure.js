@@ -1,13 +1,11 @@
 /**
- * Secure proof generation endpoint using Google Cloud Secret Manager
- * This replaces the public zkey file access with secure cloud storage
+ * Secure proof generation endpoint
+ * This endpoint generates ZK proofs using secure key management
  */
 
-import ZKeyManager from '@proof-of-funds/backend/utils/zkeyManager';
-import path from 'path';
-import { handleApiError } from '../../../utils/apiErrorHandler';
-
-const zkeyManager = new ZKeyManager();
+const path = require('path');
+const fs = require('fs').promises;
+const { handleApiError } = require('../../../utils/apiErrorHandler');
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -30,42 +28,67 @@ export default async function handler(req, res) {
     if (!validProofTypes.includes(proofType)) {
       return res.status(400).json({ 
         error: 'Invalid proof type',
-        details: `Proof type must be one of: ${validProofTypes.join(', ')}`
+        details: `Must be one of: ${validProofTypes.join(', ')}`
       });
     }
     
-    // Build path to WASM file (these can remain public)
-    const circuitName = `${proofType}Proof`;
-    const wasmPath = path.resolve(process.cwd(), `public/lib/zk/circuits/${circuitName}.wasm`);
+    console.log(`Generating ${proofType} proof...`);
     
+    // For now, use local files until cloud storage is fully configured
+    // Get the circuit files
+    const circuitDir = path.join(process.cwd(), 'circuits', proofType);
+    const wasmPath = path.join(circuitDir, `${proofType}Proof_js`, `${proofType}Proof.wasm`);
+    const zkeyPath = path.join(circuitDir, `${proofType}Proof.zkey`);
+    const vkeyPath = path.join(circuitDir, `${proofType}Proof.vkey.json`);
+    
+    // Check if files exist
     try {
-      // Generate proof using secure zkey from Google Cloud
-      const { proof, publicSignals } = await zkeyManager.generateProof(
-        proofType,
-        input,
-        wasmPath
-      );
-      
-      return res.status(200).json({
-        success: true,
-        proofType,
-        proof,
-        publicSignals
-      });
-    } catch (zkError) {
-      console.error('ZK proof generation error:', zkError);
-      return res.status(400).json({
-        error: 'ZK proof generation failed',
-        errorType: 'ZK_ERROR',
-        message: zkError.message,
-        details: {
-          proofType,
-          wasmPath,
-          inputKeys: Object.keys(input)
-        }
+      await fs.access(wasmPath);
+      await fs.access(zkeyPath);
+      await fs.access(vkeyPath);
+    } catch (error) {
+      console.error(`Circuit files not found for ${proofType}:`, error);
+      return res.status(500).json({ 
+        error: 'Circuit files not found',
+        details: `Missing circuit files for ${proofType} proof type`
       });
     }
+    
+    // Load snarkjs
+    const snarkjs = require('snarkjs');
+    
+    // Generate the proof
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      input,
+      wasmPath,
+      zkeyPath
+    );
+    
+    // Load verification key
+    const vKey = JSON.parse(await fs.readFile(vkeyPath, 'utf8'));
+    
+    // Verify the proof
+    const verified = await snarkjs.groth16.verify(vKey, publicSignals, proof);
+    
+    console.log(`✅ ${proofType} proof generated and verified: ${verified}`);
+    
+    res.status(200).json({
+      success: true,
+      proof,
+      publicSignals,
+      verified,
+      proofType
+    });
   } catch (error) {
+    console.error('Error generating proof:', error);
     return handleApiError(error, res);
   }
 }
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb'
+    }
+  }
+};

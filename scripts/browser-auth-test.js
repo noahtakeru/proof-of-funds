@@ -3,6 +3,7 @@
  * Use this after setting up authentication through the browser
  */
 
+require('dotenv').config();
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
 async function testBrowserAuth() {
