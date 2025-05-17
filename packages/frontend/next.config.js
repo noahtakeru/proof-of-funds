@@ -18,7 +18,7 @@ const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@proof-of-funds/common', 'snarkjs', 'fastfile', 'ffjavascript'],
   
-  // Security headers configuration
+  // Security headers configuration with enhanced protection
   async headers() {
     return [
       {
@@ -40,20 +40,59 @@ const nextConfig = {
           {
             key: 'Referrer-Policy', 
             value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
           }
         ],
       },
       {
-        // Apply additional strict headers to API routes
+        // Apply CSP headers to frontend pages with settings for wallet providers
+        source: '/((?!api/).*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: 
+              "default-src 'self'; " +
+              "script-src 'self' 'unsafe-inline'; " + // Unsafe-inline needed for wallet providers
+              "connect-src 'self' https://*.polygon.technology https://*.infura.io https://*.walletconnect.org wss://*.walletconnect.org; " +
+              "img-src 'self' data:; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "font-src 'self'; " +
+              "frame-ancestors 'none'; " +
+              "form-action 'self'"
+          }
+        ],
+      },
+      {
+        // Strict CSP for API routes
         source: '/api/:path*',
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self'; connect-src 'self' https://*.polygon.technology; img-src 'self' data:;",
+            value: "default-src 'none'; frame-ancestors 'none';",
           }
         ],
-      },
+      }
     ];
+  },
+  
+  // Force HTTPS in production
+  async rewrites() {
+    return process.env.NODE_ENV === 'production' ? [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'header',
+            key: 'x-forwarded-proto',
+            value: 'http',
+          },
+        ],
+        destination: 'https://:path*',
+      },
+    ] : [];
   },
   webpack: (config, { isServer }) => {
     // Handle snarkjs ESM/CJS interoperability

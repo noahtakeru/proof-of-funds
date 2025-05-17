@@ -16,13 +16,21 @@ import { createProofStrategy } from './zkProofStrategies';
 /**
  * Rate limiter factory function
  * @param {number} limit - The rate limit per minute
+ * @param {string} limiterType - The rate limiter type to use (memory or redis)
  * @returns {Function} - Rate limiter middleware function
  */
-function getRateLimiter(limit = 3) {
+function getRateLimiter(limit = 3, limiterType = 'memory') {
   try {
-    const rateLimiter = require('../lib/rateLimit').default;
-    return rateLimiter(limit);
+    // Use distributed rate limiter if redis type specified, otherwise fall back to in-memory
+    if (limiterType === 'redis') {
+      const createDistributedRateLimiter = require('../lib/distributedRateLimit');
+      return createDistributedRateLimiter({ type: 'redis' })(limit, 'zk-proof');
+    } else {
+      const rateLimiter = require('../lib/rateLimit').default;
+      return rateLimiter(limit);
+    }
   } catch (error) {
+    console.error('Failed to initialize rate limiter:', error);
     // Return a pass-through function if rate limiter isn't available
     return () => true;
   }
@@ -85,11 +93,12 @@ export function createZkProofHandler(options = {}) {
   const {
     defaultStrategy = 'secure',
     rateLimit = 3,
-    verifyProof = true
+    verifyProof = true,
+    rateLimiterType = process.env.RATE_LIMITER_TYPE || 'memory'
   } = options;
   
   // Create rate limiter if enabled
-  const applyRateLimit = rateLimit > 0 ? getRateLimiter(rateLimit) : null;
+  const applyRateLimit = rateLimit > 0 ? getRateLimiter(rateLimit, rateLimiterType) : null;
   
   /**
    * Next.js API route handler for ZK proof generation

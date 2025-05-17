@@ -7,28 +7,60 @@
 
 const jwt = require('jsonwebtoken');
 const { ethers } = require('ethers');
+const { getSecret } = require('@proof-of-funds/common/src/config/secrets');
+const { generateTokenPair } = require('@proof-of-funds/common/src/auth/tokenManager');
 
-// Secret key for JWT signing - in production, set through environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'proof-of-funds-jwt-secret-dev-only';
-const JWT_EXPIRY = '24h'; // Token expiry time
-const ADMIN_WALLET = process.env.ADMIN_WALLET_ADDRESS || '0xD6bd1eFCE3A2c4737856724f96F39037a3564890'; // Default to service wallet
+// Token expiry time
+const JWT_EXPIRY = '24h'; 
 
 // Standard signature message for wallet verification
 const AUTH_MESSAGE = 'Sign this message to authenticate with Proof of Funds API';
 
 /**
+ * Get admin wallet address from secure storage
+ * @returns {Promise<string>} Admin wallet address
+ */
+async function getAdminWalletAddress() {
+  return await getSecret('ADMIN_WALLET_ADDRESS', {
+    required: false,
+    fallback: '0xD6bd1eFCE3A2c4737856724f96F39037a3564890' // Default to service wallet for dev only
+  });
+}
+
+/**
+ * Get JWT secret securely from environment or Secret Manager
+ * @returns {Promise<string>} JWT secret
+ */
+async function getJwtSecret() {
+  const secret = await getSecret('JWT_SECRET', {
+    required: true,
+    fallback: process.env.NODE_ENV !== 'production' ? 
+      'proof-of-funds-jwt-secret-dev-only' : null
+  });
+  
+  if (!secret) {
+    throw new Error('JWT_SECRET is required but not found');
+  }
+  
+  return secret;
+}
+
+/**
  * Generate a JWT for a wallet address
  * @param {string} walletAddress - Ethereum address
  * @param {string} role - User role (user, admin)
- * @returns {string} - JWT token
+ * @returns {Promise<string>} - JWT token
  */
-function generateToken(walletAddress, role = 'user') {
+async function generateToken(walletAddress, role = 'user') {
   if (!walletAddress) {
     throw new Error('Wallet address required to generate token');
   }
 
   // Normalize the wallet address
   const normalizedAddress = walletAddress.toLowerCase();
+  
+  // Get admin wallet address
+  const ADMIN_WALLET = await getAdminWalletAddress();
   
   // Check if this is an admin wallet
   const isAdmin = normalizedAddress === ADMIN_WALLET.toLowerCase();
@@ -40,6 +72,9 @@ function generateToken(walletAddress, role = 'user') {
     timestamp: Date.now()
   };
 
+  // Get JWT secret securely
+  const JWT_SECRET = await getJwtSecret();
+  
   // Sign the token
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRY
@@ -55,8 +90,19 @@ function generateToken(walletAddress, role = 'user') {
  */
 function verifySignature(message, signature, walletAddress) {
   try {
-    // Recover the address from the signature
-    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    // Ensure we're using ethers in a version-compatible way
+    let recoveredAddress;
+    
+    // ethers v5 uses utils.verifyMessage, v6 uses verifyMessage on the ethers object
+    if (ethers.utils && ethers.utils.verifyMessage) {
+      // ethers v5
+      recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    } else if (ethers.verifyMessage) {
+      // ethers v6
+      recoveredAddress = ethers.verifyMessage(message, signature);
+    } else {
+      throw new Error('Incompatible ethers version');
+    }
     
     // Compare with the claimed address (case-insensitive)
     return recoveredAddress.toLowerCase() === walletAddress.toLowerCase();
@@ -67,18 +113,21 @@ function verifySignature(message, signature, walletAddress) {
 }
 
 /**
- * Verify a JWT token
+ * Verify a JWT token using secure JWT secret retrieval
  * @param {string} token - JWT token to verify
- * @returns {Object|null} - Decoded payload or null if invalid
+ * @returns {Promise<Object|null>} - Decoded payload or null if invalid
  */
-function verifyToken(token) {
+async function verifyToken(token) {
   if (!token) {
     return null;
   }
 
   try {
+    // Get JWT secret securely
+    const jwtSecret = await getJwtSecret();
+    
     // Verify and decode the token
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, jwtSecret);
   } catch (error) {
     console.error('Token verification failed:', error.message);
     return null;
@@ -90,9 +139,9 @@ function verifyToken(token) {
  * 
  * Supports both JWT Bearer tokens and wallet signature auth
  * @param {Object} req - Express request object
- * @returns {Object|null} - Auth data or null if invalid
+ * @returns {Promise<Object|null>} - Auth data or null if invalid
  */
-function getAuthFromRequest(req) {
+async function getAuthFromRequest(req) {
   // Check for token in authorization header
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -104,19 +153,27 @@ function getAuthFromRequest(req) {
     const token = authHeader.split(' ')[1];
     if (!token) return null;
     
+    const decodedToken = await verifyToken(token);
     return { 
       type: 'jwt',
-      data: verifyToken(token)
+      data: decodedToken
     };
   }
   
-  // Handle API key for admin functions
+  // Handle API key for admin functions - retrieve from secure storage
   const apiKey = req.headers['x-api-key'];
-  if (apiKey && apiKey === process.env.ADMIN_API_KEY) {
-    return {
-      type: 'apikey',
-      data: { role: 'admin' }
-    };
+  if (apiKey) {
+    const storedApiKey = await getSecret('ADMIN_API_KEY', { 
+      required: false,
+      fallback: process.env.ADMIN_API_KEY 
+    });
+    
+    if (apiKey === storedApiKey) {
+      return {
+        type: 'apikey',
+        data: { role: 'admin' }
+      };
+    }
   }
   
   return null;
@@ -137,7 +194,7 @@ function withAuth(handler, options = {}) {
   
   return async (req, res) => {
     // Get auth data from request
-    const auth = getAuthFromRequest(req);
+    const auth = await getAuthFromRequest(req);
     
     // No auth at all
     if (!auth) {
@@ -194,11 +251,48 @@ function withAuth(handler, options = {}) {
   };
 }
 
+/**
+ * Generate token pair (access + refresh) for a wallet address
+ * @param {string} walletAddress - Ethereum address 
+ * @param {string} role - User role (user, admin)
+ * @returns {Promise<Object>} - Token pair with access and refresh tokens
+ */
+async function generateTokenPairForWallet(walletAddress, role = 'user') {
+  if (!walletAddress) {
+    throw new Error('Wallet address required to generate tokens');
+  }
+
+  // Normalize the wallet address
+  const normalizedAddress = walletAddress.toLowerCase();
+  
+  // Get admin wallet address
+  const ADMIN_WALLET = await getAdminWalletAddress();
+  
+  // Check if this is an admin wallet
+  const isAdmin = normalizedAddress === ADMIN_WALLET.toLowerCase();
+  
+  // Create payload
+  const payload = {
+    walletAddress: normalizedAddress,
+    role: isAdmin ? 'admin' : role,
+    timestamp: Date.now()
+  };
+
+  // Generate token pair using the token manager
+  return await generateTokenPair(payload, {
+    accessExpiresIn: '15m',  // 15 minutes for access token
+    refreshExpiresIn: '7d'  // 7 days for refresh token
+  });
+}
+
 // Export the functions
 module.exports = {
   generateToken,
+  generateTokenPairForWallet,
   verifySignature,
   verifyToken,
   getAuthFromRequest,
-  withAuth
+  withAuth,
+  getJwtSecret,
+  getAdminWalletAddress
 };

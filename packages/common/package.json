@@ -30,6 +30,18 @@
       "import": "./dist/config/constants.js",
       "require": "./dist/config/constants.cjs"
     },
+    "./config/secrets": {
+      "import": "./dist/config/secrets.js",
+      "require": "./dist/config/secrets.cjs"
+    },
+    "./auth/tokenManager": {
+      "import": "./dist/auth/tokenManager.js",
+      "require": "./dist/auth/tokenManager.cjs"
+    },
+    "./logging/auditLogger": {
+      "import": "./dist/logging/auditLogger.js",
+      "require": "./dist/logging/auditLogger.cjs"
+    },
     "./utils": {
       "import": "./dist/utils/index.js",
       "require": "./dist/utils/index.cjs"
@@ -124,10 +136,15 @@
     "build:cjs": "node ../../scripts/convert-to-cjs.js"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^5.2.0",
+    "@google-cloud/storage": "^7.7.0",
     "@solana/web3.js": "^1.98.2",
     "buffer": "^6.0.3",
-    "ethers": "^6.1.0",
+    "ethers": "^5.7.2",
+    "ioredis": "^5.3.2",
     "js-sha3": "^0.8.0",
-    "snarkjs": "^0.7.0"
+    "jsonwebtoken": "^9.0.2",
+    "snarkjs": "^0.7.0",
+    "uuid": "^9.0.1"
   }
 }
