@@ -1,71 +1,45 @@
 /**
  * ZKey Storage Manager for Google Cloud Storage
  * Handles large zkey files that exceed Secret Manager limits
+ * Uses secure service account management practices
  */
+
+const { getAuthenticatedStorageClient } = require('./serviceAccountManager');
 
 class ZKeyStorageManager {
   constructor() {
     // Only initialize Cloud Storage on server-side
     if (typeof window === 'undefined') {
-      const { Storage } = require('@google-cloud/storage');
-      
-      // Check for required environment variables with fallback
-      const projectId = process.env.GCP_PROJECT_ID || 'proof-of-funds-455506';
-      if (!projectId) {
+      // Initialize properties that don't require async operations
+      this.projectId = process.env.GCP_PROJECT_ID || 'proof-of-funds-455506';
+      if (!this.projectId) {
         throw new Error('GCP_PROJECT_ID environment variable is not set');
       }
       
-      if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        console.warn('GOOGLE_APPLICATION_CREDENTIALS not set, using default authentication');
-      }
-      
-      // Resolve the path to the key file
-      const path = require('path');
-      const fs = require('fs');
-      
-      // Try environment variable first
-      let keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      
-      // If no env var, try to find the key file in several locations
-      if (!keyFilePath) {
-        // Check common locations in Next.js projects
-        const possiblePaths = [
-          path.join(process.cwd(), 'gcp-sa-key.json'),
-          path.join(process.cwd(), '..', '..', 'gcp-sa-key.json'),  // From packages/frontend
-          path.join(__dirname, '..', '..', '..', 'gcp-sa-key.json'), // From utils directory
-          '/Users/karpel/Desktop/GitHub/proof-of-funds/gcp-sa-key.json' // Absolute path fallback
-        ];
-        
-        for (const testPath of possiblePaths) {
-          if (fs.existsSync(testPath)) {
-            keyFilePath = testPath;
-
-            break;
-          }
-        }
-        
-        if (!keyFilePath) {
-          console.error('GCP key file not found. Searched paths:');
-          possiblePaths.forEach(p => console.error(`  - ${p}`));
-          console.error('Current working directory:', process.cwd());
-          console.error('__dirname:', __dirname);
-          throw new Error('Cannot find gcp-sa-key.json');
-        }
-      }
-      
-      // Verify the file exists at the resolved path
-      if (!fs.existsSync(keyFilePath)) {
-        throw new Error(`GCP key file not found at resolved path: ${keyFilePath}`);
-      }
-
-      this.storage = new Storage({
-        projectId: projectId,
-        keyFilename: keyFilePath
-      });
-      
-      this.projectId = projectId;
       this.bucketName = process.env.GCP_STORAGE_BUCKET || `${this.projectId}-zkeys`;
-
+      
+      // Storage client will be initialized on first use
+      this.storagePromise = null;
+    }
+  }
+  
+  /**
+   * Get or initialize the storage client
+   * @returns {Promise<Object>} - Authenticated storage client
+   */
+  async getStorageClient() {
+    // Initialize storage client on first use
+    if (!this.storagePromise) {
+      this.storagePromise = getAuthenticatedStorageClient();
+    }
+    
+    try {
+      // Wait for storage client initialization
+      this.storage = await this.storagePromise;
+      return this.storage;
+    } catch (error) {
+      console.error('Error initializing storage client:', error);
+      throw new Error(`Failed to initialize GCP storage client: ${error.message}`);
     }
   }
 
@@ -74,12 +48,13 @@ class ZKeyStorageManager {
    */
   async ensureBucket() {
     try {
-      const [buckets] = await this.storage.getBuckets();
+      const storage = await this.getStorageClient();
+      
+      const [buckets] = await storage.getBuckets();
       const bucketExists = buckets.some(b => b.name === this.bucketName);
       
       if (!bucketExists) {
-
-        await this.storage.createBucket(this.bucketName, {
+        await storage.createBucket(this.bucketName, {
           location: 'US',
           storageClass: 'STANDARD',
           // Enable encryption
@@ -87,10 +62,9 @@ class ZKeyStorageManager {
             defaultKmsKeyName: process.env.GCP_KMS_KEY_NAME
           }
         });
-
       }
       
-      return this.storage.bucket(this.bucketName);
+      return storage.bucket(this.bucketName);
     } catch (error) {
       console.error('Error ensuring bucket:', error);
       throw error;
@@ -104,11 +78,9 @@ class ZKeyStorageManager {
    */
   async getZKey(circuitName) {
     try {
-      if (!this.storage) {
-        throw new Error('Cloud Storage not initialized - missing environment variables');
-      }
+      const storage = await this.getStorageClient();
       
-      const bucket = this.storage.bucket(this.bucketName);
+      const bucket = storage.bucket(this.bucketName);
       const fileName = `${circuitName}.zkey`;
       const file = bucket.file(fileName);
 
@@ -139,7 +111,9 @@ class ZKeyStorageManager {
    */
   async getSignedUrl(circuitName, expirationMinutes = 5) {
     try {
-      const bucket = this.storage.bucket(this.bucketName);
+      const storage = await this.getStorageClient();
+      
+      const bucket = storage.bucket(this.bucketName);
       const fileName = `${circuitName}.zkey`;
       const file = bucket.file(fileName);
       

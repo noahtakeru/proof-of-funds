@@ -3,53 +3,61 @@
  * This ensures we use the correct network (Amoy for development, mainnet for production)
  */
 
-const networks = {
-  amoy: {
-    chainId: 80002,
-    name: 'Polygon Amoy Testnet',
-    rpcUrl: 'https://rpc-amoy.polygon.technology/',
-    explorer: 'https://amoy.polygonscan.com/',
-    nativeCurrency: {
-      name: 'MATIC',
-      symbol: 'MATIC',
-      decimals: 18
-    }
-  },
-  polygon: {
-    chainId: 137,
-    name: 'Polygon Mainnet',
-    rpcUrl: 'https://polygon-rpc.com/',
-    explorer: 'https://polygonscan.com/',
-    nativeCurrency: {
-      name: 'MATIC',
-      symbol: 'MATIC',
-      decimals: 18
-    }
-  }
-};
+import { 
+  getChainId, 
+  getRpcUrl as getChainRpcUrl, 
+  getExplorerUrl as getChainExplorerUrl,
+  getNativeTokenSymbol
+} from '@proof-of-funds/common/src/utils/chainMappings';
 
+/**
+ * Get the network configuration for the current environment
+ * @returns {Object} Network configuration object
+ */
 export function getNetworkConfig() {
   // Default to Amoy for development
   const isProduction = process.env.NODE_ENV === 'production';
   const useMainnet = process.env.NEXT_PUBLIC_USE_MAINNET === 'true';
   
   // Use mainnet only if explicitly set in production
-  if (isProduction && useMainnet) {
-    return networks.polygon;
-  }
+  const chainName = (isProduction && useMainnet) ? 'polygon' : 'polygon-amoy';
   
-  // Default to Amoy testnet for development and testing
-  return networks.amoy;
+  // Use chainMappings to get consistent data
+  return {
+    chainId: getChainId(chainName),
+    name: chainName === 'polygon' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet',
+    rpcUrl: getChainRpcUrl(chainName),
+    explorer: getChainExplorerUrl(chainName),
+    nativeCurrency: {
+      name: 'MATIC',
+      symbol: getNativeTokenSymbol(chainName),
+      decimals: 18
+    }
+  };
 }
 
+/**
+ * Get the RPC URL for the current network
+ * @returns {string} RPC URL
+ */
 export function getRpcUrl() {
   const network = getNetworkConfig();
   return process.env.POLYGON_RPC_URL || network.rpcUrl;
 }
 
+/**
+ * Get the explorer URL for a transaction hash
+ * @param {string} hash - Transaction hash
+ * @returns {string} Explorer URL
+ */
 export function getExplorerUrl(hash) {
   const network = getNetworkConfig();
   return `${network.explorer}tx/${hash}`;
 }
 
-export default networks;
+// Export the network config for potential direct use
+export default {
+  getNetworkConfig,
+  getRpcUrl,
+  getExplorerUrl
+};

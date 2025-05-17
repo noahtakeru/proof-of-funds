@@ -1,9 +1,60 @@
 /** @type {import('next').NextConfig} */
 const path = require('path');
 
+// Define allowed origins for CORS
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+      'https://proof-of-funds.example.com',
+      'https://www.proof-of-funds.example.com'
+    ];
+
+// Add localhost in development
+if (process.env.NODE_ENV !== 'production') {
+  ALLOWED_ORIGINS.push('http://localhost:3000');
+}
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@proof-of-funds/common', 'snarkjs', 'fastfile', 'ffjavascript'],
+  
+  // Security headers configuration
+  async headers() {
+    return [
+      {
+        // Apply these headers to all routes
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy', 
+            value: 'strict-origin-when-cross-origin',
+          }
+        ],
+      },
+      {
+        // Apply additional strict headers to API routes
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self'; connect-src 'self' https://*.polygon.technology; img-src 'self' data:;",
+          }
+        ],
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     // Handle snarkjs ESM/CJS interoperability
     config.resolve.fallback = { 

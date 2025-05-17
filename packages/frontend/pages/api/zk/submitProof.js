@@ -10,6 +10,11 @@
 
 import { ethers } from 'ethers';
 import { getRpcUrl, getNetworkConfig } from '../../../lib/networkConfig';
+import rateLimiter from '../../../lib/rateLimit';
+import { verifyWalletBalanceForTransaction } from '../../../lib/walletMonitor';
+import { validateApiRequest, validators } from '../../../utils/apiValidator';
+import { handleApiError } from '../../../utils/apiErrorHandler';
+import { withAuth } from '../../../utils/auth';
 
 // Get network configuration
 const networkConfig = getNetworkConfig();
@@ -23,12 +28,56 @@ const SERVICE_WALLET_PRIVATE_KEY = networkConfig.chainId === 137
 const POLYGON_RPC_URL = getRpcUrl();
 const ZK_VERIFIER_ADDRESS = process.env.ZK_VERIFIER_ADDRESS || '0xYourContractAddress';
 
-export default async function handler(req, res) {
+// Gas price limits to protect against high gas costs
+// For Amoy testnet (can be higher due to test environment)
+const MAX_GAS_PRICE_AMOY = ethers.utils.parseUnits('300', 'gwei');
+// For Polygon mainnet (need to be more conservative)
+const MAX_GAS_PRICE_MAINNET = ethers.utils.parseUnits('150', 'gwei');
+
+// Rate limiter configuration
+// Limit ZK proof submissions to 5 per minute per IP address
+const applyRateLimit = rateLimiter(5);
+
+// Define the handler function - no auth required for ZK proofs which use temporary wallets
+async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimitResult = applyRateLimit(req, res);
+  if (!rateLimitResult) {
+    // If rate limit is exceeded, response has already been sent
+    return;
+  }
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    // Define validation specification
+    const validationSpec = {
+      required: ['proof', 'publicSignals', 'tempWalletPrivateKey', 'tempWalletAddress'],
+      fields: {
+        proof: [validators.isArray],
+        publicSignals: [validators.isArray],
+        expiryTime: [validators.isPositiveNumber],
+        proofType: [validators.isEnum([0, 1, 2])], // 0: Standard, 1: Threshold, 2: Maximum
+        signatureMessage: [validators.isString, validators.maxLength(1000)],
+        signature: [validators.isString],
+        tempWalletPrivateKey: [validators.isString, validators.isHexString],
+        tempWalletAddress: [validators.isAddress]
+      }
+    };
+    
+    // Validate request inputs
+    const validation = validateApiRequest(req.body, validationSpec);
+    
+    if (!validation.isValid) {
+      return res.status(400).json({
+        error: 'Invalid input parameters',
+        details: validation.errors
+      });
+    }
+    
+    // Extract validated data
     const {
       proof,
       publicSignals,
@@ -38,12 +87,7 @@ export default async function handler(req, res) {
       signature,
       tempWalletPrivateKey,
       tempWalletAddress
-    } = req.body;
-
-    // Validate inputs
-    if (!proof || !publicSignals || !tempWalletPrivateKey || !tempWalletAddress) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
+    } = validation.sanitizedData;
 
     // Initialize provider
     console.log(`Using RPC URL: ${POLYGON_RPC_URL}`);
@@ -107,7 +151,23 @@ export default async function handler(req, res) {
     const gasPrice = await provider.getGasPrice();
     const adjustedGasPrice = gasPrice.mul(2); // Double for Amoy network
     const minGasPrice = ethers.utils.parseUnits('30', 'gwei');
-    const finalGasPrice = adjustedGasPrice.gt(minGasPrice) ? adjustedGasPrice : minGasPrice;
+    
+    // Apply maximum gas price limit based on network
+    const maxGasPrice = network.chainId === 137 ? MAX_GAS_PRICE_MAINNET : MAX_GAS_PRICE_AMOY;
+    
+    // Determine final gas price (within min/max bounds)
+    let finalGasPrice;
+    if (adjustedGasPrice.lt(minGasPrice)) {
+      finalGasPrice = minGasPrice;
+    } else if (adjustedGasPrice.gt(maxGasPrice)) {
+      finalGasPrice = maxGasPrice;
+      console.warn(`Gas price capped at ${ethers.utils.formatUnits(maxGasPrice, 'gwei')} gwei due to exceeding maximum`);
+    } else {
+      finalGasPrice = adjustedGasPrice;
+    }
+    
+    console.log(`Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} gwei`);
+    console.log(`Adjusted gas price: ${ethers.utils.formatUnits(finalGasPrice, 'gwei')} gwei`);
     
     // Estimate gas for the actual transaction
     const gasEstimate = await contract.estimateGas.submitZKProof(
@@ -134,9 +194,32 @@ export default async function handler(req, res) {
       const fundingAmount = requiredWithBuffer.sub(tempWalletBalance);
       console.log(`Funding temporary wallet with ${ethers.utils.formatEther(fundingAmount)} MATIC...`);
       
+      // Add safety check to prevent excessive funding
+      const MAX_FUNDING_AMOUNT = ethers.utils.parseEther('0.5'); // Maximum funding of 0.5 MATIC
+      const safeAmount = fundingAmount.gt(MAX_FUNDING_AMOUNT) ? MAX_FUNDING_AMOUNT : fundingAmount;
+      
+      if (fundingAmount.gt(MAX_FUNDING_AMOUNT)) {
+        console.warn(`Funding amount capped at ${ethers.utils.formatEther(MAX_FUNDING_AMOUNT)} MATIC for security`);
+      }
+      
+      // Verify service wallet has sufficient balance before sending transaction
+      const hasEnoughBalance = await verifyWalletBalanceForTransaction(
+        serviceWallet, 
+        network, 
+        safeAmount.add(ethers.utils.parseEther('0.01')) // Add 0.01 MATIC for gas
+      );
+      
+      if (!hasEnoughBalance) {
+        return res.status(500).json({
+          error: 'Service wallet has insufficient balance',
+          message: 'The service wallet does not have enough funds to complete this transaction',
+          detail: 'Please contact support to resolve this issue'
+        });
+      }
+      
       const fundingTx = await serviceWallet.sendTransaction({
         to: tempWalletAddress,
-        value: fundingAmount,
+        value: safeAmount,
         gasPrice: finalGasPrice
       });
       await fundingTx.wait();
@@ -185,11 +268,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Error submitting proof:', error);
-    return res.status(500).json({
-      error: 'Failed to submit proof',
-      message: error.message,
-      details: error.reason || error.data
-    });
+    // Use standard error handler for consistent, secure error messages
+    return handleApiError(error, res);
   }
 }
+
+// Export the handler directly - no auth required for ZK proofs
+// ZK proofs use temporary wallets for privacy
+export default handler;
