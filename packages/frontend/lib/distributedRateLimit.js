@@ -29,21 +29,49 @@ function createRateLimiter(options = {}) {
   
   // Initialize Redis client if using Redis
   let redisClient;
+  let isRedisHealthy = false;
   if (type === 'redis' && redisUrl) {
     try {
-      redisClient = new Redis(redisUrl);
+      // Configure Redis client with reconnection options
+      redisClient = new Redis(redisUrl, {
+        retryStrategy: (times) => {
+          const delay = Math.min(times * 100, 3000);
+          console.log(`Retrying Redis connection in ${delay}ms...`);
+          return delay;
+        },
+        maxRetriesPerRequest: 3,
+        enableOfflineQueue: true,
+        connectTimeout: 10000, // 10 seconds
+        commandTimeout: 5000,  // 5 seconds
+      });
       
       // Set up error handling for Redis connection
       redisClient.on('error', (err) => {
         console.error('Redis connection error:', err);
+        isRedisHealthy = false;
       });
       
       redisClient.on('connect', () => {
         console.log('Redis connection established for rate limiting');
+        isRedisHealthy = true;
+      });
+      
+      redisClient.on('reconnecting', () => {
+        console.log('Reconnecting to Redis for rate limiting...');
+        isRedisHealthy = false;
+      });
+      
+      // Perform initial connection test
+      await redisClient.ping().then(() => {
+        isRedisHealthy = true;
+      }).catch((err) => {
+        console.warn('Initial Redis connection test failed:', err.message);
+        isRedisHealthy = false;
       });
     } catch (error) {
       console.error('Failed to initialize Redis client:', error);
-      throw new Error('Could not initialize distributed rate limiter');
+      isRedisHealthy = false;
+      // Don't throw here, we'll fall back to memory-based limiter
     }
   }
   
@@ -84,7 +112,7 @@ function createRateLimiter(options = {}) {
         const key = `${prefix}${hashedClientId}`;
         
         // Handle different rate limiter types
-        if (type === 'redis' && redisClient) {
+        if (type === 'redis' && redisClient && isRedisHealthy) {
           // Using Redis-based limiter
           const now = Date.now();
           const windowMs = 60 * 1000; // 1 minute window

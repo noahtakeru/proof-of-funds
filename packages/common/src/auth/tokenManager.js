@@ -23,8 +23,12 @@ const inMemoryBlacklist = new Set();
 // Redis connection for production (lazy-loaded)
 let redisClient = null;
 
+// Redis connection health flag
+let isRedisHealthy = false;
+
 /**
  * Initialize Redis client for token blacklisting in production
+ * with robust error handling and reconnection logic
  */
 async function getRedisClient() {
   if (process.env.NODE_ENV !== 'production') {
@@ -38,21 +42,54 @@ async function getRedisClient() {
         fallback: 'redis://localhost:6379'
       });
       
+      // Configure Redis client with robust reconnection options
       redisClient = new Redis(redisUrl, {
-        enableReadyCheck: true,
+        retryStrategy: (times) => {
+          // Exponential backoff with max delay of 3 seconds
+          const delay = Math.min(times * 100, 3000);
+          console.log(`Retrying token store Redis connection in ${delay}ms...`);
+          return delay;
+        },
         maxRetriesPerRequest: 3,
+        enableReadyCheck: true,
+        enableOfflineQueue: true,
+        connectTimeout: 10000, // 10 seconds
+        commandTimeout: 5000,  // 5 seconds
       });
 
+      // Set up connection event listeners
       redisClient.on('error', (err) => {
-        console.error('Redis connection error:', err);
+        console.error('Token store Redis connection error:', err);
+        isRedisHealthy = false;
+      });
+      
+      redisClient.on('connect', () => {
+        console.log('Token store Redis connection established');
+        isRedisHealthy = true;
+      });
+      
+      redisClient.on('reconnecting', () => {
+        console.log('Reconnecting to token store Redis...');
+        isRedisHealthy = false;
+      });
+      
+      // Perform initial connection test
+      await redisClient.ping().then(() => {
+        isRedisHealthy = true;
+        console.log('Token store Redis connection verified');
+      }).catch((err) => {
+        console.warn('Initial token store Redis connection test failed:', err.message);
+        isRedisHealthy = false;
       });
     } catch (error) {
-      console.error('Failed to initialize Redis client:', error);
-      throw new Error('Token blacklisting service unavailable');
+      console.error('Failed to initialize token store Redis client:', error);
+      isRedisHealthy = false;
+      // Don't throw - we'll fall back to in-memory storage
+      return null;
     }
   }
 
-  return redisClient;
+  return isRedisHealthy ? redisClient : null;
 }
 
 /**

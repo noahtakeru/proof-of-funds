@@ -140,30 +140,55 @@ class AuditLogger {
   
   /**
    * Sanitize sensitive data for logging
-   * @param {Object} data - Data to sanitize
-   * @returns {Object} - Sanitized data
+   * Recursively sanitizes nested objects and arrays
+   * @param {Object|Array} data - Data to sanitize
+   * @returns {Object|Array} - Sanitized data
    */
   sanitizeData(data) {
     if (!data) return {};
-    
-    // Create a copy of the data
-    const sanitized = { ...data };
     
     // List of sensitive fields to redact
     const sensitiveFields = [
       'password', 'secret', 'token', 'key', 'privateKey', 
       'private_key', 'seed', 'mnemonic', 'signature',
-      'jwt', 'accessToken', 'refreshToken'
+      'jwt', 'accessToken', 'refreshToken', 'auth', 
+      'authorization', 'credential', 'apiKey', 'api_key'
     ];
     
-    // Sanitize top-level fields
-    for (const field of sensitiveFields) {
-      if (sanitized[field]) {
-        sanitized[field] = '[REDACTED]';
+    // Function to deeply sanitize objects and arrays
+    const sanitizeDeep = (obj) => {
+      if (obj === null || obj === undefined) return obj;
+      
+      // Handle different data types
+      if (typeof obj !== 'object') return obj;
+      
+      // Handle arrays
+      if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeDeep(item));
       }
-    }
+      
+      // Handle plain objects
+      const sanitized = { ...obj };
+      
+      for (const [key, value] of Object.entries(sanitized)) {
+        // Check if this is a sensitive field
+        const isSensitive = sensitiveFields.some(field => 
+          key.toLowerCase().includes(field.toLowerCase())
+        );
+        
+        if (isSensitive && value) {
+          // Redact sensitive values
+          sanitized[key] = '[REDACTED]';
+        } else if (typeof value === 'object' && value !== null) {
+          // Recursively sanitize nested objects
+          sanitized[key] = sanitizeDeep(value);
+        }
+      }
+      
+      return sanitized;
+    };
     
-    return sanitized;
+    return sanitizeDeep(data);
   }
   
   /**

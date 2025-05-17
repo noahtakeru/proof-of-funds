@@ -354,6 +354,66 @@ export const validators = {
       };
     }
     return { isValid: true };
+  },
+  
+  /**
+   * Validates Solana address format
+   */
+  isSolanaAddress(value, fieldName) {
+    if (typeof value !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+      return {
+        isValid: false,
+        error: 'invalid_solana_address',
+        message: `The field '${fieldName}' must be a valid Solana address`
+      };
+    }
+    return { isValid: true };
+  },
+  
+  /**
+   * Validates Bitcoin address format
+   */
+  isBitcoinAddress(value, fieldName) {
+    // Support legacy, segwit and bech32 Bitcoin addresses
+    const patterns = {
+      legacy: /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+      segwit: /^3[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+      bech32: /^bc1[ac-hj-np-z02-9]{39,59}$/
+    };
+    
+    if (typeof value !== 'string' || 
+        !(patterns.legacy.test(value) || 
+          patterns.segwit.test(value) || 
+          patterns.bech32.test(value))) {
+      return {
+        isValid: false,
+        error: 'invalid_bitcoin_address',
+        message: `The field '${fieldName}' must be a valid Bitcoin address`
+      };
+    }
+    return { isValid: true };
+  },
+  
+  /**
+   * Validates that the value is a valid blockchain address of any supported type
+   */
+  isBlockchainAddress(value, fieldName) {
+    // Try each address validator
+    const ethResult = this.isEthAddress(value, fieldName);
+    if (ethResult.isValid) return ethResult;
+    
+    const solanaResult = this.isSolanaAddress(value, fieldName);
+    if (solanaResult.isValid) return solanaResult;
+    
+    const bitcoinResult = this.isBitcoinAddress(value, fieldName);
+    if (bitcoinResult.isValid) return bitcoinResult;
+    
+    // If none match, return error
+    return {
+      isValid: false,
+      error: 'invalid_blockchain_address',
+      message: `The field '${fieldName}' must be a valid blockchain address (Ethereum, Solana, or Bitcoin)`
+    };
   }
 };
 
