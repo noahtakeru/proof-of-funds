@@ -16,8 +16,7 @@ export function useConnect() {
     name: 'MetaMask',
     ready: typeof window !== 'undefined' && !!window.ethereum,
     connect: async (config = {}) => {
-      console.log('Using real MetaMask connector with params:', config);
-      
+
       if (typeof window === 'undefined' || !window.ethereum) {
         throw new Error('MetaMask not available in this environment');
       }
@@ -45,9 +44,7 @@ export function useConnect() {
         // Get chain information
         const chainIdHex = await provider.request({ method: 'eth_chainId' });
         const chainId = parseInt(chainIdHex, 16);
-        
-        console.log(`Successfully connected to MetaMask. Account: ${accounts[0]}, Chain ID: ${chainId}`);
-        
+
         return {
           account: accounts[0],
           chainId: chainId,
@@ -65,8 +62,7 @@ export function useConnect() {
   
   // The connect function that accepts connector and parameters
   const connect = async ({ connector, chainId } = {}) => {
-    console.log(`Connecting to ${connector?.name || 'wallet'} with chainId: ${chainId}`);
-    
+
     try {
       if (!connector) {
         throw new Error('No connector provided to connect function');
@@ -104,8 +100,7 @@ export function useConnect() {
  */
 export function useDisconnect() {
   const disconnect = async () => {
-    console.log('Disconnecting wallet - real implementation');
-    
+
     if (typeof window === 'undefined') {
       return false;
     }
@@ -122,7 +117,7 @@ export function useDisconnect() {
       if (window.ethereum && window.ethereum.isMetaMask) {
         // Some providers have different disconnection methods
         if (window.ethereum._state && window.ethereum._state.accounts) {
-          console.log('Clearing MetaMask connection state');
+
         }
       }
       

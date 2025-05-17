@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     
     try {
       // Generate proof
-      console.log(`Generating proof for type ${proofType} with input:`, input);
+
       const { proof, publicSignals } = await snarkjsWrapper.fullProve(input, wasmPath, zkeyPath);
       
       return res.status(200).json({

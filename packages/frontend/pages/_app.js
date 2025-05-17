@@ -107,7 +107,7 @@ function MyApp({ Component, pageProps }) {
             
             // If user has explicitly disconnected, ensure all connection flags are cleared
             if (hasDisconnected) {
-                console.log('User has explicitly disconnected wallets, clearing connection state');
+
                 localStorage.removeItem('wagmi.connected');
                 localStorage.removeItem('wagmi.connectors');
                 localStorage.removeItem('userInitiatedConnection');

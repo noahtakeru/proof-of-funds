@@ -29,8 +29,7 @@ async function getEthers() {
  * 3. Supporting all chains uniformly
  */
 async function generateTemporaryWallet(chain) {
-  console.log(`Generating temporary wallet for chain: ${chain}`);
-  
+
   // Get ethers library
   const ethers = await getEthers();
   
@@ -96,8 +95,6 @@ export default async function handler(req, res) {
   try {
     // Generate the temporary wallet using real cryptographic libraries - no fallbacks
     const tempWallet = await generateTemporaryWallet(chain);
-    
-    console.log(`Generated temporary wallet successfully for chain: ${chain}`);
 
     // Return the generated wallet
     return res.status(200).json({ 

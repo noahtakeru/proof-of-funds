@@ -83,22 +83,14 @@ const signMessage = async (walletAddress, message) => {
         const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
         const { ethers } = await getEthers();
 
-        console.log('Ethers version check in signMessage:', {
-            hasProviders: !!ethers.providers,
-            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
-            hasBrowserProvider: !!ethers.BrowserProvider
-        });
-
         // Handle both ethers v5 and v6 API
         let signer;
         if (ethers.providers && ethers.providers.Web3Provider) {
             // ethers v5
-            console.log('Using ethers v5 Web3Provider in signMessage');
             const provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
         } else if (ethers.BrowserProvider) {
             // ethers v6
-            console.log('Using ethers v6 BrowserProvider in signMessage');
             const provider = new ethers.BrowserProvider(window.ethereum);
             signer = await provider.getSigner();
         } else {
@@ -132,8 +124,6 @@ const generateProof = async (walletAddress, chain, proofType, amount) => {
             throw new Error('Valid amount is required. Please enter a number.');
         }
 
-        console.log(`Generating proof with: address=${walletAddress}, chain=${chain}, proofType=${proofType}, amount=${amount}`);
-
         // Dynamically import ethers and our utils
         const { getEthers, parseAmount } = await import('@proof-of-funds/common/ethersUtils');
 
@@ -144,7 +134,6 @@ const generateProof = async (walletAddress, chain, proofType, amount) => {
 
         // Convert amount to Wei with proper decimal handling
         const amountInWei = await parseAmount(amount);
-        console.log(`Converted amount ${amount} to wei: ${amountInWei}`);
 
         // Generate hash based on proof type
         const proofHash = await generateProofHash(
@@ -275,13 +264,14 @@ export default function CreatePage() {
     // Current stage in the proof creation workflow
     const [proofStage, setProofStage] = useState('input'); // 'input', 'signing', 'ready'
 
+    // State to track if the proof is being submitted
+    const [isSubmittingProof, setIsSubmittingProof] = useState(false);
+
     // Get connected account from wagmi
     const { address, isConnected } = useAccount();
 
     // Debugging: Log the connection status and synchronize with localStorage
     useEffect(() => {
-        console.log("Wallet connection status:", isConnected);
-        console.log("Connected wallet address:", address);
 
         // When wagmi reports a connected wallet, ensure localStorage is synchronized
         if (isConnected && address) {
@@ -298,8 +288,6 @@ export default function CreatePage() {
             });
 
             if (!hasAddress) {
-                console.log("Synchronizing wagmi connected address with localStorage:", address);
-
                 // Use the proper saveWalletConnection helper instead of directly modifying localStorage
                 // This ensures consistent wallet object format and prevents duplicates
                 try {
@@ -318,7 +306,7 @@ export default function CreatePage() {
                     console.error("Error saving wallet connection:", error);
                 }
             } else {
-                console.log("Wallet already exists in localStorage, skipping synchronization");
+
             }
         }
     }, [isConnected, address]);
@@ -399,7 +387,7 @@ export default function CreatePage() {
         const updateConnectedWallets = () => {
             // Use the centralized helper to get wallets from all supported chains
             const wallets = getConnectedWallets();
-            console.log('Updated wallet list in create.js:', wallets);
+
             setConnectedWallets(wallets);
 
             // Update user connection state to track if user initiated the connection
@@ -428,7 +416,7 @@ export default function CreatePage() {
         // Set up listeners for wallet changes across the app
         const handleStorageChange = (e) => {
             if (e.key === 'walletData' || e.key === 'userInitiatedConnection') {
-                console.log(`Storage change detected in create.js: ${e.key}`);
+
                 updateConnectedWallets();
             }
         };
@@ -438,7 +426,7 @@ export default function CreatePage() {
 
         // Listen for the custom wallet connection changed event
         const handleWalletConnectionChanged = () => {
-            console.log('Wallet connection changed event received in create.js');
+
             updateConnectedWallets();
         };
         window.addEventListener('wallet-connection-changed', handleWalletConnectionChanged);
@@ -447,7 +435,7 @@ export default function CreatePage() {
         if (typeof window !== 'undefined' && !window._createPageStorageSetup) {
             window.addEventListener('localStorage-changed', (e) => {
                 if (e.detail && (e.detail.key === 'walletData' || e.detail.key === 'userInitiatedConnection')) {
-                    console.log(`localStorage-changed event in create.js: ${e.detail.key}`);
+
                     updateConnectedWallets();
                 }
             });
@@ -538,11 +526,11 @@ export default function CreatePage() {
                     setAssetSummary(cachedAssets);
                     // If crossChain data exists in the cache, use it
                     if (cachedAssets.crossChain) {
-                        console.log('Using cached cross-chain data:', cachedAssets.crossChain);
+
                     }
                 }
             } else {
-                console.log('Force refreshing assets - skipping cache');
+
             }
 
             // Always scan multiple chains regardless of which network is currently selected in MetaMask
@@ -609,8 +597,7 @@ export default function CreatePage() {
                         }
                     }
                 });
-                
-                console.log(`Multi-chain scan complete: Found ${mergedSummary.totalAssets.length} assets across ${Object.keys(mergedSummary.chains).length} chains`);
+
                 return mergedSummary;
             });
 
@@ -644,10 +631,10 @@ export default function CreatePage() {
                 
                 // Use cache if less than 5 minutes old
                 if (cacheAge < 5 * 60 * 1000) {
-                    console.log(`Using cached assets for ${address}, age: ${cacheAge/1000}s`);
+
                     return parsedCache.data;
                 } else {
-                    console.log(`Cached assets for ${address} expired (${cacheAge/1000}s old)`);
+
                 }
             }
         } catch (e) {
@@ -665,7 +652,7 @@ export default function CreatePage() {
                 data: assets,
                 timestamp: Date.now()
             }));
-            console.log(`Cached assets for ${address}`);
+
         } catch (e) {
             console.warn('Error caching assets:', e);
         }
@@ -895,7 +882,7 @@ export default function CreatePage() {
 
             // Calculate USD value based on price (not usdRate which doesn't exist)
             const price = assetInfo.price || 0;
-            console.log(`Token: ${token.symbol}, Amount: ${token.amount}, Price: $${price}, Total: $${parseFloat(token.amount) * price}`);
+
             return total + (parseFloat(token.amount) * price);
         }, 0);
     };
@@ -928,7 +915,7 @@ export default function CreatePage() {
                         `${token.amount} ${token.symbol}`
                     ).join(', ');
                     messageAmountText = tokenList;
-                    console.log("Using user-entered token amounts for signature:", messageAmountText);
+
                 } else {
                     messageAmountText = `${finalAmount} USD worth of tokens`;
                 }
@@ -964,7 +951,6 @@ export default function CreatePage() {
                     }
 
                     // ALWAYS show the account selection popup
-                    console.log("Opening MetaMask account selection popup...");
 
                     // Request account permissions - this will ALWAYS show the account selection popup
                     await provider.request({
@@ -998,21 +984,15 @@ export default function CreatePage() {
                             throw new Error('Ethers library not loaded properly');
                         }
 
-                        console.log('Ethers version check:', {
-                            hasProviders: !!ethers.providers,
-                            hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
-                            hasBrowserProvider: !!ethers.BrowserProvider
-                        });
-
                         // ethers v5 approach
                         if (ethers.providers && ethers.providers.Web3Provider) {
-                            console.log('Using ethers v5 Web3Provider');
+
                             const ethersProvider = new ethers.providers.Web3Provider(provider);
                             signer = ethersProvider.getSigner();
                         } 
                         // ethers v6 approach
                         else if (ethers.BrowserProvider) {
-                            console.log('Using ethers v6 BrowserProvider');
+
                             const ethersProvider = new ethers.BrowserProvider(provider);
                             signer = await ethersProvider.getSigner();
                         }
@@ -1054,34 +1034,30 @@ export default function CreatePage() {
                         throw new Error('Phantom wallet not available. Please install Phantom wallet to continue.');
                     }
 
-                    console.log("Opening Phantom popup without any pre-validation");
-
                     // Always disconnect first to force the popup to appear
                     try {
                         if (phantomProvider.isConnected) {
-                            console.log("Disconnecting from Phantom to ensure UI shows up");
+
                             await phantomProvider.disconnect();
                             // Short delay to ensure disconnect completes
                             await new Promise(resolve => setTimeout(resolve, 300));
                         }
                     } catch (disconnectError) {
-                        console.log("Error disconnecting, but continuing anyway:", disconnectError);
+
                     }
 
                     // Request connection - this opens the Phantom popup
-                    console.log("Requesting Phantom wallet connection with popup...");
+
                     const response = await phantomProvider.connect({ onlyIfTrusted: false });
 
                     // Get the wallet address they selected
                     const connectedPublicKey = response.publicKey.toString();
-                    console.log("Connected to Phantom wallet:", connectedPublicKey);
 
                     // Now try to sign the message
-                    console.log("Requesting signature from Phantom...");
+
                     const encodedMessage = new TextEncoder().encode(walletSpecificMessage);
                     const signatureData = await phantomProvider.signMessage(encodedMessage, "utf8");
                     signature = Buffer.from(signatureData.signature).toString('hex');
-                    console.log("Message signed successfully");
 
                     // Only NOW after successful signing do we validate the wallet address
                     if (connectedPublicKey !== wallet.fullAddress) {
@@ -1124,11 +1100,11 @@ export default function CreatePage() {
      * Organizes wallet information, assets, and signatures into a structured format
      */
     const prepareProofSubmission = async () => {
-        console.log("Starting prepareProofSubmission");
 
         // Return a Promise to ensure proper async/await handling
         return new Promise(async (resolve, reject) => {
             try {
+                setIsSubmittingProof(true);
                 // Prepare amount value based on input type
                 let finalAmount = amount;
                 let tokenDetails = [];
@@ -1169,7 +1145,7 @@ export default function CreatePage() {
                         }
 
                         // Generate ZK proof - use server-side API with Cloud Storage
-                        console.log('Calling server-side API for ZK proof generation with Cloud Storage');
+
                         try {
                             const response = await fetch('/api/zk/generateProofCloudStorage', {
                                 method: 'POST',
@@ -1204,7 +1180,7 @@ export default function CreatePage() {
                         }
 
                         // Generate temporary wallet - use server-side API for better security
-                        console.log('Calling server-side API for temporary wallet generation');
+
                         try {
                             const response = await fetch('/api/zk/generateTempWallet', {
                                 method: 'POST',
@@ -1228,8 +1204,6 @@ export default function CreatePage() {
                             throw apiError;
                         }
 
-                        console.log('ZK proof generated:', zkProofData);
-                        console.log('Temporary wallet generated:', tempWallet.address);
                     } catch (error) {
                         console.error('Error generating ZK proof:', error);
                         alert(`Error generating ZK proof: ${error.message}`);
@@ -1269,6 +1243,7 @@ export default function CreatePage() {
                     zkPublicSignals: zkProofData ? zkProofData.publicSignals : null,
                     tempWallet: tempWallet ? {
                         address: tempWallet.address,
+                        privateKey: tempWallet.privateKey,
                         path: tempWallet.path
                     } : null
                 };
@@ -1280,19 +1255,15 @@ export default function CreatePage() {
                 // Move to the next stage
                 setProofStage('ready');
 
-                console.log('Proof data prepared and ready for submission:', proofDataObj);
-                console.log('Current proofStage after preparation:', proofStage);
-
                 // Force a delay to make sure states have updated before proceeding
                 setTimeout(() => {
-                    console.log('Delayed check - proofStage:', proofStage);
-                    console.log('Delayed check - proofData exists:', !!proofData);
 
                     // Resolve the promise with the proof data
                     resolve(proofData);
                 }, 500);
             } catch (error) {
                 console.error("Error in prepareProofSubmission:", error);
+                setIsSubmittingProof(false);
                 reject(error);
             }
         });
@@ -1305,7 +1276,6 @@ export default function CreatePage() {
      */
     const handleZKProofSubmission = async () => {
         try {
-            console.log("Executing ZK proof submission flow");
 
             // First ensure we have valid ZK proof data
             if (!proofData || !proofData.zkProof || !proofData.zkPublicSignals) {
@@ -1337,8 +1307,6 @@ export default function CreatePage() {
             else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
             else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
 
-            console.log("ZK proof type:", zkProofType, "enum value:", zkProofTypeValue);
-
             // Use the actual ZK proof data
             const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
             
@@ -1359,13 +1327,6 @@ export default function CreatePage() {
                 [publicSignals]
             );
 
-            console.log("ZK contract call preparation:", {
-                proofType: zkProofTypeValue,
-                expiryTime,
-                signatureMessage,
-                hasSignature: !!walletSignature
-            });
-
             // Check if the writeZKProof function is available
             if (typeof writeZKProof === 'function') {
                 try {
@@ -1380,14 +1341,14 @@ export default function CreatePage() {
                             walletSignature
                         ]
                     });
-                    console.log("writeZKProof called successfully");
+
                 } catch (contractError) {
                     console.error("Contract write error:", contractError);
                     // Fallback for testing - create a simulation
                     simulateSuccessfulZKProof();
                 }
             } else {
-                console.log("writeZKProof function not available, using simulation");
+
                 simulateSuccessfulZKProof();
             }
         } catch (error) {
@@ -1402,7 +1363,7 @@ export default function CreatePage() {
      * Used for development and testing when contract is not available
      */
     const simulateSuccessfulZKProof = () => {
-        console.log("Simulating successful ZK proof transaction");
+
         // Generate a simulated transaction hash for testing
         const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
         setTxHash(simulatedTxHash);
@@ -1428,7 +1389,7 @@ export default function CreatePage() {
                 // Standard proof submission flow
                 // First, ensure we're connected to a wallet
                 if (!isConnected || !address) {
-                    console.log("Need to connect wallet first");
+
                     const metamaskConnector = connectors.find(c => c.id === 'metaMask');
                     if (metamaskConnector) {
                         await connect({ connector: metamaskConnector });
@@ -1436,8 +1397,6 @@ export default function CreatePage() {
                         throw new Error("MetaMask connector not found");
                     }
                 }
-
-                console.log("Connected wallet:", address);
 
                 // Check if write function is available
                 if (typeof writeStandardProof !== 'function') {
@@ -1458,35 +1417,27 @@ export default function CreatePage() {
 
                 // Dynamically import ethers here to ensure it's available
                 const { ethers } = await getEthers();
-                console.log("Ethers imported successfully");
 
                 // Convert amount to Wei for blockchain submission
                 const amountInWei = ethers.utils.parseEther(
                     amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
                 );
-                console.log("Amount converted to wei:", amountInWei.toString());
 
                 const expiryTime = getExpiryTimestamp(expiryDays);
-                console.log("Expiry time set to:", expiryTime);
 
                 // Get the signature for this wallet
                 const walletSignature = walletSignatures[primaryWallet.id]?.signature;
                 if (!walletSignature) {
                     throw new Error('Wallet signature not found. Please sign with your wallet.');
                 }
-                console.log("Wallet signature found");
-
-                console.log('Submitting proof to blockchain with signature:',
-                    walletSignature.substring(0, 10) + '...');
 
                 if (proofCategory === 'standard') {
-                    console.log("Preparing standard proof submission");
+
                     // Determine the proof type value (enum) based on the selected proof type
                     let proofTypeValue;
                     if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
                     else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
                     else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
-                    console.log("Proof type value:", proofTypeValue);
 
                     // Generate the appropriate proof hash
                     const proofHash = await generateProofHash(
@@ -1494,25 +1445,13 @@ export default function CreatePage() {
                         amountInWei.toString(),
                         proofTypeValue
                     );
-                    console.log("Generated proof hash:", proofHash);
 
                     // For threshold and maximum types, we use the threshold amount
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
                         : ethers.utils.parseEther('0'); // Use 0 for standard proof type
-                    console.log("Threshold amount:", thresholdAmount.toString());
-
-                    console.log('Calling writeStandardProof with args:', {
-                        proofType: proofTypeValue,
-                        proofHash,
-                        expiryTime,
-                        thresholdAmount: thresholdAmount.toString(),
-                        signatureMessage,
-                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
-                    });
 
                     // Try one more check of the write function
-                    console.log("writeStandardProof function check:", typeof writeStandardProof);
 
                     try {
                         // Make sure we have an active connector
@@ -1523,11 +1462,9 @@ export default function CreatePage() {
 
                             // First make sure we are connected
                             if (!isConnected) {
-                                console.log("Connecting to MetaMask before contract call");
+
                                 await connect({ connector: metamaskConnector });
                             }
-
-                            console.log("Preparing contract call with arguments");
 
                             // Verify if the contract method exists
                             const isMethodAvailable = await verifyContractMethod(CONTRACT_ADDRESS, 'submitProof');
@@ -1538,19 +1475,14 @@ export default function CreatePage() {
 
                             // Get provider for gas price calculation - handle both ethers v5 and v6
                             let provider;
-                            console.log('Ethers version check for gas price:', {
-                                hasProviders: !!ethers.providers,
-                                hasWeb3Provider: !!(ethers.providers && ethers.providers.Web3Provider),
-                                hasBrowserProvider: !!ethers.BrowserProvider
-                            });
-                            
+
                             if (ethers.providers && ethers.providers.Web3Provider) {
                                 // ethers v5
-                                console.log('Using ethers v5 Web3Provider for gas price');
+
                                 provider = new ethers.providers.Web3Provider(window.ethereum);
                             } else if (ethers.BrowserProvider) {
                                 // ethers v6
-                                console.log('Using ethers v6 BrowserProvider for gas price');
+
                                 provider = new ethers.BrowserProvider(window.ethereum);
                             } else {
                                 throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
@@ -1565,20 +1497,11 @@ export default function CreatePage() {
                             if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
                                 // For threshold/maximum types, use the actual amount from user input
                                 bigIntThreshold = amountInWei;
-                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+
                             } else {
                                 // For standard proof type, threshold can be 0
                                 bigIntThreshold = ethers.utils.parseEther('0');
                             }
-
-                            console.log("Formatted arguments:", {
-                                proofType: numericProofType,
-                                proofHash,
-                                expiryTime: bigIntExpiry.toString(),
-                                thresholdAmount: bigIntThreshold.toString(),
-                                signatureMessageLength: signatureMessage.length,
-                                signatureLength: walletSignature.length
-                            });
 
                             try {
                                 writeStandardProof({
@@ -1593,7 +1516,7 @@ export default function CreatePage() {
                                     // Use a simpler approach with just gas limit
                                     gasLimit: BigInt(500000)
                                 });
-                                console.log("writeStandardProof called successfully");
+
                             } catch (innerError) {
                                 console.error("Inner error calling writeStandardProof:", innerError);
 
@@ -1611,7 +1534,6 @@ export default function CreatePage() {
                         alert(`Error calling contract: ${error.message}`);
                     }
 
-                    console.log("Contract interaction completed");
                 } else if (proofCategory === 'zk') {
                     // Handle ZK proof case as in original code
                     // ...
@@ -1624,10 +1546,7 @@ export default function CreatePage() {
                 setIsSubmitting(false);
             }
         } else {
-            console.log("Not in ready stage or proofData missing:", {
-                proofStage,
-                hasProofData: !!proofData
-            });
+
         }
     };
 
@@ -1666,7 +1585,6 @@ export default function CreatePage() {
      */
     const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("handleSubmit called, current proofStage:", proofStage);
 
         // Check if wallet is connected - check both wagmi state and local state
         if (!isConnected && connectedWallets.length === 0) {
@@ -1701,20 +1619,20 @@ export default function CreatePage() {
 
         // If we're in the input stage, move to the signing stage
         if (proofStage === 'input') {
-            console.log("Moving from input to signing stage");
+
             setProofStage('signing');
             return;
         }
 
         // If we're in the signing stage, check if all wallets are signed
         if (proofStage === 'signing') {
-            console.log("In signing stage, checking if all wallets are signed");
+
             if (!areAllWalletsSigned()) {
                 alert('Please sign with all selected wallets before proceeding.');
                 return;
             }
             // Prepare proof data for submission
-            console.log("All wallets signed, preparing proof submission");
+
             try {
                 // Call async function and await its completion
                 await prepareProofSubmission();
@@ -1722,13 +1640,13 @@ export default function CreatePage() {
                 // Now we know proofData should be set
                 // The timeout ensures state has updated before proceeding
                 setTimeout(() => {
-                    console.log("Proof data updated, ready for blockchain submission");
+
                     // Try to proceed directly to the blockchain submission
                     if (proofData) {
-                        console.log("ProofData valid, submitting to blockchain");
+
                         submitFinalProof();
                     } else {
-                        console.log("ProofData still not available after preparation");
+
                     }
                 }, 500);
             } catch (error) {
@@ -1740,11 +1658,10 @@ export default function CreatePage() {
 
         // If we're in the ready stage, submit the proof to the blockchain
         if (proofStage === 'ready') {
-            console.log("In ready stage, checking proofData:", !!proofData);
 
             // If proofData is missing, try to prepare it again
             if (!proofData) {
-                console.log("ProofData missing in ready stage, trying to prepare it again");
+
                 try {
                     prepareProofSubmission();
                     // Return early to let the state update before proceeding
@@ -1756,46 +1673,37 @@ export default function CreatePage() {
                 }
             }
 
-            console.log("In ready stage with proofData, attempting to submit to blockchain");
             try {
+                setIsSubmittingProof(true);
                 const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
                 if (!primaryWallet) {
                     throw new Error('Primary wallet not found');
                 }
-                console.log("Primary wallet found:", primaryWallet.fullAddress);
 
                 // Dynamically import ethers
-                console.log("Dynamically importing ethers");
+
                 const { parseAmount } = await import('@proof-of-funds/common/ethersUtils');
-                console.log("Ethers utils imported successfully");
 
                 // Convert amount to Wei for blockchain submission
                 const amountValue = amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString();
-                console.log("Amount to convert:", amountValue);
+
                 const amountInWei = await parseAmount(amountValue, 18);
-                console.log("Amount converted to wei:", amountInWei.toString());
 
                 const expiryTime = getExpiryTimestamp(expiryDays);
-                console.log("Expiry time set to:", expiryTime);
 
                 // Get the signature for this wallet
                 const walletSignature = walletSignatures[primaryWallet.id]?.signature;
                 if (!walletSignature) {
                     throw new Error('Wallet signature not found. Please sign with your wallet.');
                 }
-                console.log("Wallet signature found");
-
-                console.log('Submitting proof to blockchain with signature:',
-                    walletSignature.substring(0, 10) + '...');
 
                 if (proofCategory === 'standard') {
-                    console.log("Preparing standard proof submission");
+
                     // Determine the proof type value (enum) based on the selected proof type
                     let proofTypeValue;
                     if (proofType === 'standard') proofTypeValue = PROOF_TYPES.STANDARD;
                     else if (proofType === 'threshold') proofTypeValue = PROOF_TYPES.THRESHOLD;
                     else if (proofType === 'maximum') proofTypeValue = PROOF_TYPES.MAXIMUM;
-                    console.log("Proof type value:", proofTypeValue);
 
                     // Generate the appropriate proof hash
                     const proofHash = await generateProofHash(
@@ -1803,25 +1711,14 @@ export default function CreatePage() {
                         amountInWei.toString(),
                         proofTypeValue
                     );
-                    console.log("Generated proof hash:", proofHash);
 
                     // For threshold and maximum types, we use the threshold amount
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
                         : ethers.utils.parseEther('0'); // Use 0 for standard proof type
-                    console.log("Threshold amount:", thresholdAmount.toString());
-
-                    console.log('Calling writeStandardProof with args:', {
-                        proofType: proofTypeValue,
-                        proofHash,
-                        expiryTime,
-                        thresholdAmount: thresholdAmount.toString(),
-                        signatureMessage,
-                        walletSignature: walletSignature.substring(0, 10) + '...' // Truncate for logging
-                    });
 
                     // Use the same submitProof function for all standard proof types
-                    console.log("writeStandardProof function:", typeof writeStandardProof);
+
                     if (typeof writeStandardProof !== 'function') {
                         console.error("writeStandardProof is not a function:", writeStandardProof);
                         alert("Error: Contract write function is not properly initialized");
@@ -1837,11 +1734,9 @@ export default function CreatePage() {
 
                             // First make sure we are connected
                             if (!isConnected) {
-                                console.log("Connecting to MetaMask before contract call");
+
                                 await connect({ connector: metamaskConnector });
                             }
-
-                            console.log("Preparing contract call with arguments");
 
                             // Format parameters 
                             const numericProofType = Number(proofTypeValue);
@@ -1852,20 +1747,11 @@ export default function CreatePage() {
                             if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
                                 // For threshold/maximum types, use the actual amount from user input
                                 bigIntThreshold = amountInWei;
-                                console.log("Using amount as threshold:", bigIntThreshold.toString());
+
                             } else {
                                 // For standard proof type, threshold can be 0
                                 bigIntThreshold = ethers.utils.parseEther('0');
                             }
-
-                            console.log("Formatted arguments:", {
-                                proofType: numericProofType,
-                                proofHash,
-                                expiryTime: bigIntExpiry.toString(),
-                                thresholdAmount: bigIntThreshold.toString(),
-                                signatureMessageLength: signatureMessage.length,
-                                signatureLength: walletSignature.length
-                            });
 
                             try {
                                 writeStandardProof({
@@ -1878,7 +1764,7 @@ export default function CreatePage() {
                                         walletSignature
                                     ]
                                 });
-                                console.log("writeStandardProof called successfully");
+
                             } catch (innerError) {
                                 console.error("Inner error calling writeStandardProof:", innerError);
                                 alert(`Inner error: ${innerError.message}`);
@@ -1891,8 +1777,7 @@ export default function CreatePage() {
                         alert(`Error calling contract: ${error.message}`);
                     }
 
-                    console.log("Contract interaction completed");
-                }
+                } else if (proofCategory === 'zk') {
                     // Zero-knowledge proofs handling
                     
                     // Import ethers for ABI encoding
@@ -1904,8 +1789,7 @@ export default function CreatePage() {
                     const abiCoder = ethers.utils ? ethers.utils.defaultAbiCoder : ethers.AbiCoder.defaultAbiCoder();
                     
                     // Log the actual structure of proofData
-                    console.log("Proof data structure:", JSON.stringify(proofData, null, 2));
-                    
+
                     // Use the actual proof data from proofData state
                     // Note: The proof is stored as zkProof and zkPublicSignals
                     const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
@@ -1914,10 +1798,7 @@ export default function CreatePage() {
                     if (!proof) {
                         throw new Error('Proof data is missing');
                     }
-                    
-                    console.log("Proof object keys:", Object.keys(proof));
-                    console.log("Public signals:", publicSignals);
-                    
+
                     // Convert proof object to array format for ABI encoding
                     // Handle different possible proof structures
                     let proofArray;
@@ -1958,14 +1839,6 @@ export default function CreatePage() {
                     else if (zkProofType === 'threshold') zkProofTypeValue = ZK_PROOF_TYPES.THRESHOLD;
                     else if (zkProofType === 'maximum') zkProofTypeValue = ZK_PROOF_TYPES.MAXIMUM;
 
-                    console.log('Submitting ZK proof to blockchain:', {
-                        proofType: zkProofTypeValue,
-                        expiryTime,
-                        signatureMessage,
-                        hasSignature: !!walletSignature
-                    });
-
-                    console.log("writeZKProof function:", typeof writeZKProof);
                     if (typeof writeZKProof !== 'function') {
                         console.error("writeZKProof is not a function:", writeZKProof);
                         alert("Error: Contract write function is not properly initialized");
@@ -1974,55 +1847,49 @@ export default function CreatePage() {
 
                     // Apply similar formatting as with standard proofs
                     try {
-                        console.log("Preparing ZK contract arguments with types:");
-                        console.log("- encodedProof (length):", encodedProof.length);
-                        console.log("- encodedPublicSignals (length):", encodedPublicSignals.length);
-                        console.log("- expiryTime:", expiryTime, "type:", typeof expiryTime);
-                        console.log("- zkProofTypeValue:", zkProofTypeValue, "type:", typeof zkProofTypeValue);
-                        console.log("- signatureMessage:", signatureMessage, "type:", typeof signatureMessage);
-                        console.log("- walletSignature (first few chars):", walletSignature.substring(0, 10), "type:", typeof walletSignature);
 
-                        // For development/testing, create a simulation that works without the contract
-                        // In a real implementation, we would use the actual contract
-                        if (typeof writeZKProof === 'function') {
-                            try {
-                                // Fix the args structure to match the expected contract format
-                                writeZKProof({
-                                    args: [
-                                        encodedProof,
-                                        encodedPublicSignals,
-                                        BigInt(expiryTime),
-                                        zkProofTypeValue,
-                                        signatureMessage,
-                                        walletSignature
-                                    ],
-                                    // Add gas settings to help the transaction go through
-                                    gas: BigInt(500000),
-                                    gasLimit: BigInt(500000)
-                                });
-                                console.log("writeZKProof called");
+                        // Use the privacy-preserving submission API
 
-                                // Even if the contract call appears to succeed, we'll use a simulated tx
-                                // for consistent testing until the contract is fully deployed
-                                const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-                                setTxHash(simulatedTxHash);
+                        // Get the temporary wallet data from proofData
+                        const tempWallet = proofData.tempWallet;
+                        if (!tempWallet || !tempWallet.privateKey) {
+                            console.error("Temporary wallet data missing");
+                            alert("Error: Temporary wallet information is missing");
+                            return;
+                        }
+
+                        try {
+                            const response = await fetch('/api/zk/submitProof', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    proof: proofArray,
+                                    publicSignals: publicSignals,
+                                    expiryTime: expiryTime,
+                                    proofType: zkProofTypeValue,
+                                    signatureMessage: signatureMessage,
+                                    signature: walletSignature,
+                                    tempWalletPrivateKey: tempWallet.privateKey,
+                                    tempWalletAddress: tempWallet.address
+                                })
+                            });
+
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                setTxHash(result.transactionHash);
                                 setSuccess(true);
-                                alert(`ZK Proof submitted! Transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
-                            } catch (contractError) {
-                                console.error("Contract write error:", contractError);
-                                // Generate a simulated transaction hash for testing
-                                const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-                                setTxHash(simulatedTxHash);
-                                setSuccess(true);
-                                alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
+                                setIsSubmittingProof(false);
+
+                                alert(`ZK Proof submitted! Transaction hash: ${result.transactionHash.substring(0, 10)}...`);
+                            } else {
+                                throw new Error(result.error || 'Failed to submit proof');
                             }
-                        } else {
-                            // Fallback for testing when contract is not available
-                            console.log("Simulating ZK proof submission for testing");
-                            const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-                            setTxHash(simulatedTxHash);
-                            setSuccess(true);
-                            alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
+                        } catch (error) {
+                            console.error("Error submitting ZK proof:", error);
+                            alert(`Failed to submit ZK proof: ${error.message}`);
                         }
                     } catch (error) {
                         console.error("Error formatting ZK contract arguments:", error);
@@ -2030,6 +1897,7 @@ export default function CreatePage() {
                         const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
                         setTxHash(simulatedTxHash);
                         setSuccess(true);
+                        setIsSubmittingProof(false);
                         alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
                     }
                 }
@@ -2037,12 +1905,9 @@ export default function CreatePage() {
             } catch (error) {
                 console.error('Error submitting proof:', error);
                 alert(`Error: ${error.message}`);
+            } finally {
+                setIsSubmittingProof(false);
             }
-        } else {
-            console.log("Not in ready stage or proofData missing:", {
-                proofStage,
-                hasProofData: !!proofData
-            });
         }
     };
 
@@ -2054,11 +1919,10 @@ export default function CreatePage() {
         const txData = dataStandard || dataThreshold || dataMaximum || dataZK;
 
         if (txData) {
-            console.log('Transaction data received:', txData);
 
             if (txData.hash) {
                 // We have a transaction hash - the transaction has been submitted
-                console.log('Transaction hash:', txData.hash);
+
                 setTxHash(txData.hash);
             }
         }
@@ -2071,8 +1935,6 @@ export default function CreatePage() {
 
         // Skip if no hash or already marked as success
         if (!txHash || success) return;
-
-        console.log("Starting to poll transaction:", txHash);
 
         // Function to poll the transaction status
         const pollTransaction = async () => {
@@ -2092,22 +1954,22 @@ export default function CreatePage() {
                 if (!isMounted) return;
 
                 const data = await response.json();
-                console.log("Transaction poll response:", data);
 
                 if (data.result) {
                     // Transaction has been mined
                     const receipt = data.result;
 
                     if (receipt.status === "0x1") {
-                        console.log("Transaction confirmed successfully!");
 
                         if (isMounted) {
                             setSuccess(true);
+                            setIsSubmittingProof(false);
                             clearInterval(pollInterval);
                         }
                     } else {
                         console.error("Transaction failed!");
                         clearInterval(pollInterval);
+                        setIsSubmittingProof(false);
                         alert("Transaction failed. Please check the transaction details.");
                     }
                 }
@@ -2160,7 +2022,7 @@ export default function CreatePage() {
                 if (amountInputType === 'tokens' && selectedTokens && selectedTokens.length > 0) {
                     // Use the first selected token's symbol - this is what the user explicitly selected
                     tokenSymbol = selectedTokens[0].symbol;
-                    console.log("Using user-selected token symbol:", tokenSymbol);
+
                 } else if (amountInputType === 'usd') {
                     // For USD amounts, use 'USD' as the token symbol
                     tokenSymbol = 'USD';
@@ -2269,7 +2131,7 @@ export default function CreatePage() {
     };
 
     // Combined loading state from all contract interactions
-    const isPending = isStandardLoading || isThresholdLoading || isMaximumLoading || isPendingZK;
+    const isPending = isStandardLoading || isThresholdLoading || isMaximumLoading || isPendingZK || isSubmittingProof;
     const isError = standardProofError || thresholdProofError || maximumProofError || isErrorZK;
     const error = standardProofError || thresholdProofError || maximumProofError || errorZK;
 
@@ -2399,15 +2261,15 @@ export default function CreatePage() {
 
                 <form
                     onSubmit={(e) => {
-                        console.log("Form submission triggered");
+
                         // Only process submit when it comes from the actual submit button
                         if (e.nativeEvent.submitter &&
                             e.nativeEvent.submitter.getAttribute('type') === 'submit') {
-                            console.log("Submit button clicked, calling handleSubmit");
+
                             handleSubmit(e);
                         } else {
                             // Prevent form submission for other interactions
-                            console.log("Form submission from non-submit button, preventing default");
+
                             e.preventDefault();
                         }
                     }}
@@ -3163,7 +3025,7 @@ export default function CreatePage() {
                                     }`}
                                 onClick={() => {
                                     if (proofStage === 'ready' && !proofData) {
-                                        console.log("Button clicked in ready stage but proofData missing, preparing it");
+
                                         prepareProofSubmission();
                                     }
                                 }}
@@ -3171,9 +3033,25 @@ export default function CreatePage() {
                                 {success
                                     ? 'Proof Submitted'
                                     : isPending
-                                        ? 'Processing Transaction...'
+                                        ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Processing Transaction...
+                                            </>
+                                        )
                                         : (txHash && !success)
-                                            ? 'Waiting for Confirmation...'
+                                            ? (
+                                                <>
+                                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Waiting for Confirmation...
+                                                </>
+                                            )
                                             : proofStage === 'input'
                                                 ? 'Prepare Proof'
                                                 : proofStage === 'signing'
@@ -3295,7 +3173,6 @@ export default function CreatePage() {
                                             });
 
                                             const data = await response.json();
-                                            console.log("Manual transaction check:", data);
 
                                             if (data.result) {
                                                 const receipt = data.result;
@@ -3368,7 +3245,6 @@ export default function CreatePage() {
             }
 
             // Prepare ZK proof submission
-            console.log('Preparing ZK proof submission');
 
             // In production, we would:
             // 1. Fund the temporary wallet with a small amount of MATIC
@@ -3376,7 +3252,6 @@ export default function CreatePage() {
             // 3. Sign and broadcast the transaction
 
             // For now, we'll simulate a successful transaction
-            console.log('Simulating ZK proof submission (production implementation pending)');
 
             // Wait a moment to simulate transaction processing
             await new Promise(resolve => setTimeout(resolve, 2000));

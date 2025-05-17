@@ -39,7 +39,7 @@ class ZKeyStorageManager {
         for (const testPath of possiblePaths) {
           if (fs.existsSync(testPath)) {
             keyFilePath = testPath;
-            console.log(`Found GCP key file at: ${testPath}`);
+
             break;
           }
         }
@@ -57,9 +57,7 @@ class ZKeyStorageManager {
       if (!fs.existsSync(keyFilePath)) {
         throw new Error(`GCP key file not found at resolved path: ${keyFilePath}`);
       }
-      
-      console.log(`Using GCP key file: ${keyFilePath}`);
-      
+
       this.storage = new Storage({
         projectId: projectId,
         keyFilename: keyFilePath
@@ -67,11 +65,7 @@ class ZKeyStorageManager {
       
       this.projectId = projectId;
       this.bucketName = process.env.GCP_STORAGE_BUCKET || `${this.projectId}-zkeys`;
-      
-      console.log(`ZKeyStorageManager initialized with:
-        - Project: ${this.projectId}
-        - Bucket: ${this.bucketName}
-        - Key file: ${keyFilePath}`);
+
     }
   }
 
@@ -84,7 +78,7 @@ class ZKeyStorageManager {
       const bucketExists = buckets.some(b => b.name === this.bucketName);
       
       if (!bucketExists) {
-        console.log(`Creating bucket: ${this.bucketName}`);
+
         await this.storage.createBucket(this.bucketName, {
           location: 'US',
           storageClass: 'STANDARD',
@@ -93,7 +87,7 @@ class ZKeyStorageManager {
             defaultKmsKeyName: process.env.GCP_KMS_KEY_NAME
           }
         });
-        console.log(`✅ Bucket created: ${this.bucketName}`);
+
       }
       
       return this.storage.bucket(this.bucketName);
@@ -117,18 +111,14 @@ class ZKeyStorageManager {
       const bucket = this.storage.bucket(this.bucketName);
       const fileName = `${circuitName}.zkey`;
       const file = bucket.file(fileName);
-      
-      console.log(`Checking if ${fileName} exists in bucket ${this.bucketName}...`);
-      
+
       const [exists] = await file.exists();
       if (!exists) {
         throw new Error(`ZKey file "${fileName}" not found in bucket "${this.bucketName}". Please run deployment script to upload zkey files.`);
       }
-      
-      console.log(`Downloading ${fileName} from Cloud Storage...`);
+
       const [data] = await file.download();
-      console.log(`Successfully downloaded ${fileName} (${data.length} bytes)`);
-      
+
       return data;
     } catch (error) {
       if (error.code === 403) {

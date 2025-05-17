@@ -270,12 +270,7 @@ export default async function handler(req, res) {
 
     // Log client information for telemetry if provided
     if (clientInfo.userAgent) {
-      console.log(`Server-side fullProve request from:`, {
-        userAgent: clientInfo.userAgent,
-        wasmSupported: clientInfo.wasmSupported,
-        timestamp: clientInfo.timestamp || new Date().toISOString(),
-        operationId
-      });
+
     }
 
     // Initialize snarkjs if not already initialized
@@ -335,7 +330,7 @@ export default async function handler(req, res) {
         publicSignals = result.publicSignals;
         
         // Log success
-        console.log(`Proof generated successfully for operation ${operationId}`);
+
       } catch (proofError) {
         console.error('Proof generation error:', proofError.message, {
           error: proofError,

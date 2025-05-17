@@ -49,7 +49,7 @@ const getWorkingProvider = async (isTestnet = true) => {
     if (typeof window !== 'undefined' && window.ethereum) {
         try {
             // Use the injected provider
-            console.log("Using injected Web3 provider");
+
             return new ethers.providers.Web3Provider(window.ethereum);
         } catch (e) {
             console.warn("Error using injected provider:", e);
@@ -63,11 +63,11 @@ const getWorkingProvider = async (isTestnet = true) => {
     // Try each RPC URL until one works
     for (const rpcUrl of rpcOptions) {
         try {
-            console.log(`Trying ${networkName} RPC URL: ${rpcUrl}`);
+
             const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
             // Do a quick test call
             await provider.getNetwork();
-            console.log(`Success with provider: ${rpcUrl}`);
+
             return provider;
         } catch (e) {
             console.warn(`Failed to connect to ${rpcUrl}:`, e.message);
@@ -167,25 +167,19 @@ export default function VerifyPage() {
             setIsLoading(true);
             setError(null);
 
-            console.log("Getting proof from transaction:", txHash);
-            console.log("Contract address:", contractAddr);
-
             // Try client-side verification first (using browser provider)
             try {
                 // Try to get a working provider first
                 const provider = await getWorkingProvider(isTestnet);
-                console.log("Using ethers provider with:", provider.connection?.url || "Web3Provider");
 
                 // Get transaction receipt using ethers
                 const receipt = await provider.getTransactionReceipt(txHash);
-                console.log("Transaction receipt:", receipt);
 
                 if (!receipt) {
                     throw new Error('Transaction not found on the network. Make sure you\'re verifying a transaction from the correct network.');
                 }
 
                 // Continue with the existing verification logic...
-                console.log("Transaction logs count:", receipt.logs?.length || 0);
 
                 // Check transaction status
                 if (receipt.status !== 1) {
@@ -194,14 +188,13 @@ export default function VerifyPage() {
 
                 // Get the full transaction data
                 const txData = await provider.getTransaction(txHash);
-                console.log("Transaction data:", txData);
 
                 // Check if this transaction was sent to our contract
                 if (txData && txData.to) {
                     if (txData.to.toLowerCase() !== contractAddr.toLowerCase()) {
                         console.warn(`WARNING: Transaction was sent to ${txData.to}, but our contract address is ${contractAddr}`);
                     } else {
-                        console.log("Transaction was sent to our contract address ✓");
+
                     }
                 }
 
@@ -216,20 +209,16 @@ export default function VerifyPage() {
                     log.address.toLowerCase() === contractAddr.toLowerCase()
                 );
 
-                console.log(`Found ${contractLogs.length} logs for contract ${contractAddr}`);
-
                 // Variable to store the actual contract address we end up using
                 let actualContractAddress = contractAddr;
                 let actualContract = contract;
 
                 if (contractLogs.length === 0) {
-                    console.log("Looking for logs in all addresses in this transaction...");
+
                     const uniqueAddresses = [...new Set(receipt.logs.map(log => log.address.toLowerCase()))];
-                    console.log("Unique contract addresses in logs:", uniqueAddresses);
 
                     if (uniqueAddresses.length > 0) {
                         // The contract might be deployed at a different address
-                        console.log("Possible contract address mismatch. Check if your contract is actually at:", uniqueAddresses[0]);
 
                         // Try with first contract address found in logs
                         const possibleContractLogs = receipt.logs.filter(log =>
@@ -237,33 +226,30 @@ export default function VerifyPage() {
                         );
 
                         if (possibleContractLogs.length > 0) {
-                            console.log(`Found ${possibleContractLogs.length} logs for possible contract ${uniqueAddresses[0]}`);
-                            console.log("Attempting to parse logs with our ABI...");
 
                             try {
                                 const testLog = contractInterface.parseLog(possibleContractLogs[0]);
-                                console.log("Successfully parsed log from alternate contract address:", testLog);
 
                                 // If we can parse it, use these logs instead
-                                console.log("Using logs from alternate contract address");
+
                                 actualContractAddress = uniqueAddresses[0];
                                 actualContract = new ethers.Contract(actualContractAddress, CONTRACT_ABI, provider);
                                 contractLogs.push(...possibleContractLogs);
                             } catch (e) {
-                                console.log("Could not parse logs from alternate contract:", e.message);
+
                             }
                         }
                     }
 
                     if (contractLogs.length === 0) {
                         // Try to dump all events to see what's there
-                        console.log("Trying to parse all logs regardless of contract address:");
+
                         receipt.logs.forEach((log, index) => {
                             try {
                                 const parsedLog = contractInterface.parseLog(log);
-                                console.log(`Log ${index} from ${log.address}:`, parsedLog.name);
+
                             } catch (e) {
-                                console.log(`Log ${index} from ${log.address}: Could not parse`);
+
                             }
                         });
 
@@ -272,18 +258,18 @@ export default function VerifyPage() {
                 }
 
                 // Parse logs...
-                console.log("All events from our contract:");
+
                 const parsedLogs = [];
                 contractLogs.forEach((log, index) => {
                     try {
                         const parsedLog = contractInterface.parseLog(log);
-                        console.log(`Event ${index}:`, parsedLog.name);
+
                         parsedLogs.push({
                             log,
                             parsedLog
                         });
                     } catch (e) {
-                        console.log(`Event ${index}: Failed to parse`, e.message);
+
                     }
                 });
 
@@ -294,24 +280,21 @@ export default function VerifyPage() {
                 );
 
                 if (!proofSubmittedLog) {
-                    console.log("No ProofSubmitted event found. Available events:",
-                        parsedLogs.map(entry => entry.parsedLog.name));
+
                     throw new Error('No proof submission found in this transaction');
                 }
-
-                console.log("Found proof event:", proofSubmittedLog.parsedLog.name);
 
                 // Extract data from the event
                 const parsedLog = proofSubmittedLog.parsedLog;
 
                 // Log all the event arguments to debug
-                console.log("Event arguments:", Object.keys(parsedLog.args));
+
                 for (const key in parsedLog.args) {
                     if (isNaN(parseInt(key))) { // Skip numeric keys, which are duplicates
                         const value = parsedLog.args[key];
                         // Convert BigNumber to string if needed
                         const displayValue = value && value._isBigNumber ? value.toString() : value;
-                        console.log(`  ${key}: ${displayValue}`);
+
                     }
                 }
 
@@ -327,12 +310,6 @@ export default function VerifyPage() {
                     throw new Error('Could not find user address in event data');
                 }
 
-                console.log("Found proof data:", {
-                    user: userAddress,
-                    proofType: proofTypeValue,
-                    proofHash: proofHash
-                });
-
                 // Parse the transaction input using ethers
                 let amountFromTx = "0";
                 let tokenSymbol = "ETH"; // Default to ETH
@@ -341,8 +318,6 @@ export default function VerifyPage() {
                     try {
                         // Try to decode the function call
                         const decodedInput = contractInterface.parseTransaction({ data: txData.data });
-                        console.log("Decoded function call:", decodedInput.name);
-                        console.log("Function arguments:", decodedInput.args);
 
                         // Try to find threshold amount which is usually the verified amount
                         if (decodedInput.args && decodedInput.args.thresholdAmount) {
@@ -358,18 +333,17 @@ export default function VerifyPage() {
                             tokenSymbol = decodedInput.args.tokenSymbol;
                         }
                     } catch (e) {
-                        console.log("Could not decode transaction input:", e.message);
+
                     }
                 }
 
                 // Now get the proof data directly from the contract using ethers
-                console.log(`Getting proof data for user ${userAddress} from contract at ${actualContractAddress}`);
 
                 let proofData;
                 try {
                     // Using the contract's getProof method directly
                     proofData = await actualContract.getProof(userAddress);
-                    console.log("Proof data from contract:", proofData);
+
                 } catch (e) {
                     console.error("Error getting proof data from contract:", e);
                     // Continue with event data only
@@ -425,7 +399,6 @@ export default function VerifyPage() {
                 // If client-side verification fails due to CORS or provider issues,
                 // fall back to the server-side API
                 console.warn("Browser-based verification failed:", browserError.message);
-                console.log("Falling back to server-side API verification...");
 
                 // Try the server-side API
                 try {
@@ -442,8 +415,6 @@ export default function VerifyPage() {
                     if (!response.ok) {
                         throw new Error(data.error || 'Server verification failed');
                     }
-
-                    console.log("Server-side verification successful:", data);
 
                     // Set form values from API response
                     setAmount(data.proofDetails.amount);
@@ -550,7 +521,6 @@ export default function VerifyPage() {
             if (isZKProof) {
                 // Set proof category to ZK
                 setProofCategory('zk');
-                console.log('Detected ZK proof transaction');
 
                 // Still determine the proof type
                 if (proofData.proofType === 0) {
@@ -593,7 +563,6 @@ export default function VerifyPage() {
             if (isZKProof) {
                 // Perform ZK proof verification
                 try {
-                    console.log('Attempting to verify ZK proof');
 
                     // In a real implementation, we would extract proof data from the logs
                     // For now, we'll simulate ZK verification with mock data
@@ -607,7 +576,6 @@ export default function VerifyPage() {
                         proofType: ZK_PROOF_TYPES[proofTypeStr.toUpperCase()]
                     });
 
-                    console.log('ZK verification result:', verified);
                     // In development mode, the verification will always return true
                 } catch (zkError) {
                     console.error('Error verifying ZK proof:', zkError);

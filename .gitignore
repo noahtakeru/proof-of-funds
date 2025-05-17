@@ -51,6 +51,14 @@ packages/contracts/.env
 # contract artifacts
 /artifacts
 /cache
+packages/contracts/artifacts/
+packages/contracts/cache/
+
+# package build directories
+packages/common/dist/
+packages/common/build/
+packages/*/dist/
+packages/*/build/
 
 # GCP configuration
 /config/gcp/*.json

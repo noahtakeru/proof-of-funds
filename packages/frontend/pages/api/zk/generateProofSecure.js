@@ -31,9 +31,7 @@ export default async function handler(req, res) {
         details: `Must be one of: ${validProofTypes.join(', ')}`
       });
     }
-    
-    console.log(`Generating ${proofType} proof...`);
-    
+
     // For now, use local files until cloud storage is fully configured
     // Get the circuit files
     const circuitDir = path.join(process.cwd(), 'circuits', proofType);
@@ -69,9 +67,7 @@ export default async function handler(req, res) {
     
     // Verify the proof
     const verified = await snarkjs.groth16.verify(vKey, publicSignals, proof);
-    
-    console.log(`✅ ${proofType} proof generated and verified: ${verified}`);
-    
+
     res.status(200).json({
       success: true,
       proof,
