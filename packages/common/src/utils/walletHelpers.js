@@ -624,25 +624,9 @@ export async function scanMultiChainAssets(wallets, options = {}) {
   } catch (error) {
     console.error('Error in scanMultiChainAssets:', error);
     
-    // Return error result with structured data
-    return {
-      totalAssets: [],
-      totalValue: 0,
-      totalUSDValue: 0,
-      chains: {},
-      walletAddresses: wallets.map(w => w.address || w.fullAddress),
-      success: false,
-      error: error.message,
-      meta: {
-        scanStartTime: Date.now(),
-        scanEndTime: Date.now(),
-        walletCount: wallets.length,
-        hasErrors: true,
-        criticalError: error.message,
-        includeZeroBalances,
-        includePotentialSpam
-      }
-    };
+    // Instead of returning default objects with empty data, throw the error
+    // This ensures the UI shows a proper error message instead of bogus zero values
+    throw error;
   }
 }
 
