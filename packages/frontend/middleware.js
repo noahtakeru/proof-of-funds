@@ -67,17 +67,34 @@ export function middleware(request) {
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // Apply appropriate CSP based on route
+  // Apply appropriate CSP based on route and environment
   if (path.startsWith('/api/')) {
     // Strict CSP for API routes
     response.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Development CSP with unsafe-eval for Next.js hot reloading
+    // Using minimal restrictions for development to prevent CSP issues
+    response.headers.set('Content-Security-Policy', 
+      "default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+      "script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " + 
+      "connect-src * 'self' data: blob:; " +
+      "img-src * 'self' data: blob:; " +
+      "style-src * 'self' 'unsafe-inline' data: blob:; " +
+      "font-src * 'self' data: blob:; " +
+      "frame-src * 'self' data: blob:; " +
+      "object-src 'none'; " +
+      "base-uri 'self'"
+    );
   } else {
-    // More permissive CSP for frontend pages
+    // Production CSP for frontend pages (strict but functional)
     response.headers.set('Content-Security-Policy', 
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline'; " + // Unsafe-inline needed for wallet providers
-      "connect-src 'self' https://*.polygon.technology https://*.infura.io https://*.walletconnect.org wss://*.walletconnect.org; " +
-      "img-src 'self' data:; " +
+      "script-src 'self' 'unsafe-inline' https://*.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com; " + 
+      "connect-src 'self' https://*.polygon.technology https://*.infura.io https://*.walletconnect.org " +
+      "https://*.moralis.io https://deep-index.moralis.io https://api.moralis.io https://api.coingecko.com https://pro-api.coingecko.com " +
+      "wss://*.walletconnect.org https://*.googletagmanager.com https://www.google-analytics.com " +
+      "https://www.googleapis.com https://storage.googleapis.com; " +
+      "img-src 'self' data: https://www.googletagmanager.com https://www.google-analytics.com; " +
       "style-src 'self' 'unsafe-inline'; " +
       "font-src 'self'; " +
       "frame-ancestors 'none'; " +

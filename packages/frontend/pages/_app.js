@@ -56,7 +56,13 @@ const config = createConfig({
     publicClient,
     webSocketPublicClient,
     connectors: [
-        new MetaMaskConnector({ chains }),
+        new MetaMaskConnector({ 
+            chains,
+            options: {
+                shimDisconnect: true, // Add shimDisconnect option
+                UNSTABLE_shimOnConnectSelectAccount: true // Force account selection on connect
+            }
+        }),
     ],
 });
 
@@ -98,31 +104,79 @@ function MyApp({ Component, pageProps }) {
         }
     }, []);
 
-    // Check and synchronize stored connection state on initial load
+    // Handle wallet connection persistence and prevent auto-connection
     useEffect(() => {
+        const clearAllWalletState = () => {
+            console.log('Clearing all wallet connection state');
+            
+            // Clear all wagmi-related state
+            localStorage.removeItem('wagmi.connected');
+            localStorage.removeItem('wagmi.connectors');
+            localStorage.removeItem('wagmi.injected.shimDisconnect');
+            localStorage.removeItem('userInitiatedConnection');
+            
+            // Clear all wallet connection data
+            localStorage.removeItem('walletData');
+            localStorage.removeItem('walletconnect');
+            localStorage.removeItem('WALLET_CONNECT_SELECTED_EVENT');
+            localStorage.removeItem('WALLETCONNECT_DEEPLINK_CHOICE');
+            
+            // Set disconnection flag
+            localStorage.setItem('user_disconnected_wallets', 'true');
+            
+            // Clear any MetaMask or wallet-related storage
+            try {
+                for (const key in localStorage) {
+                    if (key.includes('metamask') || 
+                        key.includes('wallet') || 
+                        key.includes('connection') || 
+                        key.includes('wagmi') ||
+                        key.includes('ethereum') ||
+                        key.includes('phantom')) {
+                        localStorage.removeItem(key);
+                    }
+                }
+            } catch (e) {
+                console.warn('Error clearing wallet localStorage items:', e);
+            }
+        };
+        
         // Only run in browser
         if (typeof window !== 'undefined') {
-            // Check if user has explicitly disconnected wallets
-            const hasDisconnected = localStorage.getItem('user_disconnected_wallets') === 'true';
-            
-            // If user has explicitly disconnected, ensure all connection flags are cleared
-            if (hasDisconnected) {
-
-                localStorage.removeItem('wagmi.connected');
-                localStorage.removeItem('wagmi.connectors');
-                localStorage.removeItem('userInitiatedConnection');
-                return; // Skip checking for connections if disconnection is explicit
+            // Force clear all wallet state on page load in development
+            if (process.env.NODE_ENV !== 'production') {
+                clearAllWalletState();
+                return;
             }
             
-            // Check if user has initiated connection
-            const userInitiatedConnection = localStorage.getItem('userInitiatedConnection') === 'true';
-
-            // If user hasn't explicitly initiated connection, ensure storage is consistent
-            if (!userInitiatedConnection) {
-                // If wagmi is connected but no user-initiated flag, set the flag
-                if (localStorage.getItem('wagmi.connected') === 'true') {
-                    localStorage.setItem('userInitiatedConnection', 'true');
-                }
+            // In production, use session-based approach
+            const sessionKey = 'walletSessionStarted';
+            const isNewSession = !sessionStorage.getItem(sessionKey);
+            
+            // Mark session as started
+            if (isNewSession) {
+                console.log('New browser session detected');
+                sessionStorage.setItem(sessionKey, 'true');
+                clearAllWalletState();
+                return; // Skip further wallet initialization for new sessions
+            }
+            
+            // For existing sessions, check for explicit disconnection
+            const hasDisconnected = localStorage.getItem('user_disconnected_wallets') === 'true';
+            if (hasDisconnected) {
+                clearAllWalletState();
+                return;
+            }
+        }
+    }, []);
+    
+    // Additional effect to disconnect from any wallets immediately on load
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.ethereum) {
+            console.log('Ethereum provider detected, ensuring disconnected state');
+            // This will disconnect any connected accounts
+            if (window.ethereum._state && window.ethereum._state.accounts) {
+                window.ethereum._state.accounts = [];
             }
         }
     }, []);

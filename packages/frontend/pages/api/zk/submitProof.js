@@ -14,7 +14,6 @@ import rateLimiter from '../../../lib/rateLimit';
 import { verifyWalletBalanceForTransaction } from '../../../lib/walletMonitor';
 import { validateApiRequest, validators } from '../../../utils/apiValidator';
 import { handleApiError } from '../../../utils/apiErrorHandler';
-import { withAuth } from '../../../utils/auth';
 
 // Get network configuration
 const networkConfig = getNetworkConfig();

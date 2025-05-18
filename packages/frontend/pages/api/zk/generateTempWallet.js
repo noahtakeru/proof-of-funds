@@ -82,7 +82,10 @@ async function generateTemporaryWallet(chain) {
  * Handles the API request for generating a temporary wallet
  */
 // Rate limiter configuration - limit to 3 wallet generations per minute per IP
-const applyRateLimit = rateLimiter(3);
+// Use Redis rate limiter in production for better security
+const applyRateLimit = process.env.NODE_ENV === 'production' && process.env.REDIS_URL
+  ? require('../../../lib/distributedRateLimit')({ type: 'redis' })(3, 'temp-wallet')
+  : rateLimiter(3);
 
 export default async function handler(req, res) {
   // Apply rate limiting
@@ -97,14 +100,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log("generateTempWallet received request:", req.body);
+
   // Define validation specification
   const validationSpec = {
     required: ['chain'],
     fields: {
       chain: [
         validators.isString,
-        validators.maxLength(50),
-        validators.isEnum(['ethereum', 'polygon', 'amoy', 'solana', 'mainnet'])
+        validators.maxLength(50)
+        // Temporarily remove enum validation to see what chains are sent
+        // validators.isEnum(['ethereum', 'polygon', 'amoy', 'solana', 'mainnet', 'evm'])
       ]
     }
   };
@@ -113,6 +119,7 @@ export default async function handler(req, res) {
   const validation = validateApiRequest(req.body, validationSpec);
   
   if (!validation.isValid) {
+    console.log("Validation errors:", validation.errors);
     return res.status(400).json({
       error: 'Invalid input parameters',
       details: validation.errors

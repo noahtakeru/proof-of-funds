@@ -6,9 +6,13 @@
  * Uses secure secret management for sensitive credentials.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { getSecret } = require('@proof-of-funds/common/src/config/secrets');
+// Use our filesystem shim for better browser compatibility
+const { fs, path } = require('./shims/fs');
+// Use local shim for better compatibility with Pages Router
+const { getSecret } = require('./shims/config/secrets');
+
+// Check if running in browser or server environment
+const isServer = typeof window === 'undefined';
 
 // Cache the storage client once initialized
 let storageClient = null;
@@ -18,6 +22,11 @@ let storageClient = null;
  * @returns {Promise<Object>} Credentials object or file path
  */
 async function getGoogleCloudCredentials() {
+  // Browser environment should not use real credentials
+  if (!isServer) {
+    return { useDefault: true };
+  }
+  
   // In production, retrieve credentials securely
   if (process.env.NODE_ENV === 'production') {
     // Priority 1: Running on Google Cloud - use built-in identity
@@ -79,8 +88,12 @@ async function getGoogleCloudCredentials() {
         fallback: process.env.GOOGLE_APPLICATION_CREDENTIALS
       });
       
-      if (credentialsPath && fs.existsSync(credentialsPath)) {
-        return { keyFilename: credentialsPath };
+      try {
+        if (credentialsPath && fs.existsSync(credentialsPath)) {
+          return { keyFilename: credentialsPath };
+        }
+      } catch (error) {
+        console.warn(`Error checking credentials file existence: ${error.message}`);
       }
     } catch (error) {
       console.warn('Failed to retrieve credentials file path from Secret Manager:', error.message);
@@ -94,11 +107,15 @@ async function getGoogleCloudCredentials() {
     // Try environment variable first
     const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     if (credentialsPath) {
-      // Check if file exists
-      if (fs.existsSync(credentialsPath)) {
-        return { keyFilename: credentialsPath };
-      } else {
-        console.warn(`Warning: Credentials file not found at ${credentialsPath}`);
+      try {
+        // Check if file exists
+        if (fs.existsSync(credentialsPath)) {
+          return { keyFilename: credentialsPath };
+        } else {
+          console.warn(`Warning: Credentials file not found at ${credentialsPath}`);
+        }
+      } catch (error) {
+        console.warn(`Error checking credentials file existence: ${error.message}`);
       }
     }
     
@@ -110,8 +127,12 @@ async function getGoogleCloudCredentials() {
     ];
     
     for (const testPath of possibleKeyPaths) {
-      if (fs.existsSync(testPath)) {
-        return { keyFilename: testPath };
+      try {
+        if (fs.existsSync(testPath)) {
+          return { keyFilename: testPath };
+        }
+      } catch (error) {
+        // Continue trying other paths
       }
     }
     
@@ -126,11 +147,17 @@ async function getGoogleCloudCredentials() {
  * @returns {Promise<Object>} Authenticated storage client
  */
 async function getAuthenticatedStorageClient() {
+  // Browser environment should not initialize storage client
+  if (!isServer) {
+    throw new Error('Google Cloud Storage client cannot be used in browser environment');
+  }
+  
   // If we already have a client, return it
   if (storageClient) {
     return storageClient;
   }
   
+  // Dynamically import Storage to avoid bundling in browser
   const { Storage } = require('@google-cloud/storage');
   
   try {

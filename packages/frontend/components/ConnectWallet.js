@@ -143,11 +143,19 @@ export default function ConnectWallet() {
             }
         };
 
+        // Listen for custom event to open wallet selector
+        const handleOpenWalletSelector = () => {
+            console.log('Received open-wallet-selector event');
+            setShowWalletSelector(true);
+        };
+
         document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('open-wallet-selector', handleOpenWalletSelector);
 
         return () => {
             cleanup();
             document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('open-wallet-selector', handleOpenWalletSelector);
         };
     }, []);
 
@@ -194,8 +202,20 @@ export default function ConnectWallet() {
                     if (wallet.type === 'evm' || wallet.provider === 'metamask') {
                         if (window.ethereum && window.ethereum.isMetaMask) {
                             console.log('Clearing MetaMask connection state');
-                            // This additional cleanup might help prevent auto-reconnect
+                            // More aggressive cleanup to prevent auto-reconnect
                             localStorage.removeItem(`${wallet.address.toLowerCase()}_disconnected`);
+                            localStorage.removeItem('walletData');
+                            localStorage.setItem('user_disconnected_wallets', 'true');
+                            
+                            // Clear any MetaMask-specific localStorage items
+                            for (const key in localStorage) {
+                                if (key.includes('metamask') || 
+                                    key.includes('wagmi') ||
+                                    (key.includes('wallet') && wallet.address && 
+                                     key.includes(wallet.address.toLowerCase().substring(2)))) {
+                                    localStorage.removeItem(key);
+                                }
+                            }
                         }
                     }
                 } catch (e) {

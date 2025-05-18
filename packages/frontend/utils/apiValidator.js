@@ -3,13 +3,13 @@
  * 
  * This module provides standardized input validation for API endpoints
  * 
- * This file now uses the unified error handling system.
+ * This file now uses the local shim for error handling to improve compatibility.
  */
 
 import { 
   validateApiRequest as unifiedValidateApiRequest,
   validators as unifiedValidators
-} from '@proof-of-funds/common/src/error-handling';
+} from './shims/error-handling';
 
 /**
  * Validate a Proof of Funds API request

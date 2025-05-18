@@ -3,12 +3,34 @@
  * This ensures we use the correct network (Amoy for development, mainnet for production)
  */
 
-import { 
-  getChainId, 
-  getRpcUrl as getChainRpcUrl, 
-  getExplorerUrl as getChainExplorerUrl,
-  getNativeTokenSymbol
-} from '@proof-of-funds/common/src/utils/chainMappings';
+// Hardcoded chain mapping values (simplified version for proof submission)
+// These match the values from @proof-of-funds/common/src/utils/chainMappings
+const CHAIN_IDS = {
+  'polygon': 137,
+  'polygon-amoy': 80002
+};
+
+function getChainId(chainName) {
+  return CHAIN_IDS[chainName] || 80002; // Default to Amoy testnet
+}
+
+function getChainRpcUrl(chainName) {
+  if (chainName === 'polygon') {
+    return process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com';
+  }
+  return process.env.POLYGON_RPC_URL || 'https://rpc-amoy.polygon.technology';
+}
+
+function getChainExplorerUrl(chainName) {
+  if (chainName === 'polygon') {
+    return 'https://polygonscan.com/';
+  }
+  return 'https://amoy.polygonscan.com/';
+}
+
+function getNativeTokenSymbol(chainName) {
+  return 'MATIC'; // Both Polygon and Amoy use MATIC
+}
 
 /**
  * Get the network configuration for the current environment

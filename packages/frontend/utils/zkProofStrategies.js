@@ -5,10 +5,10 @@
  * It implements the Strategy pattern to provide different ways to access ZKey files.
  */
 
-import path from 'path';
-import fs from 'fs';
-import { promises as fsPromises } from 'fs';
-import { createZkError, ZkErrorType } from '@proof-of-funds/common/src/error-handling';
+// Use our filesystem shim for better browser compatibility
+import { path, fs, promises as fsPromises } from './shims/fs';
+// Use local shim for better compatibility with Pages Router
+import { createZkError, ZkErrorType } from './shims/error-handling';
 
 /**
  * Base interface for ZK proof generation strategies
@@ -61,45 +61,84 @@ export class ZkProofStrategy {
  */
 export class PublicFilesStrategy extends ZkProofStrategy {
   async getWasmPath(proofType) {
+    const isServer = typeof window === 'undefined';
+    
+    // In browser environment, use relative URL for direct access
+    if (!isServer) {
+      return `/lib/zk/circuits/${proofType}Proof.wasm`;
+    }
+    
+    // On server, use filesystem path
     const wasmPath = path.resolve(process.cwd(), `public/lib/zk/circuits/${proofType}Proof.wasm`);
     
     // Verify that circuit file exists
-    if (!fs.existsSync(wasmPath)) {
+    try {
+      if (!fs.existsSync(wasmPath)) {
+        throw new Error('File not found');
+      }
+      return wasmPath;
+    } catch (error) {
       throw createZkError('Circuit WASM file not found', {
         zkErrorType: ZkErrorType.CIRCUIT_ERROR,
         details: { wasmPath }
       });
     }
-    
-    return wasmPath;
   }
 
   async getZKeyData(proofType) {
+    const isServer = typeof window === 'undefined';
+    
+    // In browser environment, use relative URL for direct access
+    if (!isServer) {
+      return `/lib/zk/circuits/${proofType}Proof.zkey`;
+    }
+    
+    // On server, use filesystem path
     const zkeyPath = path.resolve(process.cwd(), `public/lib/zk/circuits/${proofType}Proof.zkey`);
     
     // Verify that circuit file exists
-    if (!fs.existsSync(zkeyPath)) {
+    try {
+      if (!fs.existsSync(zkeyPath)) {
+        throw new Error('File not found');
+      }
+      return zkeyPath;
+    } catch (error) {
       throw createZkError('Circuit zkey file not found', {
         zkErrorType: ZkErrorType.CIRCUIT_ERROR,
         details: { zkeyPath }
       });
     }
-    
-    return zkeyPath;
   }
 
   async getVerificationKey(proofType) {
-    const vkeyPath = path.resolve(process.cwd(), `public/lib/zk/circuits/${proofType}Proof.vkey.json`);
+    const isServer = typeof window === 'undefined';
     
-    // Verify that verification key exists
-    if (!fs.existsSync(vkeyPath)) {
+    // Build verification key path
+    const vkeyPath = isServer
+      ? path.resolve(process.cwd(), `public/lib/zk/circuits/${proofType}Proof.vkey.json`)
+      : `/lib/zk/circuits/${proofType}Proof.vkey.json`;
+    
+    try {
+      // In browser environment, fetch the file
+      if (!isServer) {
+        const response = await fetch(vkeyPath);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch verification key: ${response.status}`);
+        }
+        return await response.json();
+      }
+      
+      // On server, read from filesystem
+      if (!fs.existsSync(vkeyPath)) {
+        throw new Error('File not found');
+      }
+      return JSON.parse(fs.readFileSync(vkeyPath, 'utf8'));
+    } catch (error) {
       throw createZkError('Verification key file not found', {
         zkErrorType: ZkErrorType.CIRCUIT_ERROR,
-        details: { vkeyPath }
+        details: { vkeyPath, error: error.message }
       });
     }
-    
-    return JSON.parse(fs.readFileSync(vkeyPath, 'utf8'));
   }
 }
 
@@ -176,36 +215,96 @@ export class CloudStorageStrategy extends ZkProofStrategy {
   constructor() {
     super();
     this.storageManager = null;
+    this.isServer = typeof window === 'undefined';
   }
 
   async initialize() {
-    // Dynamically import to support tree shaking
-    const ZKeyStorageManager = require('./zkeyStorageManager');
-    this.storageManager = new ZKeyStorageManager();
+    // Only initialize storage manager on server side
+    if (this.isServer) {
+      // Dynamically import to support tree shaking
+      const ZKeyStorageManager = require('./zkeyStorageManager');
+      this.storageManager = new ZKeyStorageManager();
+    }
   }
 
   async getWasmPath(proofType) {
-    // Even with cloud storage, WASM files are still loaded from local filesystem
-    const wasmPath = path.join(
+    // In browser environment, use relative URL for direct access
+    if (!this.isServer) {
+      return `/lib/zk/circuits/${proofType}Proof.wasm`;
+    }
+    
+    // On server, check multiple paths
+    // Primary path: WASM files from the frontend public directory
+    const publicPath = path.join(
       process.cwd(),
-      '../../../circuits',
-      proofType,
-      `${proofType}Proof_js`,
+      'public/lib/zk/circuits',
       `${proofType}Proof.wasm`
     );
     
-    // Verify that circuit file exists
-    if (!fs.existsSync(wasmPath)) {
-      throw createZkError(`Circuit WASM file not found: ${wasmPath}`, {
-        zkErrorType: ZkErrorType.CIRCUIT_ERROR,
-        details: { wasmPath }
-      });
+    // Fallback paths in order of preference
+    const fallbackPaths = [
+      // Fallback 1: Using process.env.PROJECT_ROOT if available, or generating from process.cwd()
+      path.join(
+        process.env.PROJECT_ROOT || path.resolve(process.cwd(), '../../..'),
+        'circuits',
+        proofType.toLowerCase(),
+        `${proofType}Proof_js`,
+        `${proofType}Proof.wasm`
+      ),
+      // Fallback 2: Relative path to circuit files
+      path.join(
+        process.cwd(),
+        '../../../circuits',
+        proofType.toLowerCase(),
+        `${proofType}Proof_js`,
+        `${proofType}Proof.wasm`
+      ),
+      // Fallback 3: Try direct path in circuits directory without _js
+      path.join(
+        process.cwd(),
+        '../../../circuits',
+        proofType.toLowerCase(),
+        `${proofType}Proof.wasm`
+      ),
+      // Fallback 4: Alternative public path
+      path.join(
+        process.cwd(),
+        'public',
+        `${proofType}Proof.wasm`
+      )
+    ];
+    
+    // Check if the primary path exists
+    try {
+      if (fs.existsSync(publicPath)) {
+        console.log(`Using primary WASM path: ${publicPath}`);
+        return publicPath;
+      }
+      
+      // Try each fallback path
+      for (const fallbackPath of fallbackPaths) {
+        if (fs.existsSync(fallbackPath)) {
+          console.log(`Using fallback WASM path: ${fallbackPath}`);
+          return fallbackPath;
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking file existence:', error);
     }
     
-    return wasmPath;
+    // If we got here, no path worked - still return the primary path
+    // This allows snarkjs to attempt loading it directly
+    console.warn(`Warning: Could not verify WASM file exists. Using path: ${publicPath}`);
+    return publicPath;
   }
 
   async getZKeyData(proofType) {
+    // In browser environment, use public URL
+    if (!this.isServer) {
+      return `/lib/zk/circuits/${proofType}Proof.zkey`;
+    }
+    
+    // On server, use storage manager
     if (!this.storageManager) {
       await this.initialize();
     }
@@ -214,6 +313,18 @@ export class CloudStorageStrategy extends ZkProofStrategy {
       // Get the actual zkey data from cloud storage
       return await this.storageManager.getZKey(proofType);
     } catch (error) {
+      // Fallback to local file if cloud storage fails
+      const zkeyPath = path.join(
+        process.cwd(),
+        'public/lib/zk/circuits',
+        `${proofType}Proof.zkey`
+      );
+      
+      if (fs.existsSync(zkeyPath)) {
+        console.log(`Falling back to local zkey file: ${zkeyPath}`);
+        return zkeyPath;
+      }
+      
       throw createZkError('Error retrieving ZKey from cloud storage', {
         zkErrorType: ZkErrorType.CIRCUIT_ERROR,
         details: { 
@@ -225,22 +336,77 @@ export class CloudStorageStrategy extends ZkProofStrategy {
   }
 
   async getVerificationKey(proofType) {
-    const vkeyPath = path.join(
+    // In browser environment, fetch the file
+    if (!this.isServer) {
+      const vkeyUrl = `/lib/zk/circuits/${proofType}Proof.vkey.json`;
+      try {
+        const response = await fetch(vkeyUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch verification key: ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        throw createZkError('Error fetching verification key in browser', {
+          zkErrorType: ZkErrorType.CIRCUIT_ERROR,
+          details: { url: vkeyUrl, error: error.message }
+        });
+      }
+    }
+    
+    // On server, try multiple paths
+    const publicPath = path.join(
       process.cwd(),
-      '../../../circuits',
-      proofType,
+      'public/lib/zk/circuits',
       `${proofType}Proof.vkey.json`
     );
     
-    // Verify that verification key exists
-    if (!fs.existsSync(vkeyPath)) {
-      throw createZkError(`Verification key file not found: ${vkeyPath}`, {
-        zkErrorType: ZkErrorType.CIRCUIT_ERROR,
-        details: { vkeyPath }
-      });
+    // Fallback paths in order of preference
+    const fallbackPaths = [
+      // Fallback 1: Using process.env.PROJECT_ROOT if available, or generating from process.cwd()
+      path.join(
+        process.env.PROJECT_ROOT || path.resolve(process.cwd(), '../../..'),
+        'circuits',
+        proofType.toLowerCase(),
+        `${proofType}Proof.vkey.json`
+      ),
+      // Fallback 2: Relative path to circuit files
+      path.join(
+        process.cwd(),
+        '../../../circuits',
+        proofType.toLowerCase(),
+        `${proofType}Proof.vkey.json`
+      ),
+      // Fallback 3: Alternative public path
+      path.join(
+        process.cwd(),
+        'public',
+        `${proofType}Proof.vkey.json`
+      )
+    ];
+    
+    // Try the primary path first
+    try {
+      if (fs.existsSync(publicPath)) {
+        console.log(`Using primary vkey path: ${publicPath}`);
+        return JSON.parse(fs.readFileSync(publicPath, 'utf8'));
+      }
+      
+      // Try each fallback path
+      for (const fallbackPath of fallbackPaths) {
+        if (fs.existsSync(fallbackPath)) {
+          console.log(`Using fallback vkey path: ${fallbackPath}`);
+          return JSON.parse(fs.readFileSync(fallbackPath, 'utf8'));
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking verification key file existence:', error);
     }
     
-    return JSON.parse(fs.readFileSync(vkeyPath, 'utf8'));
+    // If we got here, no path worked
+    throw createZkError(`Verification key file not found for ${proofType}Proof`, {
+      zkErrorType: ZkErrorType.CIRCUIT_ERROR,
+      details: { triedPaths: [publicPath, ...fallbackPaths] }
+    });
   }
 
   async cleanup() {

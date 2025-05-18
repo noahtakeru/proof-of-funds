@@ -10,8 +10,10 @@ import { getRpcUrl, getNetworkConfig } from './networkConfig';
 
 // Configuration
 const MIN_SAFE_BALANCE = {
-  // In MATIC
-  amoy: ethers.utils.parseEther('1.0'),    // 1 MATIC for Amoy testnet
+  // In MATIC - adjusted for development mode
+  amoy: process.env.NODE_ENV === 'development' ? 
+    ethers.utils.parseEther('0.1') :    // 0.1 MATIC for Amoy in development
+    ethers.utils.parseEther('1.0'),     // 1 MATIC for Amoy in production
   mainnet: ethers.utils.parseEther('5.0')  // 5 MATIC for Polygon mainnet
 };
 

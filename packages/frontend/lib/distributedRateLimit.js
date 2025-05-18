@@ -4,11 +4,21 @@
  * Redis-based rate limiting solution for production environments that supports
  * horizontal scaling across multiple app instances. Extends the existing rate limiter
  * pattern and provides a fallback to in-memory rate limiting when Redis is unavailable.
+ * 
+ * @note This module is designed for server-side use only.
  */
 
+// This module is server-only - it should never be imported in browser context
+if (typeof window !== 'undefined') {
+  throw new Error('distributedRateLimit should only be used in server environments');
+}
+
+// Import Redis and crypto libraries for server environment
 const Redis = require('ioredis');
 const crypto = require('crypto');
-const { createRateLimitError } = require('@proof-of-funds/common/src/error-handling');
+
+// Use local error handling shim
+const { createRateLimitError } = require('../utils/shims/error-handling');
 
 /**
  * Factory for creating rate limiters
@@ -27,7 +37,7 @@ function createRateLimiter(options = {}) {
     keyPrefix = 'pof-ratelimit:'
   } = options;
   
-  // Initialize Redis client if using Redis
+  // Initialize Redis client if using Redis - this is an async function
   let redisClient;
   let isRedisHealthy = false;
   if (type === 'redis' && redisUrl) {
@@ -61,13 +71,20 @@ function createRateLimiter(options = {}) {
         isRedisHealthy = false;
       });
       
-      // Perform initial connection test
-      await redisClient.ping().then(() => {
-        isRedisHealthy = true;
-      }).catch((err) => {
-        console.warn('Initial Redis connection test failed:', err.message);
+      // For initial connection test, just set up the events
+      // and check connection status asynchronously
+      try {
+        redisClient.ping().then(() => {
+          isRedisHealthy = true;
+          console.log('Redis ping succeeded');
+        }).catch((err) => {
+          console.warn('Initial Redis connection test failed:', err.message);
+          isRedisHealthy = false;
+        });
+      } catch (pingError) {
+        console.warn('Could not perform Redis ping:', pingError.message);
         isRedisHealthy = false;
-      });
+      }
     } catch (error) {
       console.error('Failed to initialize Redis client:', error);
       isRedisHealthy = false;

@@ -5,12 +5,13 @@
  * different storage strategies and validation.
  */
 
+// Use local shim for better compatibility with Pages Router
 import {
   validateApiRequest,
   validators,
   createZkError,
   handleApiError
-} from '@proof-of-funds/common/src/error-handling';
+} from './shims/error-handling';
 import { createProofStrategy } from './zkProofStrategies';
 
 /**
@@ -21,18 +22,44 @@ import { createProofStrategy } from './zkProofStrategies';
  */
 function getRateLimiter(limit = 3, limiterType = 'memory') {
   try {
-    // Use distributed rate limiter if redis type specified, otherwise fall back to in-memory
-    if (limiterType === 'redis') {
-      const createDistributedRateLimiter = require('../lib/distributedRateLimit');
-      return createDistributedRateLimiter({ type: 'redis' })(limit, 'zk-proof');
+    // Only use Redis in server environment
+    const isServerSide = typeof window === 'undefined';
+    
+    // Always use in-memory limiter for browser code
+    if (!isServerSide) {
+      const rateLimiter = require('../lib/rateLimit').default;
+      return rateLimiter(limit);
+    }
+    
+    // For server-side, use appropriate limiter based on type
+    if (limiterType === 'redis' && process.env.REDIS_URL) {
+      try {
+        // Import our local copy of the distributed rate limiter
+        // This is properly compatible with our error handling shim
+        const path = require('path');
+        // Use Node.js dynamic require to avoid webpack issues
+        const distributedRateLimitPath = path.resolve(__dirname, '../lib/distributedRateLimit.js');
+        const createDistributedRateLimiter = require(distributedRateLimitPath);
+        
+        return createDistributedRateLimiter({ 
+          type: 'redis',
+          redisUrl: process.env.REDIS_URL
+        })(limit, 'zk-proof');
+      } catch (redisError) {
+        console.warn('Redis rate limiter initialization failed, using memory limiter:', redisError.message);
+        const rateLimiter = require('../lib/rateLimit').default;
+        return rateLimiter(limit);
+      }
     } else {
+      // Use in-memory limiter
       const rateLimiter = require('../lib/rateLimit').default;
       return rateLimiter(limit);
     }
   } catch (error) {
     console.error('Failed to initialize rate limiter:', error);
-    // Return a pass-through function if rate limiter isn't available
-    return () => true;
+    // Use the standard in-memory rate limiter as a fallback
+    const rateLimiter = require('../lib/rateLimit').default;
+    return rateLimiter(limit);
   }
 }
 
@@ -162,11 +189,21 @@ export function createZkProofHandler(options = {}) {
       const snarkjs = require('snarkjs');
       
       // Generate the proof
-      const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      console.log("Generating proof with input:", JSON.stringify(circuitInput));
+      console.log("WASM path:", wasmPath);
+      console.log("Using zkeyData:", typeof zkeyData === 'string' ? zkeyData : 'Buffer or data object');
+      
+      const proofResult = await snarkjs.groth16.fullProve(
         circuitInput,
         wasmPath,
         zkeyData
       );
+      
+      console.log("Proof generated successfully");
+      console.log("Proof structure:", JSON.stringify(proofResult.proof));
+      console.log("Public signals:", JSON.stringify(proofResult.publicSignals));
+      
+      const { proof, publicSignals } = proofResult;
       
       let verified = null;
       
@@ -218,16 +255,5 @@ export function createZkProofHandler(options = {}) {
     }
   };
 }
-
-/**
- * Next.js API config for ZK proof handlers
- */
-export const zkProofApiConfig = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb'
-    }
-  }
-};
 
 export default createZkProofHandler;

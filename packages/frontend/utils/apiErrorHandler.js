@@ -5,10 +5,10 @@
  * proper error messages that don't leak sensitive information.
  * Part of the Proof of Funds security implementation.
  * 
- * This file now uses the unified error handling system.
+ * This file now uses the local shim for error handling to improve compatibility.
  */
 
-import { handleApiError as unifiedHandleApiError } from '@proof-of-funds/common/src/error-handling';
+import { handleApiError as unifiedHandleApiError } from './shims/error-handling';
 
 /**
  * Handle API errors consistently and securely

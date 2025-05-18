@@ -1100,6 +1100,17 @@ export default function CreatePage() {
      * Organizes wallet information, assets, and signatures into a structured format
      */
     const prepareProofSubmission = async () => {
+        console.log("prepareProofSubmission called, initial state:", {
+            isSubmittingProof,
+            proofStage,
+            hasProofData: !!proofData
+        });
+
+        // If already submitting, don't start another submission
+        if (isSubmittingProof) {
+            console.log("Already submitting proof, ignoring duplicate call");
+            return Promise.resolve(null);
+        }
 
         // Return a Promise to ensure proper async/await handling
         return new Promise(async (resolve, reject) => {
@@ -1188,8 +1199,13 @@ export default function CreatePage() {
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    chain: primaryWallet.chain.toLowerCase()
+                                    chain: primaryWallet.chain?.toLowerCase() || 'evm'
                                 }),
+                                // Add debugging info to console
+                                onload: (e) => {
+                                    console.log("Temp wallet request sent with chain:", primaryWallet.chain?.toLowerCase() || 'evm');
+                                    console.log("Primary wallet data:", primaryWallet);
+                                },
                             });
                             
                             if (!response.ok) {
@@ -1207,6 +1223,7 @@ export default function CreatePage() {
                     } catch (error) {
                         console.error('Error generating ZK proof:', error);
                         alert(`Error generating ZK proof: ${error.message}`);
+                        setIsSubmittingProof(false); // Make sure to reset state
                         return; // Exit if ZK proof generation fails
                     }
                 }
@@ -1256,10 +1273,15 @@ export default function CreatePage() {
                 setProofStage('ready');
 
                 // Force a delay to make sure states have updated before proceeding
+                console.log("Proof data ready:", proofDataObj);
+                console.log("Setting proofStage to 'ready'");
+                
                 setTimeout(() => {
-
-                    // Resolve the promise with the proof data
-                    resolve(proofData);
+                    console.log("Resolving promise with proofDataObj:", proofDataObj);
+                    // Reset the submitting state
+                    setIsSubmittingProof(false);
+                    // Resolve the promise with the NEWLY CREATED proof data (not the state variable)
+                    resolve(proofDataObj);
                 }, 500);
             } catch (error) {
                 console.error("Error in prepareProofSubmission:", error);
@@ -1275,16 +1297,19 @@ export default function CreatePage() {
      * @returns {Promise<void>}
      */
     const handleZKProofSubmission = async () => {
+        console.log("handleZKProofSubmission called");
         try {
+            console.log("Checking ZK proof data:", {
+                hasProofData: !!proofData,
+                hasZkProof: !!proofData?.zkProof,
+                hasPublicSignals: !!proofData?.zkPublicSignals
+            });
 
             // First ensure we have valid ZK proof data
             if (!proofData || !proofData.zkProof || !proofData.zkPublicSignals) {
+                console.error("ZK proof data is missing or incomplete:", proofData);
                 throw new Error("ZK proof data is missing or incomplete");
             }
-
-            // Dynamically import ethers
-            const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
-            const { ethers } = await getEthers();
 
             // Get the primary wallet data
             const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
@@ -1310,76 +1335,77 @@ export default function CreatePage() {
             // Use the actual ZK proof data
             const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
             
-            // Convert proof object to array format for ABI encoding
+            // Convert proof object to array format for submission
+            // No need for ABI encoding here - the API does that
             const proofArray = [
                 proof.pi_a[0], proof.pi_a[1],
                 proof.pi_b[0][0], proof.pi_b[0][1], proof.pi_b[1][0], proof.pi_b[1][1],
                 proof.pi_c[0], proof.pi_c[1]
             ];
             
-            const encodedProof = ethers.utils.defaultAbiCoder.encode(
-                ['uint256[]'],
-                [proofArray]
-            );
+            // Use the temp wallet to submit the proof
+            const tempWallet = proofData.tempWallet;
+            if (!tempWallet || !tempWallet.privateKey) {
+                console.error("Temporary wallet data missing");
+                throw new Error("Temporary wallet information is missing");
+            }
 
-            const encodedPublicSignals = ethers.utils.defaultAbiCoder.encode(
-                ['uint256[]'],
-                [publicSignals]
-            );
-
-            // Check if the writeZKProof function is available
-            if (typeof writeZKProof === 'function') {
-                try {
-                    // Attempt to call the contract
-                    writeZKProof({
-                        args: [
-                            encodedProof,
-                            encodedPublicSignals,
-                            BigInt(expiryTime),
-                            zkProofTypeValue,
-                            signatureMessage,
-                            walletSignature
-                        ]
-                    });
-
-                } catch (contractError) {
-                    console.error("Contract write error:", contractError);
-                    // Fallback for testing - create a simulation
-                    simulateSuccessfulZKProof();
+            try {
+                // Submit the ZK proof to the blockchain using the API
+                const response = await fetch('/api/zk/submitProof', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        proof: proofArray,
+                        publicSignals: publicSignals,
+                        expiryTime: expiryTime,
+                        proofType: zkProofTypeValue,
+                        signatureMessage: signatureMessage,
+                        signature: walletSignature,
+                        tempWalletPrivateKey: tempWallet.privateKey,
+                        tempWalletAddress: tempWallet.address
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    setTxHash(result.transactionHash);
+                    setSuccess(true);
+                    setIsSubmittingProof(false);
+                    
+                    alert(`ZK Proof submitted! Transaction hash: ${result.transactionHash.substring(0, 10)}...`);
+                } else {
+                    throw new Error(result.error || 'Failed to submit proof');
                 }
-            } else {
-
-                simulateSuccessfulZKProof();
+            } catch (error) {
+                console.error("Error submitting ZK proof:", error);
+                setIsSubmittingProof(false);
+                alert(`Failed to submit ZK proof: ${error.message}`);
             }
         } catch (error) {
             console.error("Error in ZK proof submission:", error);
             alert(`ZK proof submission error: ${error.message}`);
-            setIsSubmitting(false);
+            setIsSubmittingProof(false);
         }
     };
 
-    /**
-     * Creates a simulated successful ZK proof transaction
-     * Used for development and testing when contract is not available
-     */
-    const simulateSuccessfulZKProof = () => {
-
-        // Generate a simulated transaction hash for testing
-        const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-        setTxHash(simulatedTxHash);
-        setSuccess(true);
-        setIsSubmitting(false);
-        alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
-    };
+    // No simulation functions - always use real blockchain submission
 
     /**
      * Submits the finalized proof to the blockchain
      * Creates and submits the transaction when all signatures are collected
      */
     const submitFinalProof = async () => {
+        console.log("submitFinalProof called");
+        console.log("Current state:", { proofStage, hasProofData: !!proofData, proofCategory: proofData?.proofCategory });
+        
         if (proofStage === 'ready' && proofData) {
+            console.log("Conditions met, proceeding with submission");
             try {
-                setIsSubmitting(true);
+                setIsSubmittingProof(true);
 
                 // Handle differently based on proof category
                 if (proofData.proofCategory === 'zk') {
@@ -1543,7 +1569,7 @@ export default function CreatePage() {
                 console.error('Error submitting proof:', error);
                 alert(`Error: ${error.message}`);
             } finally {
-                setIsSubmitting(false);
+                setIsSubmittingProof(false);
             }
         } else {
 
@@ -1567,6 +1593,30 @@ export default function CreatePage() {
 
         return allSigned;
     };
+    
+    /**
+     * Keep signed wallets status persistent across proof stages
+     * This ensures signatures persist until proof is submitted
+     */
+    useEffect(() => {
+        // If all wallets are signed, we should be ready to submit regardless of stage
+        if (selectedWallets.length > 0 && Object.keys(walletSignatures).length > 0) {
+            const allSigned = areAllWalletsSigned();
+            if (allSigned && !readyToSubmit) {
+                setReadyToSubmit(true);
+                // Only transition to ready stage if we're in signing stage to avoid breaking flow
+                if (proofStage === 'signing') {
+                    setProofStage('ready');
+                }
+            } else if (!allSigned && (proofStage === 'ready' || readyToSubmit)) {
+                // If not all wallets are signed but we're in ready stage, go back to signing
+                setReadyToSubmit(false);
+                if (proofStage === 'ready') {
+                    setProofStage('signing');
+                }
+            }
+        }
+    }, [walletSignatures, selectedWallets, proofStage]);
 
     /**
      * Resets wallet signatures when selected wallets change
@@ -1889,16 +1939,13 @@ export default function CreatePage() {
                             }
                         } catch (error) {
                             console.error("Error submitting ZK proof:", error);
+                            setIsSubmittingProof(false);
                             alert(`Failed to submit ZK proof: ${error.message}`);
                         }
                     } catch (error) {
                         console.error("Error formatting ZK contract arguments:", error);
-                        // Provide a fallback for testing
-                        const simulatedTxHash = '0x' + Array(64).fill('0').map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-                        setTxHash(simulatedTxHash);
-                        setSuccess(true);
                         setIsSubmittingProof(false);
-                        alert(`For testing: ZK Proof simulated with transaction hash: ${simulatedTxHash.substring(0, 10)}...`);
+                        alert(`Error formatting ZK contract arguments: ${error.message}`);
                     }
                 }
 
@@ -2307,11 +2354,21 @@ export default function CreatePage() {
                                 )}
                             </div>
 
-                            {!userInitiatedConnection && (
+                            {!userInitiatedConnection && connectedWallets.length === 0 && (
                                 <button
                                     className="mt-3 py-2 px-4 text-sm font-medium rounded-md border bg-primary-600 text-white border-primary-600"
                                     onClick={() => {
-                                        document.getElementById('connect-wallet-button').click();
+                                        // Find any connect wallet button in the document
+                                        const connectBtn = document.querySelector('.ConnectWallet-module_connectButton__1MX_K') || 
+                                                          document.getElementById('connect-wallet-button');
+                                        
+                                        if (connectBtn) {
+                                            connectBtn.click();
+                                        } else {
+                                            // Fallback: dispatch a custom event that ConnectWallet component can listen for
+                                            window.dispatchEvent(new CustomEvent('open-wallet-selector'));
+                                            console.log('Dispatched open-wallet-selector event');
+                                        }
                                     }}
                                 >
                                     Connect Wallet
@@ -2871,25 +2928,27 @@ export default function CreatePage() {
                             </select>
                         </div>
 
-                        {/* Wallet Signatures */}
-                        {proofStage === 'signing' && (
+                        {/* Wallet Signatures - Show in any stage if we have signatures or are in signing stage */}
+                        {(proofStage === 'signing' || Object.keys(walletSignatures).length > 0) && (
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Sign with Your Wallets
+                                    {proofStage === 'signing' ? 'Sign with Your Wallets' : 'Wallet Signatures'}
                                 </label>
 
-                                <div className="bg-primary-50 p-4 rounded-md mb-4">
-                                    <h3 className="font-medium text-primary-700 mb-2">Signing Instructions</h3>
-                                    <p className="text-sm text-primary-700 mb-2">
-                                        To create your proof of funds, you need to sign a message with each selected wallet:
-                                    </p>
-                                    <ol className="list-decimal pl-5 text-sm text-primary-700 space-y-1">
-                                        <li>Click "Sign with Wallet" for each wallet in the list below</li>
-                                        <li>Your wallet extension will open with a signature request</li>
-                                        <li>Make sure to select the correct account in your wallet</li>
-                                        <li>After signing all wallets, you can submit your proof</li>
-                                    </ol>
-                                </div>
+                                {proofStage === 'signing' && (
+                                    <div className="bg-primary-50 p-4 rounded-md mb-4">
+                                        <h3 className="font-medium text-primary-700 mb-2">Signing Instructions</h3>
+                                        <p className="text-sm text-primary-700 mb-2">
+                                            To create your proof of funds, you need to sign a message with each selected wallet:
+                                        </p>
+                                        <ol className="list-decimal pl-5 text-sm text-primary-700 space-y-1">
+                                            <li>Click "Sign with Wallet" for each wallet in the list below</li>
+                                            <li>Your wallet extension will open with a signature request</li>
+                                            <li>Make sure to select the correct account in your wallet</li>
+                                            <li>After signing all wallets, you can submit your proof</li>
+                                        </ol>
+                                    </div>
+                                )}
 
                                 <div className="space-y-3 mb-4">
                                     {selectedWallets.length > 0 ? (
@@ -2916,11 +2975,41 @@ export default function CreatePage() {
 
                                                         <div className="flex items-center space-x-2">
                                                             {isSigned ? (
-                                                                <div className="flex items-center text-green-600">
-                                                                    <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                    <span className="text-xs">Signed Successfully</span>
+                                                                <div className="flex flex-col items-end">
+                                                                    <div className="flex items-center text-green-600">
+                                                                        <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                        <span className="text-xs">Signed Successfully</span>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                // Remove this wallet's signature
+                                                                                setWalletSignatures(prev => {
+                                                                                    const newSigs = {...prev};
+                                                                                    delete newSigs[walletId];
+                                                                                    return newSigs;
+                                                                                });
+                                                                                // Update readiness state and go back to signing stage if needed
+                                                                                setReadyToSubmit(false);
+                                                                                if (proofStage !== 'signing') {
+                                                                                    setProofStage('signing');
+                                                                                }
+                                                                            }}
+                                                                            className="ml-2 text-red-500 hover:text-red-700"
+                                                                            title="Revoke signature"
+                                                                        >
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                            </svg>
+                                                                        </button>
+                                                                    </div>
+                                                                    {walletSignatures[walletId]?.timestamp && (
+                                                                        <div className="text-xs text-gray-500 mt-1">
+                                                                            {new Date(walletSignatures[walletId].timestamp).toLocaleString()}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ) : (
                                                                 <button
@@ -2949,17 +3038,46 @@ export default function CreatePage() {
 
                                 {/* Signature status summary */}
                                 {selectedWallets.length > 0 && (
-                                    <div className="text-sm mb-2">
+                                    <div className="p-4 bg-gray-50 rounded-md mb-4 border border-gray-200">
+                                        <h4 className="font-medium text-gray-700 mb-2">Wallet Signature Status</h4>
                                         {areAllWalletsSigned() ? (
                                             <div className="flex items-center text-green-600">
-                                                <svg className="h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
-                                                All wallets signed successfully! You can now submit your proof.
+                                                <span className="font-medium">All wallets signed successfully!</span>
                                             </div>
                                         ) : (
-                                            <div className="text-primary-600">
-                                                Progress: {Object.keys(walletSignatures).length} of {selectedWallets.length} wallets signed
+                                            <div>
+                                                <div className="flex items-center mb-2">
+                                                    <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="absolute top-0 left-0 h-full bg-primary-600 rounded-full" 
+                                                            style={{ width: `${(Object.keys(walletSignatures).length / selectedWallets.length) * 100}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <span className="ml-3 font-medium">
+                                                        {Object.keys(walletSignatures).length}/{selectedWallets.length}
+                                                    </span>
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                    {selectedWallets.length - Object.keys(walletSignatures).length} wallet(s) still require signatures
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Show timestamp of last signature */}
+                                        {Object.keys(walletSignatures).length > 0 && (
+                                            <div className="mt-3 pt-3 border-t border-gray-200">
+                                                <div className="text-xs text-gray-600">
+                                                    <div className="font-medium">Signatures will persist until proof submission</div>
+                                                    <div className="mt-1">Last wallet signed: {
+                                                        new Date(Math.max(...Object.values(walletSignatures)
+                                                            .filter(sig => sig.timestamp)
+                                                            .map(sig => sig.timestamp)))
+                                                            .toLocaleString()
+                                                    }</div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -3024,9 +3142,23 @@ export default function CreatePage() {
                                             : 'bg-zk-accent hover:bg-zk-accent-dark text-white'
                                     }`}
                                 onClick={() => {
-                                    if (proofStage === 'ready' && !proofData) {
-
+                                    if (proofStage === 'input') {
+                                        // First click - move to proof stage
+                                        setProofStage('signing');
+                                    } else if (proofStage === 'signing' && areAllWalletsSigned()) {
+                                        // Wallets signed - prepare proof submission
                                         prepareProofSubmission();
+                                    } else if (proofStage === 'ready' && !proofData) {
+                                        // Fallback if somehow we're in ready stage without data
+                                        prepareProofSubmission();
+                                    } else if (proofStage === 'ready' && proofData) {
+                                        // Ready to submit to blockchain
+                                        console.log("Submit button clicked with proofStage 'ready' and proofData available");
+                                        console.log("Current proofData:", proofData);
+                                        submitFinalProof();
+                                    } else {
+                                        console.log("Button clicked but no handler executed");
+                                        console.log("Current state:", { proofStage, hasProofData: !!proofData });
                                     }
                                 }}
                             >
@@ -3058,7 +3190,9 @@ export default function CreatePage() {
                                                     ? `Sign Wallets (${Object.keys(walletSignatures).length}/${selectedWallets.length})`
                                                     : (proofStage === 'ready' && !proofData)
                                                         ? 'Prepare Proof Data'
-                                                        : 'Submit Proof to Blockchain'}
+                                                        : (proofStage === 'ready' && proofData)
+                                                            ? 'Submit Proof to Blockchain'
+                                                            : `Submit [Stage: ${proofStage}, HasData: ${!!proofData}]`}
                             </button>
                         </div>
                     </div>

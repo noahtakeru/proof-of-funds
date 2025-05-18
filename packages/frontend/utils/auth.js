@@ -7,8 +7,48 @@
 
 const jwt = require('jsonwebtoken');
 const { ethers } = require('ethers');
-const { getSecret } = require('@proof-of-funds/common/src/config/secrets');
-const { generateTokenPair } = require('@proof-of-funds/common/src/auth/tokenManager');
+// Using local shims instead of common package to fix build issues
+const { getSecret } = require('./shims/config/secrets');
+
+// Simple implementation of generateTokenPair for the auth module
+// This matches the functionality from @proof-of-funds/common/src/auth/tokenManager
+async function generateTokenPair(payload, options = {}) {
+  const {
+    accessExpiresIn = '15m',
+    refreshExpiresIn = '7d'
+  } = options;
+
+  // Get the JWT secret
+  const jwtSecret = await getSecret('JWT_SECRET', { 
+    required: true,
+    fallback: process.env.NODE_ENV !== 'production' ? 
+      'proof-of-funds-jwt-secret-dev-only' : null
+  });
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is required but not found');
+  }
+
+  // Generate access token
+  const accessToken = jwt.sign(
+    { ...payload, type: 'access' },
+    jwtSecret,
+    { expiresIn: accessExpiresIn }
+  );
+
+  // Generate refresh token
+  const refreshToken = jwt.sign(
+    { ...payload, type: 'refresh' },
+    jwtSecret,
+    { expiresIn: refreshExpiresIn }
+  );
+
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn: 15 * 60 // 15 minutes in seconds
+  };
+}
 
 // Token expiry time
 const JWT_EXPIRY = '24h'; 
