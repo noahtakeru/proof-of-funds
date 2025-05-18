@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       const vkeyJson = JSON.parse(fs.readFileSync(vkeyPath, 'utf8'));
       
       // Verify proof
-      console.log(`Verifying proof for type ${proofType}`);
+
       const verified = await snarkjsWrapper.verify(vkeyJson, publicSignals, proof);
       
       return res.status(200).json({

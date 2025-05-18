@@ -9,6 +9,9 @@
  */
 
 import crypto from 'crypto';
+import rateLimiter from '../../../lib/rateLimit';
+import { validateApiRequest, validators } from '../../../utils/apiValidator';
+import { handleApiError } from '../../../utils/apiErrorHandler';
 
 // Helper function to safely import ethers
 async function getEthers() {
@@ -29,8 +32,7 @@ async function getEthers() {
  * 3. Supporting all chains uniformly
  */
 async function generateTemporaryWallet(chain) {
-  console.log(`Generating temporary wallet for chain: ${chain}`);
-  
+
   // Get ethers library
   const ethers = await getEthers();
   
@@ -79,25 +81,57 @@ async function generateTemporaryWallet(chain) {
 /**
  * Handles the API request for generating a temporary wallet
  */
+// Rate limiter configuration - limit to 3 wallet generations per minute per IP
+// Use Redis rate limiter in production for better security
+const applyRateLimit = process.env.NODE_ENV === 'production' && process.env.REDIS_URL
+  ? require('../../../lib/distributedRateLimit')({ type: 'redis' })(3, 'temp-wallet')
+  : rateLimiter(3);
+
 export default async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimitResult = applyRateLimit(req, res);
+  if (!rateLimitResult) {
+    // If rate limit is exceeded, response has already been sent
+    return;
+  }
+  
   // Only accept POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Extract request body
-  const { chain } = req.body;
+  console.log("generateTempWallet received request:", req.body);
 
-  // Validate required inputs
-  if (!chain) {
-    return res.status(400).json({ error: 'Chain is required' });
+  // Define validation specification
+  const validationSpec = {
+    required: ['chain'],
+    fields: {
+      chain: [
+        validators.isString,
+        validators.maxLength(50)
+        // Temporarily remove enum validation to see what chains are sent
+        // validators.isEnum(['ethereum', 'polygon', 'amoy', 'solana', 'mainnet', 'evm'])
+      ]
+    }
+  };
+  
+  // Validate request inputs
+  const validation = validateApiRequest(req.body, validationSpec);
+  
+  if (!validation.isValid) {
+    console.log("Validation errors:", validation.errors);
+    return res.status(400).json({
+      error: 'Invalid input parameters',
+      details: validation.errors
+    });
   }
+  
+  // Extract validated data
+  const { chain } = validation.sanitizedData;
 
   try {
     // Generate the temporary wallet using real cryptographic libraries - no fallbacks
     const tempWallet = await generateTemporaryWallet(chain);
-    
-    console.log(`Generated temporary wallet successfully for chain: ${chain}`);
 
     // Return the generated wallet
     return res.status(200).json({ 
@@ -105,14 +139,13 @@ export default async function handler(req, res) {
       wallet: tempWallet 
     });
   } catch (error) {
-    console.error('Error generating temporary wallet:', error);
-    return res.status(500).json({ 
-      error: 'Failed to generate temporary wallet', 
-      message: error.message,
-      details: {
-        reason: 'Temporary wallet generation failed - no fallbacks used as per token-agnostic plan rule #1',
-        originalError: error.message
-      }
-    });
+    // Add context to the error
+    error.details = {
+      component: 'wallet_generator',
+      operation: 'generate_temporary_wallet'
+    };
+    
+    // Use standard error handler for consistent, secure error messages
+    return handleApiError(error, res);
   }
 }

@@ -20,28 +20,11 @@ import {
   enhanceTokenWithChainData
 } from './apiHelpers.js';
 
+// Import centralized chain mappings utility
+import { getMoralisChainId } from './chainMappings.js';
+
 // Moralis API key for token data
 const MORALIS_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImI3NTZhNjkxLTRiN2YtNGFiZS04MzI5LWFlNTJkMGY5MTljOSIsIm9yZ0lkIjoiNDM4NjMwIiwidXNlcklkIjoiNDUxMjU4IiwidHlwZUlkIjoiMTc1YjllYzktYmQ3Ni00NWNhLTk1NWItZTBlOTAzNzM1YTlkIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NDMyMzMyNjYsImV4cCI6NDg5ODk5MzI2Nn0.bLFdmNSmPM51zuRhxDmQ-YN1V-II9Mtd-FxdvZHkmys';
-
-// Chain mapping for Moralis API endpoints
-const CHAIN_MAPPING = {
-  'ethereum': 'eth',
-  'polygon': 'polygon',
-  'polygon-amoy': 'polygon_amoy', // Use explicit chain ID for Amoy
-  'amoy': 'polygon_amoy', // Alternative name for Polygon Amoy
-  'mumbai': 'mumbai',
-  'sepolia': 'sepolia',
-  'goerli': 'goerli',
-  'bsc': 'bsc',
-  'arbitrum': 'arbitrum',
-  'optimism': 'optimism',
-  'avalanche': 'avalanche',
-  'fantom': 'fantom',
-  'cronos': 'cronos',
-  'base': 'base',
-  'hardhat': 'eth',
-  'localhost': 'eth'
-};
 
 /**
  * Maps a chain name or chain ID to the corresponding Moralis API chain identifier
@@ -49,60 +32,24 @@ const CHAIN_MAPPING = {
  * @returns {string} - Moralis chain identifier
  */
 const getMoralisChain = (chain) => {
+  // Use centralized getMoralisChainId function with fallback to 'eth'
+  const moralisChainId = getMoralisChainId(chain);
+  if (moralisChainId) {
+    return moralisChainId;
+  }
   
-  // Handle chain ID input (number or hex string)
-  if (typeof chain === 'number' || (typeof chain === 'string' && chain.startsWith('0x'))) {
-    const chainId = typeof chain === 'string' ? parseInt(chain, 16) : chain;
-
-    // Map chain ID to Moralis chain name
-    const chainIdMapping = {
-      1: 'eth',
-      5: 'goerli',
-      11155111: 'sepolia',
-      137: 'polygon',
-      80001: 'mumbai',
-      80002: 'polygon_amoy',
-      42161: 'arbitrum',
-      56: 'bsc',
-      43114: 'avalanche',
-      250: 'fantom',
-      10: 'optimism',
-      8453: 'base',
-      25: 'cronos',
-      31337: 'eth',
-      1337: 'eth'
-    };
-
-    // If we have a mapping, use it
-    const result = chainIdMapping[chainId];
-    if (result) {
-      return result;
-    }
-
-    // Simple fallback logic for unmapped chains
-    if (chainId >= 1 && chainId <= 5) return 'eth';
-    if (chainId >= 56 && chainId <= 97) return 'bsc';
-    if (chainId >= 137 && chainId <= 80001) return 'polygon';
-
-    // Default fallback
-    return 'eth';
+  // Handle chain name input for pattern matching fallback
+  if (typeof chain === 'string') {
+    const chainName = chain.toLowerCase();
+    
+    // Simple pattern matching for common chains (fallback logic)
+    if (chainName.includes('eth')) return 'eth';
+    if (chainName.includes('polygon') || chainName.includes('matic')) return 'polygon';
+    if (chainName.includes('bsc') || chainName.includes('binance')) return 'bsc';
+    if (chainName.includes('arb')) return 'arbitrum';
+    if (chainName.includes('opt')) return 'optimism';
   }
-
-  // Handle chain name input
-  const chainName = typeof chain === 'string' ? chain.toLowerCase() : '';
-
-  // Use CHAIN_MAPPING if available
-  if (CHAIN_MAPPING[chainName]) {
-    return CHAIN_MAPPING[chainName];
-  }
-
-  // Simple pattern matching for common chains
-  if (chainName.includes('eth')) return 'eth';
-  if (chainName.includes('polygon') || chainName.includes('matic')) return 'polygon';
-  if (chainName.includes('bsc') || chainName.includes('binance')) return 'bsc';
-  if (chainName.includes('arb')) return 'arbitrum';
-  if (chainName.includes('opt')) return 'optimism';
-
+  
   // Default fallback
   return 'eth';
 };
@@ -179,7 +126,6 @@ const getTokenPrices = async (symbols, chain = '') => {
   }
 
   try {
-    console.log(`Getting prices for symbols: ${symbols.join(', ')} on chain: ${chain}`);
 
     // Expanded mapping for better token coverage
     const coinGeckoMap = {
@@ -246,11 +192,9 @@ const getTokenPrices = async (symbols, chain = '') => {
       .join(',');
 
     if (!geckoIds) {
-      console.log('No valid CoinGecko IDs found for symbols');
+
       return {};
     }
-
-    console.log(`CoinGecko IDs for lookup: ${geckoIds}`);
 
     // Prepare result object
     let prices = {};
@@ -258,7 +202,7 @@ const getTokenPrices = async (symbols, chain = '') => {
     // Try local API endpoint (proxied CoinGecko) first
     if (typeof window !== 'undefined') {
       try {
-        console.log(`Fetching prices from local API for IDs: ${geckoIds}`);
+
         const apiUrl = `/api/token-prices?ids=${geckoIds}`;
 
         const response = await fetch(apiUrl, {
@@ -270,20 +214,19 @@ const getTokenPrices = async (symbols, chain = '') => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Local API price data:', data);
 
           // Map prices to symbols
           for (const symbol of normalizedSymbols) {
             const id = coinGeckoMap[symbol];
             if (id && data[id] && data[id].usd) {
               prices[symbol] = data[id].usd;
-              console.log(`Got price for ${symbol}: $${prices[symbol]}`);
+
             }
           }
 
           // If we got all prices, return early
           if (Object.keys(prices).length === normalizedSymbols.length) {
-            console.log('Successfully fetched all prices from local API');
+
             return prices;
           }
         } else {
@@ -297,7 +240,7 @@ const getTokenPrices = async (symbols, chain = '') => {
     // If we don't have all prices, try direct CoinGecko API as fallback
     if (Object.keys(prices).length < normalizedSymbols.length) {
       try {
-        console.log(`Fetching prices directly from CoinGecko for: ${geckoIds}`);
+
         const geckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${geckoIds}&vs_currencies=usd`;
 
         const response = await queuedRequest('coingecko', async () => {
@@ -319,7 +262,6 @@ const getTokenPrices = async (symbols, chain = '') => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('CoinGecko price data:', data);
 
           // Map prices to symbols and fill in any missing prices
           for (const symbol of normalizedSymbols) {
@@ -327,7 +269,7 @@ const getTokenPrices = async (symbols, chain = '') => {
               const id = coinGeckoMap[symbol];
               if (id && data[id] && data[id].usd) {
                 prices[symbol] = data[id].usd;
-                console.log(`Got price for ${symbol} from CoinGecko: $${prices[symbol]}`);
+
               }
             }
           }
@@ -354,7 +296,6 @@ const getTokenPrices = async (symbols, chain = '') => {
       finalPrices[lowercaseSymbol] = prices[lowercaseSymbol] || 0;
     }
 
-    console.log('Final prices:', finalPrices);
     return finalPrices;
   } catch (error) {
     console.error('Error fetching token prices:', error);
@@ -728,7 +669,7 @@ export const getWalletTokens = async (address, chain = 'ethereum', options = {})
  */
 export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}) => {
   if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
-    console.log('No tokens provided to getTokenPricesWithMoralis');
+
     return {};
   }
 
@@ -762,7 +703,6 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
         uniqueTokens.push(token);
       }
     }
-
 
     // If no valid tokens, return empty object
     if (uniqueTokens.length === 0) {
@@ -815,7 +755,7 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
 
                 // Mark as processed
                 processedTokens.add(token.symbol);
-                console.log(`Got cached price for ${token.symbol}: $${cachedPrice.price}`);
+
                 return; // Skip API call
               }
             }
@@ -1003,7 +943,6 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
               timestamp: Date.now()
             };
 
-            console.log(`Got price for ${token.symbol} from CoinGecko: $${geckoPriceValue}`);
           } else {
             // No price found in either source
             priceResults[token.symbol] = {
@@ -1015,7 +954,6 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
               timestamp: Date.now()
             };
 
-            console.log(`No price found for ${token.symbol} from any source`);
           }
         }
       } catch (geckoError) {
@@ -1123,7 +1061,6 @@ export const getWalletAssetsWithValue = async (address, chain = 'ethereum', opti
       const decimalChainId = parseInt(chain, 16);
       chainName = chainIdToName[decimalChainId] || `chain-${decimalChainId}`;
     }
-
 
     // Start timer for performance tracking
     const startTime = Date.now();

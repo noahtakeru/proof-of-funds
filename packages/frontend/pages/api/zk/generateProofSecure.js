@@ -1,71 +1,29 @@
 /**
- * Secure proof generation endpoint using Google Cloud Secret Manager
- * This replaces the public zkey file access with secure cloud storage
+ * Secure proof generation endpoint
+ * 
+ * This handler uses the secure local files strategy for ZK proof generation.
+ * It provides enhanced security by using local secure files instead of public files.
  */
 
-import ZKeyManager from '@proof-of-funds/backend/utils/zkeyManager';
-import path from 'path';
-import { handleApiError } from '../../../utils/apiErrorHandler';
+import { createZkProofHandler } from '../../../utils/zkProofHandler';
 
-const zkeyManager = new ZKeyManager();
+// Create a handler with the secure local files strategy
+const handler = createZkProofHandler({
+  defaultStrategy: 'secure',
+  rateLimit: 3,
+  verifyProof: true,
+  // Use Redis rate limiter in production for better security
+  rateLimiterType: process.env.NODE_ENV === 'production' ? 'redis' : 'memory'
+});
 
-export default async function handler(req, res) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+// Export the handler
+export default handler;
+
+// Export config for Next.js
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb'
+    }
   }
-
-  try {
-    const { proofType, input } = req.body;
-    
-    if (!proofType || !input) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters',
-        details: 'proofType and input are required'
-      });
-    }
-    
-    // Validate proof type
-    const validProofTypes = ['standard', 'threshold', 'maximum'];
-    if (!validProofTypes.includes(proofType)) {
-      return res.status(400).json({ 
-        error: 'Invalid proof type',
-        details: `Proof type must be one of: ${validProofTypes.join(', ')}`
-      });
-    }
-    
-    // Build path to WASM file (these can remain public)
-    const circuitName = `${proofType}Proof`;
-    const wasmPath = path.resolve(process.cwd(), `public/lib/zk/circuits/${circuitName}.wasm`);
-    
-    try {
-      // Generate proof using secure zkey from Google Cloud
-      const { proof, publicSignals } = await zkeyManager.generateProof(
-        proofType,
-        input,
-        wasmPath
-      );
-      
-      return res.status(200).json({
-        success: true,
-        proofType,
-        proof,
-        publicSignals
-      });
-    } catch (zkError) {
-      console.error('ZK proof generation error:', zkError);
-      return res.status(400).json({
-        error: 'ZK proof generation failed',
-        errorType: 'ZK_ERROR',
-        message: zkError.message,
-        details: {
-          proofType,
-          wasmPath,
-          inputKeys: Object.keys(input)
-        }
-      });
-    }
-  } catch (error) {
-    return handleApiError(error, res);
-  }
-}
+};

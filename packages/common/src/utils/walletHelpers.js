@@ -62,9 +62,7 @@ export async function saveWalletConnection(walletType, accounts) {
       console.warn('localStorage not available, cannot save wallet connection');
       return false;
     }
-    
-    console.log(`Saving wallet connection for ${walletType}:`, accounts);
-    
+
     // Get existing wallet data or initialize new structure
     let walletData;
     try {
@@ -158,8 +156,7 @@ export async function saveWalletConnection(walletType, accounts) {
     
     // Save updated wallet data
     localStorage.setItem('walletData', JSON.stringify(walletData));
-    console.log('Wallet data saved successfully');
-    
+
     // Dispatch wallet connection change event
     if (typeof window !== 'undefined') {
       const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
@@ -190,16 +187,7 @@ export async function connectMetaMask() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   
   // Log ethereum provider details to help with debugging
-  console.log('Environment check:', { 
-    hasEthereum: !!window.ethereum,
-    isMetaMask: window.ethereum?.isMetaMask,
-    hasProviders: !!window.ethereum?.providers,
-    providerCount: window.ethereum?.providers?.length,
-    userAgent: navigator.userAgent,
-    isSafari,
-    isMobile
-  });
-  
+
   if (!window.ethereum) {
     if (isMobile) {
       throw new Error('MetaMask not detected. On mobile, please use the MetaMask mobile app browser.');
@@ -214,14 +202,13 @@ export async function connectMetaMask() {
   if (window.ethereum.providers) {
     const metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
     if (metaMaskProvider) {
-      console.log('Using dedicated MetaMask provider from multiple providers');
+
       provider = metaMaskProvider;
     }
   }
   
   try {
-    console.log('Requesting MetaMask accounts...');
-    
+
     // Clear localStorage items that might affect connection
     if (typeof localStorage !== 'undefined') {
       try {
@@ -229,7 +216,7 @@ export async function connectMetaMask() {
         localStorage.removeItem('wagmi.connectors');
         localStorage.removeItem('wagmi.injected.shimDisconnect');
       } catch (e) {
-        console.log('Non-critical localStorage cleanup error:', e);
+
       }
     }
     
@@ -238,9 +225,7 @@ export async function connectMetaMask() {
       method: 'eth_requestAccounts',
       params: [{ force: true }]
     });
-    
-    console.log('MetaMask returned accounts:', accounts);
-    
+
     if (!accounts || accounts.length === 0) {
       throw new Error('No accounts found. Please unlock MetaMask and try again.');
     }
@@ -331,10 +316,9 @@ export async function connectMetaMask() {
         detail: { timestamp: Date.now(), walletType: 'metamask' }
       });
       window.dispatchEvent(walletChangeEvent);
-      console.log('Dispatched wallet-connection-changed event');
+
     }
-    
-    console.log('Successfully connected to MetaMask:', wallet);
+
     return wallet;
     
   } catch (error) {
@@ -505,8 +489,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
             console.warn(`Skipping wallet without address for chain ${chainName}`);
             continue;
           }
-          
-          
+
           // Get wallet assets with options for token-agnosticism
           const walletAssets = await moralisApi.getWalletAssetsWithValue(
             walletAddress, 
@@ -578,7 +561,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
             chainResults[chainName].success = true;
           } else if (walletAssets.meta) {
             // No assets but API call succeeded
-            console.log(`No assets found for ${walletAddress} on ${chainName}`);
+
             chainResults[chainName].success = true;
             chainResults[chainName].emptyWallet = true;
           }
@@ -603,7 +586,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
       // Organize all assets by cross-chain grouping
       if (organizeAssetsByCrossChain && assetSummary.totalAssets.length > 0) {
         assetSummary.crossChain = organizeAssetsByCrossChain(assetSummary.totalAssets);
-        console.log(`Organized assets into ${assetSummary.crossChain.crossChainSummary.length} cross-chain groups`);
+
       }
     } catch (importError) {
       console.warn('Could not import cross-chain organization utilities:', importError.message);
@@ -636,8 +619,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
         multiChainTokens: assetSummary.crossChain.crossChainSummary.filter(t => t.chainCount > 1).length
       } : undefined
     };
-    
-    
+
     return assetSummary;
   } catch (error) {
     console.error('Error in scanMultiChainAssets:', error);
@@ -676,8 +658,7 @@ export async function convertAssetsToUSD(assets) {
   }
   
   try {
-    console.log('Converting assets to USD using Moralis API');
-    
+
     // Import Moralis API
     let moralisApi;
     try {
@@ -686,8 +667,7 @@ export async function convertAssetsToUSD(assets) {
       if (!moralisApi || !moralisApi.getTokenPricesWithMoralis) {
         throw new Error('Moralis API module missing required price functions');
       }
-      
-      console.log('Successfully imported Moralis API module for price conversion');
+
     } catch (importError) {
       console.error('Failed to import Moralis API module:', importError);
       throw new Error(`Moralis API module import failed: ${importError.message}`);
@@ -695,15 +675,14 @@ export async function convertAssetsToUSD(assets) {
     
     // If assets already have USD values, return early
     if (assets.convertedAssets && assets.totalUSDValue !== undefined) {
-      console.log('Assets already converted to USD, returning as-is');
+
       return assets;
     }
     
     // Check if the assets were already processed with Moralis
     if (assets.totalAssets && assets.totalAssets.length > 0 && 
         assets.totalAssets[0].usdValue !== undefined) {
-      console.log('Assets already have USD values from Moralis scan');
-      
+
       // Create a properly formatted result with the existing USD values
       const result = JSON.parse(JSON.stringify(assets));
       
@@ -734,33 +713,27 @@ export async function convertAssetsToUSD(assets) {
     
     // Skip processing if no assets
     if (totalAssets.length === 0) {
-      console.log('No assets to convert to USD');
+
       return result;
     }
-    
-    console.log(`Converting ${totalAssets.length} assets to USD`);
-    
+
     // Get prices from Moralis for all tokens at once
     const prices = await moralisApi.getTokenPricesWithMoralis(
       totalAssets.map(asset => ({ symbol: asset.symbol, chain: asset.chain }))
     );
-    
-    console.log('Retrieved prices from Moralis:', prices);
-    
+
     // Convert all total assets
     for (const asset of totalAssets) {
       // Skip zero balances
       if (asset.balance <= 0) {
-        console.log(`Skipping zero balance asset: ${asset.symbol}`);
+
         continue;
       }
       
       // Get price from our price map (case insensitive)
       const price = prices[asset.symbol.toLowerCase()] || 0;
       const usdValue = asset.balance * price;
-      
-      console.log(`Converting ${asset.symbol}: ${asset.balance} * $${price} = $${usdValue}`);
-      
+
       // Add to converted assets
       result.convertedAssets.push({
         ...asset,
@@ -789,28 +762,21 @@ export async function convertAssetsToUSD(assets) {
       
       // Only convert if we need to (not already converted)
       if (Object.keys(result.chains[chain].tokensUSDValue).length === 0) {
-        console.log(`Converting chain-specific balances for ${chain}`);
-        
+
         // Convert native balance
         const nativeSymbol = getNativeSymbolForChain(chain);
         const nativePrice = prices[nativeSymbol.toLowerCase()] || 0;
         result.chains[chain].nativeUSDValue = chainData.nativeBalance * nativePrice;
-        
-        console.log(`Native ${nativeSymbol} on ${chain}: ${chainData.nativeBalance} * $${nativePrice} = $${result.chains[chain].nativeUSDValue}`);
-        
+
         // Convert token balances
         for (const [tokenSymbol, tokenBalance] of Object.entries(chainData.tokens || {})) {
           const tokenPrice = prices[tokenSymbol.toLowerCase()] || 0;
           result.chains[chain].tokensUSDValue[tokenSymbol] = tokenBalance * tokenPrice;
-          
-          console.log(`Token ${tokenSymbol} on ${chain}: ${tokenBalance} * $${tokenPrice} = $${result.chains[chain].tokensUSDValue[tokenSymbol]}`);
+
         }
       }
     }
-    
-    console.log(`Total USD value: $${result.totalUSDValue}`);
-    console.log('Finished converting assets to USD');
-    
+
     return result;
   } catch (error) {
     console.error('Error in convertAssetsToUSD:', error);
@@ -830,8 +796,7 @@ export async function convertAssetsToUSD(assets) {
         result.chains[chain].nativeUSDValue = 0;
         result.chains[chain].tokensUSDValue = {};
       }
-      
-      console.log('Returning assets with zero USD values due to error');
+
       return result;
     }
     

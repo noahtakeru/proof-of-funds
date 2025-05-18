@@ -55,9 +55,13 @@ export const NetworkProvider = ({ children }) => {
   
   // Get current network configuration based on selected network
   const getNetworkConfig = () => {
+    // Use chainMappings utility for consistency
+    const chainName = useTestNetwork ? 'polygon-amoy' : 'polygon';
+    const { getChainId, getRpcUrl } = require('../utils/chainMappings');
+    
     return {
       chainId: useTestNetwork ? POLYGON_AMOY_CHAIN_ID : POLYGON_MAINNET_CHAIN_ID,
-      rpcUrl: useTestNetwork ? POLYGON_AMOY_RPC_URL : POLYGON_MAINNET_RPC_URL,
+      rpcUrl: useTestNetwork ? getRpcUrl(chainName) : getRpcUrl('polygon'),
       contractAddress: useTestNetwork ? CONTRACT_ADDRESS : POLYGON_MAINNET_CONTRACT_ADDRESS,
       networkName: useTestNetwork ? 'Polygon Amoy (Testnet)' : 'Polygon Mainnet',
       isTestnet: useTestNetwork

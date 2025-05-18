@@ -7,7 +7,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @proof-of-funds/frontend",
-    "build": "npm run build --workspaces",
+    "build": "node scripts/prepare-zk-files.js && npm run build --workspaces",
+    "prepare-zk": "node scripts/prepare-zk-files.js",
     "test": "npm run test --workspaces",
     "test:manual": "echo \"Running manual test - specify test script name\" && node",
     "test:manual:all": "for f in tests/manual/test-*.mjs; do echo \"Running $f\" && node $f; done",
@@ -41,6 +42,7 @@
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^6.0.1",
+    "@google-cloud/storage": "^7.16.0",
     "snarkjs": "^0.7.0"
   }
 }
