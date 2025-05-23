@@ -24,9 +24,9 @@ setInterval(() => {
  * @returns {Function} - Middleware function
  */
 export default function rateLimiter(limit = 10) {
-  return (req, res, next) => {
+  return (req, res) => {
     // Get IP address
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '127.0.0.1';
     
     // Get current timestamp
     const now = Date.now();
@@ -62,11 +62,7 @@ export default function rateLimiter(limit = 10) {
       });
     }
     
-    // Move to next middleware or route handler
-    if (next) {
-      next();
-    }
-    
+    // Return true to indicate rate limit not exceeded
     return true;
   };
 }

@@ -23,7 +23,7 @@ const getEthers = async () => {
             
             // Try dynamic import (ESM style)
             if (typeof require === 'undefined') {
-                console.log('Using ESM dynamic import for ethers');
+
                 ethers = await import('ethers');
                 
                 // Handle ESM differences between v5 and v6
@@ -34,7 +34,7 @@ const getEthers = async () => {
                 }
             } else {
                 // CommonJS style
-                console.log('Using CommonJS require for ethers');
+
                 ethers = require('ethers');
             }
             
@@ -49,9 +49,7 @@ const getEthers = async () => {
                 isV5,
                 isV6
             };
-            
-            console.log(`Loaded ethers.js version: ${ethersInstance.version}`);
-            console.log('Ethers version detection:', { isV5, isV6 });
+
         } catch (error) {
             console.error('Failed to load ethers.js library:', error);
             throw new Error(`Failed to load ethers.js library: ${error.message}`);
@@ -113,20 +111,18 @@ const parseAmount = async (amount, decimals = 18) => {
         }
         
         const { ethers, isV5, isV6 } = ethersData;
-        
-        console.log(`Parsing amount: ${amountStr} with ${decimals} decimals`);
-        
+
         // Create a unified parse function that works with both v5 and v6
         let parsedValue;
         
         // Handle ethers v5
         if (isV5 && ethers.utils && typeof ethers.utils.parseUnits === 'function') {
-            console.log('Using ethers v5 parseUnits');
+
             parsedValue = ethers.utils.parseUnits(amountStr, decimals);
         } 
         // Handle ethers v6
         else if (isV6 && typeof ethers.parseUnits === 'function') {
-            console.log('Using ethers v6 parseUnits');
+
             parsedValue = ethers.parseUnits(amountStr, decimals);
         }
         // Fallback implementation if standard methods are not available
@@ -175,11 +171,36 @@ const parseAmount = async (amount, decimals = 18) => {
     }
 };
 
+/**
+ * Parses an Ether amount string to Wei representation (18 decimals)
+ * A convenience wrapper for parseAmount with decimals fixed at 18
+ * Works with both ethers v5 and v6
+ * 
+ * @param {string} amount - The amount in Ether as a decimal string
+ * @returns {Promise<string>} - The amount in Wei as a string
+ */
+const parseEther = async (amount) => {
+    return parseAmount(amount, 18);
+};
+
+/**
+ * Creates a zero amount in Wei (18 decimals)
+ * Utility function to avoid having to use ethers.utils.parseEther('0')
+ * which differs between v5 and v6
+ * 
+ * @returns {Promise<string>} - Zero in Wei as a string ('0')
+ */
+const getZeroWei = async () => {
+    return '0';
+};
+
 // Define the exports object
 const ethersUtils = {
     getEthers,
     isValidAmount,
-    parseAmount
+    parseAmount,
+    parseEther,
+    getZeroWei
 };
 
 // For CommonJS environments
@@ -194,5 +215,7 @@ export default ethersUtils;
 export {
   getEthers,
   isValidAmount,
-  parseAmount
+  parseAmount,
+  parseEther,
+  getZeroWei
 };

@@ -12,6 +12,9 @@ export * from './ErrorSystem';
 export * from './ZkErrors';
 export * from './ApiErrors';
 
+// Export error logger
+export { getErrorLogger } from './zkErrorHandler.mjs';
+
 // Import everything for re-export
 import ErrorSystem from './ErrorSystem';
 import ZkErrors from './ZkErrors';

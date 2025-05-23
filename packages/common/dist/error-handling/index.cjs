@@ -1,28 +1,41 @@
 /**
- * Error handling module for ZK proof operations.
- * This module re-exports all error handling functionality from the migrated implementation.
+ * Unified Error Handling System
  * 
- * @module error-handling
+ * This is the main entry point for the error handling system.
+ * It exports all error handling functionality from the various modules.
  */
 
-// Export all from the error handling system
-Object.assign(exports, require('./zkErrorHandler.mjs'));
-Object.assign(exports, require('./zkErrorLogger.mjs'));
+// Export core error system
+Object.assign(exports, require('./ErrorSystem'));
 
-// Ensure backward compatibility with any code that might be using these exports directly
-const { 
-  ErrorSeverity, 
-  ErrorCategory, 
-  ErrorCode as ZKErrorCode,
-  getErrorLogger,
-  createZKError
-} = require('./zkErrorHandler.mjs');
+// Export specialized error handlers
+Object.assign(exports, require('./ZkErrors'));
+Object.assign(exports, require('./ApiErrors'));
 
-// Re-export the specific exports that might be used directly
-module.exports = { 
-  ErrorSeverity, 
-  ErrorCategory, 
-  ZKErrorCode,
-  getErrorLogger,
-  createZKError 
+// Export error logger
+module.exports = { getErrorLogger } from './zkErrorHandler.mjs';
+
+// Import everything for re-const ErrorSystem = exports.ErrorSystem = require('./ErrorSystem');
+const ZkErrors = require('./ZkErrors');
+const ApiErrors = require('./ApiErrors');
+
+// Configure a default export with commonly used functions
+module.exports = {
+  // Core error system
+  ...ErrorSystem,
+  
+  // ZK-specific errors
+  ...ZkErrors,
+  
+  // API-specific errors
+  ...ApiErrors,
+  
+  // Common error handlers
+  handleApiError: ApiErrors.handleApiError,
+  handleZkError: ZkErrors.handleZkError,
+  handleClientError: ErrorSystem.handleClientError,
+  
+  // Validation
+  validateApiRequest: ApiErrors.validateApiRequest,
+  validators: ApiErrors.validators
 };

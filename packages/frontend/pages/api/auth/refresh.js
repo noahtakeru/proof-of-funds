@@ -8,8 +8,8 @@
 import { validateApiRequest, validators } from '../../../utils/apiValidator';
 import { handleApiError } from '../../../utils/apiErrorHandler';
 import rateLimiter from '../../../lib/rateLimit';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
-import { refreshTokens } from '@proof-of-funds/common/src/auth/tokenManager';
+import auditLogger from '@proof-of-funds/common/logging/auditLogger';
+import { refreshTokens } from '@proof-of-funds/common/auth/tokenManager';
 
 // Apply rate limiting (10 attempts per minute)
 const applyRateLimit = rateLimiter(10);

@@ -25,12 +25,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAccount, useContractWrite, useConnect } from 'wagmi';
 import { PROOF_TYPES, ZK_PROOF_TYPES, ZK_VERIFIER_ADDRESS, SIGNATURE_MESSAGE_TEMPLATES, EXPIRY_OPTIONS } from '../config/constants';
-import { getConnectedWallets, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
+import { getConnectedWallets, saveWalletConnection, scanMultiChainAssets, convertAssetsToUSD, disconnectWallet, generateProofHash, generateTemporaryWallet } from '@proof-of-funds/common/utils/walletHelpers';
 import MultiChainAssetDisplay from '../components/MultiChainAssetDisplay';
 import WalletSelector from '../components/WalletSelector';
 import NetworkToggle from '../components/NetworkToggle';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/constants';
+import { CONTRACT_ABI, getContractAddress, CONTRACT_TYPES, CHAIN_IDS } from '../config/constants';
 import { useNetwork } from '@proof-of-funds/common';
 import { CheckIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { generateZKProof } from '@proof-of-funds/common/zk';
@@ -79,25 +79,52 @@ const fetchUSDValue = async (balance, chain) => {
 // Helper function to sign a message
 const signMessage = async (walletAddress, message) => {
     try {
+        console.log(`Signing message for wallet ${walletAddress}:`, message);
+        
         // Dynamically import ethers
         const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
-        const { ethers } = await getEthers();
+        const { ethers, isV5, isV6 } = await getEthers();
+        
+        console.log("Using ethers version:", { isV5, isV6, version: ethers.version });
 
         // Handle both ethers v5 and v6 API
         let signer;
-        if (ethers.providers && ethers.providers.Web3Provider) {
-            // ethers v5
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            signer = provider.getSigner();
-        } else if (ethers.BrowserProvider) {
-            // ethers v6
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            signer = await provider.getSigner();
-        } else {
-            throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+        
+        try {
+            if (isV5 && ethers.providers && ethers.providers.Web3Provider) {
+                // Check if we have a valid ethereum instance
+                if (!window.ethereum) {
+                    throw new Error("No ethereum provider available. Connect your wallet first.");
+                }
+                
+                // ethers v5
+                console.log("Creating ethers v5 provider");
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                console.log("Created ethers v5 signer");
+            } else if (isV6 && ethers.BrowserProvider) {
+                // Check if we have a valid ethereum instance
+                if (!window.ethereum) {
+                    throw new Error("No ethereum provider available. Connect your wallet first.");
+                }
+                
+                // ethers v6
+                console.log("Creating ethers v6 provider");
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                console.log("Created ethers v6 signer");
+            } else {
+                throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
+            }
+            
+            console.log("Requesting signature from wallet...");
+            const signature = await signer.signMessage(message);
+            console.log("Message signed successfully");
+            return signature;
+        } catch (signerError) {
+            console.error("Error with signer:", signerError);
+            throw new Error(`Signing failed: ${signerError.message}`);
         }
-        const signature = await signer.signMessage(message);
-        return signature;
     } catch (error) {
         console.error('Error signing message:', error);
         throw error;
@@ -169,7 +196,7 @@ export default function CreatePage() {
     // Get network information
     const { useTestNetwork, getNetworkConfig } = useNetwork();
     const networkConfig = getNetworkConfig();
-    
+
     // --- PROOF CONFIGURATION STATE ---
     // Controls switching between standard proof and zero-knowledge proof modes
     const [proofCategory, setProofCategory] = useState('standard'); // 'standard' or 'zk'
@@ -230,7 +257,7 @@ export default function CreatePage() {
 
     // Whether USD values are currently being calculated
     const [isConvertingUSD, setIsConvertingUSD] = useState(false);
-    
+
     // Whether assets are being manually refreshed
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -278,7 +305,7 @@ export default function CreatePage() {
             // Use the centralized wallet helper functions to check if wallet exists
             // Note: getConnectedWallets() handles different wallet formats consistently
             const connectedWallets = getConnectedWallets();
-            
+
             // Explicitly check for duplicates by normalizing addresses
             const normalizedAddress = address.toLowerCase();
             const hasAddress = connectedWallets.some(wallet => {
@@ -296,7 +323,7 @@ export default function CreatePage() {
 
                     // Explicitly clean up any malformed wallet entries to prevent duplicates
                     cleanupWalletStorage();
-                    
+
                     // Trigger a wallet connection changed event
                     const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
                         detail: { timestamp: Date.now() }
@@ -310,40 +337,40 @@ export default function CreatePage() {
             }
         }
     }, [isConnected, address]);
-    
+
     // Helper function to clean up any malformed wallet entries
     function cleanupWalletStorage() {
         try {
             const walletData = JSON.parse(localStorage.getItem('walletData') || '{"wallets":{},"timestamp":0}');
-            
+
             // Ensure wallet object has expected structure
             if (!walletData.wallets) {
                 walletData.wallets = {};
             }
-            
+
             // Clean up metamask entries
             if (walletData.wallets.metamask && Array.isArray(walletData.wallets.metamask)) {
                 // Remove any duplicate addresses by normalizing and comparing
                 const seenAddresses = new Set();
                 walletData.wallets.metamask = walletData.wallets.metamask.filter(entry => {
                     if (!entry) return false; // Remove null/undefined entries
-                    
+
                     // Get address from either string or object format
-                    const addr = typeof entry === 'string' ? 
-                        entry.toLowerCase() : 
+                    const addr = typeof entry === 'string' ?
+                        entry.toLowerCase() :
                         ((entry.address || entry.fullAddress || '').toLowerCase());
-                    
+
                     // If we've seen this address before, filter it out
                     if (seenAddresses.has(addr)) return false;
-                    
+
                     // Otherwise, record and keep it
                     if (addr) seenAddresses.add(addr);
                     return !!addr; // Keep entries with valid addresses
                 });
-                
+
                 // Update timestamp
                 walletData.timestamp = Date.now();
-                
+
                 // Save cleaned data
                 localStorage.setItem('walletData', JSON.stringify(walletData));
             }
@@ -375,6 +402,276 @@ export default function CreatePage() {
     const formatAddress = (address) => {
         if (!address) return '';
         return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    };
+
+    /**
+     * Comprehensive MetaMask debugging function
+     */
+    const debugWalletState = async () => {
+        console.log("=== COMPREHENSIVE WALLET DEBUG START ===");
+        
+        // Check if we have multiple ethereum providers
+        console.log("window.ethereum:", window.ethereum);
+        console.log("window.ethereum.providers:", window.ethereum?.providers);
+        console.log("window.ethereum.isMetaMask:", window.ethereum?.isMetaMask);
+        
+        // Check MetaMask directly with multiple methods
+        if (window.ethereum) {
+            try {
+                // FIND THE ACTUAL METAMASK PROVIDER (not Phantom!)
+                let metaMaskProvider = window.ethereum;
+                if (window.ethereum.providers) {
+                    console.log("Multiple providers detected, finding MetaMask...");
+                    metaMaskProvider = window.ethereum.providers.find(provider => provider.isMetaMask);
+                    console.log("Found MetaMask provider:", metaMaskProvider);
+                } else if (!window.ethereum.isMetaMask) {
+                    console.log("Default provider is NOT MetaMask:", window.ethereum);
+                    console.log("Provider details:", {
+                        isMetaMask: window.ethereum.isMetaMask,
+                        isPhantom: window.ethereum.isPhantom,
+                        isCoinbaseWallet: window.ethereum.isCoinbaseWallet
+                    });
+                }
+                
+                if (!metaMaskProvider) {
+                    console.error("METAMASK PROVIDER NOT FOUND!");
+                    return;
+                }
+                
+                // Method 1: eth_requestAccounts (should show UI and return current accounts)
+                console.log("=== CALLING eth_requestAccounts ON METAMASK PROVIDER ===");
+                const requestAccounts = await metaMaskProvider.request({ method: 'eth_requestAccounts' });
+                console.log("MetaMask eth_requestAccounts result:", requestAccounts);
+                
+                // Method 2: eth_accounts (should return cached accounts)
+                console.log("=== CALLING eth_accounts ON METAMASK PROVIDER ===");
+                const ethAccounts = await metaMaskProvider.request({ method: 'eth_accounts' });
+                console.log("MetaMask eth_accounts result:", ethAccounts);
+                
+                // Method 3: Check selectedAddress property
+                console.log("=== METAMASK PROPERTIES ===");
+                console.log("metaMaskProvider.selectedAddress:", metaMaskProvider.selectedAddress);
+                console.log("metaMaskProvider.isConnected():", metaMaskProvider.isConnected());
+                console.log("metaMaskProvider.chainId:", metaMaskProvider.chainId);
+                console.log("default window.ethereum.selectedAddress:", window.ethereum.selectedAddress);
+                console.log("default window.ethereum.isConnected():", window.ethereum.isConnected());
+                console.log("default window.ethereum.chainId:", window.ethereum.chainId);
+                
+                // Method 4: Try to get accounts through provider if available
+                if (metaMaskProvider.enable) {
+                    console.log("=== CALLING metaMaskProvider.enable() ===");
+                    try {
+                        const enableResult = await metaMaskProvider.enable();
+                        console.log("metaMaskProvider.enable() result:", enableResult);
+                    } catch (enableError) {
+                        console.log("metaMaskProvider.enable() error:", enableError);
+                    }
+                } else {
+                    console.log("metaMaskProvider.enable() not available");
+                }
+                
+                // Method 5: Check if there are multiple providers
+                if (window.ethereum.providers && window.ethereum.providers.length > 0) {
+                    console.log("=== MULTIPLE PROVIDERS DETECTED ===");
+                    console.log(`Total providers: ${window.ethereum.providers.length}`);
+                    for (let i = 0; i < window.ethereum.providers.length; i++) {
+                        const provider = window.ethereum.providers[i];
+                        console.log(`Provider ${i}:`, {
+                            isMetaMask: provider.isMetaMask,
+                            isPhantom: provider.isPhantom,
+                            isCoinbaseWallet: provider.isCoinbaseWallet,
+                            selectedAddress: provider.selectedAddress,
+                            chainId: provider.chainId,
+                            _metamask: provider._metamask,
+                            _state: provider._state
+                        });
+                        
+                        if (provider.isMetaMask) {
+                            try {
+                                const providerAccounts = await provider.request({ method: 'eth_accounts' });
+                                console.log(`MetaMask Provider ${i} accounts:`, providerAccounts);
+                                
+                                const providerRequestAccounts = await provider.request({ method: 'eth_requestAccounts' });
+                                console.log(`MetaMask Provider ${i} requestAccounts:`, providerRequestAccounts);
+                            } catch (error) {
+                                console.log(`MetaMask Provider ${i} error:`, error);
+                            }
+                        }
+                    }
+                } else {
+                    console.log("=== SINGLE PROVIDER OR NO PROVIDERS ARRAY ===");
+                }
+                
+            } catch (error) {
+                console.log("Error checking MetaMask:", error);
+            }
+        } else {
+            console.log("NO ETHEREUM PROVIDER FOUND!");
+        }
+        
+        // Check localStorage thoroughly
+        console.log("=== LOCALSTORAGE DEBUG ===");
+        try {
+            const walletData = localStorage.getItem('walletData');
+            console.log("localStorage walletData raw:", walletData);
+            
+            if (walletData) {
+                const parsed = JSON.parse(walletData);
+                console.log("Parsed wallet data:", JSON.stringify(parsed, null, 2));
+            }
+            
+            // Check all localStorage keys for wallet-related data
+            console.log("All localStorage keys containing 'wallet' or 'connect':");
+            Object.keys(localStorage).forEach(key => {
+                if (key.toLowerCase().includes('wallet') || key.toLowerCase().includes('connect') || key.includes('wagmi')) {
+                    console.log(`${key}: ${localStorage.getItem(key)}`);
+                }
+            });
+            
+        } catch (error) {
+            console.log("Error checking localStorage:", error);
+        }
+        
+        console.log("=== COMPREHENSIVE WALLET DEBUG END ===");
+    };
+
+    /**
+     * Reset MetaMask connection completely
+     */
+    const resetMetaMaskConnection = async () => {
+        console.log("=== RESETTING METAMASK CONNECTION ===");
+        
+        try {
+            // Clear all localStorage
+            localStorage.clear();
+            console.log("Cleared all localStorage");
+            
+            // Clear session storage too
+            sessionStorage.clear();
+            console.log("Cleared all sessionStorage");
+            
+            // If there are multiple providers, try to disconnect from all
+            if (window.ethereum?.providers) {
+                for (const provider of window.ethereum.providers) {
+                    if (provider.isMetaMask && provider.disconnect) {
+                        try {
+                            await provider.disconnect();
+                            console.log("Disconnected from MetaMask provider");
+                        } catch (error) {
+                            console.log("Error disconnecting provider:", error);
+                        }
+                    }
+                }
+            }
+            
+            // Reload the page to ensure clean state
+            console.log("Page will reload in 2 seconds to ensure clean state...");
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+            
+        } catch (error) {
+            console.error("Error resetting MetaMask connection:", error);
+        }
+    };
+
+    /**
+     * Clears stale wallet data from localStorage to prevent phantom addresses
+     */
+    const clearStaleWalletData = () => {
+        try {
+            console.log("Clearing stale wallet data from localStorage...");
+            
+            // Clear all wallet-related localStorage items
+            localStorage.removeItem('walletData');
+            localStorage.removeItem('userInitiatedConnection');
+            
+            // Clear wagmi-related items that might cache stale data
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('wagmi.') || key.includes('wallet') || key.includes('connect')) {
+                    console.log(`Removing stale localStorage item: ${key}`);
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            console.log("Stale wallet data cleared successfully");
+        } catch (error) {
+            console.warn("Error clearing stale wallet data:", error);
+        }
+    };
+
+    /**
+     * Synchronizes MetaMask wallets with localStorage to handle wallet mismatch issues
+     * @returns {Promise<boolean>} Success status
+     */
+    const syncMetaMaskWallets = async () => {
+        console.log("Synchronizing MetaMask wallets with localStorage...");
+        if (typeof window === 'undefined' || !window.ethereum) {
+            console.warn("Cannot sync MetaMask wallets - no ethereum provider available");
+            return false;
+        }
+        
+        try {
+            // Instead of calling MetaMask directly (which might return stale data),
+            // use the properly connected wallets from our app state
+            const currentWallets = getConnectedWallets();
+            console.log("Current connected wallets from localStorage:", currentWallets);
+            
+            // Filter to get only MetaMask wallets
+            const metaMaskWallets = currentWallets.filter(w => 
+                w.type === 'evm' && w.provider === 'metamask'
+            );
+            
+            if (metaMaskWallets.length === 0) {
+                console.warn("No MetaMask wallets found in connected wallets");
+                return false;
+            }
+            
+            // Verify these wallets are still valid by checking with wagmi connection
+            if (isConnected && address) {
+                console.log("Wagmi reports connected address:", address);
+                
+                // Find the wallet that matches the wagmi connected address
+                const matchingWallet = metaMaskWallets.find(w => 
+                    (w.address || w.fullAddress || '').toLowerCase() === address.toLowerCase()
+                );
+                
+                if (matchingWallet) {
+                    console.log("Found matching wallet in connected wallets:", matchingWallet);
+                    // Update UI state to use this verified wallet
+                    setConnectedWallets([matchingWallet]);
+                    console.log("MetaMask wallets synchronized successfully with verified data");
+                    return true;
+                } else {
+                    console.warn("Wagmi connected address doesn't match any stored wallets");
+                    // Try to use the wagmi address as the source of truth
+                    const freshWallet = {
+                        id: `metamask-${address.substring(2, 10)}`,
+                        address: address,
+                        displayAddress: `${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+                        fullAddress: address,
+                        type: 'evm',
+                        provider: 'metamask',
+                        name: `MetaMask ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+                        connected: true,
+                        fresh: true
+                    };
+                    
+                    // Save and use this fresh wallet
+                    await saveWalletConnection('metamask', [freshWallet]);
+                    setConnectedWallets([freshWallet]);
+                    console.log("Created fresh wallet from wagmi connection:", freshWallet);
+                    return true;
+                }
+            } else {
+                console.log("No wagmi connection, using stored MetaMask wallets");
+                setConnectedWallets(metaMaskWallets);
+                return true;
+            }
+        } catch (error) {
+            console.error("Error syncing MetaMask wallets:", error);
+            return false;
+        }
     };
 
     /**
@@ -568,32 +865,32 @@ export default function CreatePage() {
                     chains: {},
                     walletAddresses: walletObjects.map(w => w.address || w.fullAddress),
                 };
-                
+
                 // Process each chain's results
                 results.forEach(result => {
                     if (result.data && !result.error) {
                         const chainData = result.data;
-                        
+
                         // Add assets
                         if (chainData.totalAssets && chainData.totalAssets.length > 0) {
                             mergedSummary.totalAssets.push(...chainData.totalAssets);
                         }
-                        
+
                         // Add value
                         mergedSummary.totalValue += (chainData.totalValue || 0);
                         mergedSummary.totalUSDValue += (chainData.totalUSDValue || 0);
-                        
+
                         // Copy chain data
                         if (chainData.chains && Object.keys(chainData.chains).length > 0) {
                             Object.assign(mergedSummary.chains, chainData.chains);
                         }
-                        
+
                         // Copy cross-chain data if available
                         if (chainData.crossChain) {
                             mergedSummary.crossChain = mergedSummary.crossChain || {};
-                            mergedSummary.crossChain.crossChainSummary = 
+                            mergedSummary.crossChain.crossChainSummary =
                                 (mergedSummary.crossChain.crossChainSummary || [])
-                                .concat(chainData.crossChain.crossChainSummary || []);
+                                    .concat(chainData.crossChain.crossChainSummary || []);
                         }
                     }
                 });
@@ -604,7 +901,7 @@ export default function CreatePage() {
             // Always convert to USD
             setIsConvertingUSD(true);
             const summaryWithUSD = await convertAssetsToUSD(summary);
-            
+
             setShowUSDValues(true); // Always show USD values
             setAssetSummary(summaryWithUSD);
             // Cache for next session
@@ -612,8 +909,20 @@ export default function CreatePage() {
             setIsConvertingUSD(false);
         } catch (error) {
             console.error('Error loading wallet assets:', error);
-            setAssetError(`Failed to load assets: ${error.message || 'Unknown error'}`);
-            setAssetSummary(null);
+            
+            // Check if we're in production or testnet environment
+            // This ensures consistent UX between here and the fallbacks in moralisApi.js and walletHelpers.js
+            if (useTestNetwork) {
+                // In test environment (Amoy), we'll have the 1 ETH fallback
+                // Just show a warning to the user but don't clear the asset summary
+                console.log('Asset loading error in test environment, using fallback data:', error);
+                setAssetError(`Note: Using test data (1 ETH) due to API error. This behavior only occurs in test mode.`);
+            } else {
+                // In production (mainnet Polygon), show a clear error with no fallbacks
+                console.error('Asset loading error in production environment:', error);
+                setAssetError(`Failed to load assets: ${error.message || 'Unknown error'}. Please try again later or switch networks.`);
+                setAssetSummary(null); // Clear the asset display in production
+            }
         } finally {
             setIsLoadingAssets(false);
         }
@@ -623,12 +932,12 @@ export default function CreatePage() {
     function tryGetCachedAssets(address) {
         try {
             if (typeof sessionStorage === 'undefined' || !address) return null;
-            
+
             const cached = sessionStorage.getItem(`assets_${address.toLowerCase()}`);
             if (cached) {
                 const parsedCache = JSON.parse(cached);
                 const cacheAge = Date.now() - parsedCache.timestamp;
-                
+
                 // Use cache if less than 5 minutes old
                 if (cacheAge < 5 * 60 * 1000) {
 
@@ -642,12 +951,12 @@ export default function CreatePage() {
         }
         return null;
     }
-    
+
     // Helper function to cache assets
     function cacheAssets(address, assets) {
         try {
             if (typeof sessionStorage === 'undefined' || !address) return;
-            
+
             sessionStorage.setItem(`assets_${address.toLowerCase()}`, JSON.stringify({
                 data: assets,
                 timestamp: Date.now()
@@ -863,6 +1172,7 @@ export default function CreatePage() {
             );
         }
     };
+                        
 
     /**
      * Calculates the total USD value of all selected tokens
@@ -925,8 +1235,17 @@ export default function CreatePage() {
             }
 
             // Create signature message for this wallet
-            let walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${messageAmountText} for proof of funds.`;
+            // Use the same signature message that will be sent to the API
+            let walletSpecificMessage = signatureMessage;
 
+            // If the message isn't set yet (rare case), create a default one
+            if (!walletSpecificMessage) {
+                walletSpecificMessage = `I confirm ownership of wallet ${wallet.fullAddress} with ${messageAmountText} for proof of funds.`;
+                // Also update the global signature message to keep them in sync
+                setSignatureMessage(walletSpecificMessage);
+            }
+
+            console.log("Signing with message:", walletSpecificMessage);
             let signature = null;
 
             // Handle signature based on wallet type
@@ -937,13 +1256,24 @@ export default function CreatePage() {
                     const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
                     const { ethers } = await getEthers();
 
-                    // Get the correct provider
+                    // Get the correct MetaMask provider (not Phantom!)
                     let provider = window.ethereum;
                     if (window.ethereum?.providers) {
-                        const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+                        console.log("Multiple providers detected in signing, finding MetaMask...");
+                        const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask && !p.isPhantom);
                         if (metamaskProvider) {
+                            console.log("Found MetaMask provider for signing");
                             provider = metamaskProvider;
+                        } else {
+                            console.warn("MetaMask provider not found for signing");
+                            console.log("Available providers:", window.ethereum.providers.map(p => ({
+                                isMetaMask: p.isMetaMask,
+                                isPhantom: p.isPhantom,
+                                selectedAddress: p.selectedAddress
+                            })));
                         }
+                    } else if (window.ethereum.isPhantom && !window.ethereum.isMetaMask) {
+                        throw new Error('Default provider is Phantom, not MetaMask. Please ensure MetaMask is properly installed.');
                     }
 
                     if (!provider) {
@@ -963,17 +1293,27 @@ export default function CreatePage() {
                         method: 'eth_accounts'
                     });
 
-                    // Normalize addresses for comparison (lowercase)
-                    const targetAddress = wallet.fullAddress.toLowerCase();
-                    const selectedAccount = selectedAccounts.length > 0 ? selectedAccounts[0].toLowerCase() : null;
+                    console.log("Selected accounts for signing:", selectedAccounts);
+                    console.log("Expected wallet address:", wallet.fullAddress);
 
-                    // Verify the user selected the correct account - only AFTER they've made their selection
-                    if (!selectedAccount) {
+                    // Verify we have at least one account
+                    if (!selectedAccounts || selectedAccounts.length === 0) {
                         throw new Error('No account was selected in MetaMask. Please try again and select an account.');
                     }
 
-                    if (selectedAccount !== targetAddress) {
-                        throw new Error(`You selected a different account than required. Please select account ${wallet.fullAddress} in MetaMask.`);
+                    const selectedAccount = selectedAccounts[0];
+                    const targetAddress = wallet.fullAddress.toLowerCase();
+
+                    // If the selected account doesn't match our expected wallet, 
+                    // we'll use the selected account instead and update the wallet object
+                    if (selectedAccount.toLowerCase() !== targetAddress) {
+                        console.log(`Account mismatch: expected ${targetAddress}, got ${selectedAccount.toLowerCase()}`);
+                        console.log("Using the currently selected MetaMask account for signing");
+                        
+                        // Update the wallet object to reflect the actual selected account
+                        wallet.address = selectedAccount;
+                        wallet.fullAddress = selectedAccount;
+                        wallet.displayAddress = `${selectedAccount.substring(0, 6)}...${selectedAccount.substring(selectedAccount.length - 4)}`;
                     }
 
                     // Get the signer from ethers - handle both v5 and v6 API
@@ -986,15 +1326,25 @@ export default function CreatePage() {
 
                         // ethers v5 approach
                         if (ethers.providers && ethers.providers.Web3Provider) {
-
-                            const ethersProvider = new ethers.providers.Web3Provider(provider);
-                            signer = ethersProvider.getSigner();
-                        } 
+                            try {
+                                const ethersProvider = new ethers.providers.Web3Provider(provider);
+                                signer = ethersProvider.getSigner();
+                                console.log("Created ethers v5 signer");
+                            } catch (signerError) {
+                                console.error("Error creating signer with ethers v5:", signerError);
+                                throw signerError;
+                            }
+                        }
                         // ethers v6 approach
                         else if (ethers.BrowserProvider) {
-
-                            const ethersProvider = new ethers.BrowserProvider(provider);
-                            signer = await ethersProvider.getSigner();
+                            try {
+                                const ethersProvider = new ethers.BrowserProvider(provider);
+                                signer = await ethersProvider.getSigner();
+                                console.log("Created ethers v6 signer");
+                            } catch (signerError) {
+                                console.error("Error creating signer with ethers v6:", signerError);
+                                throw signerError;
+                            }
                         }
                         else {
                             throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
@@ -1176,12 +1526,12 @@ export default function CreatePage() {
                                     }
                                 }),
                             });
-                            
+
                             if (!response.ok) {
                                 const errorData = await response.json();
                                 throw new Error(errorData.message || 'Failed to generate ZK proof');
                             }
-                            
+
                             const result = await response.json();
                             // The API returns { proof, publicSignals, verified, ... }
                             zkProofData = result;
@@ -1207,12 +1557,12 @@ export default function CreatePage() {
                                     console.log("Primary wallet data:", primaryWallet);
                                 },
                             });
-                            
+
                             if (!response.ok) {
                                 const errorData = await response.json();
                                 throw new Error(errorData.message || 'Failed to generate temporary wallet');
                             }
-                            
+
                             const result = await response.json();
                             tempWallet = result.wallet;
                         } catch (apiError) {
@@ -1275,7 +1625,7 @@ export default function CreatePage() {
                 // Force a delay to make sure states have updated before proceeding
                 console.log("Proof data ready:", proofDataObj);
                 console.log("Setting proofStage to 'ready'");
-                
+
                 setTimeout(() => {
                     console.log("Resolving promise with proofDataObj:", proofDataObj);
                     // Reset the submitting state
@@ -1334,7 +1684,7 @@ export default function CreatePage() {
 
             // Use the actual ZK proof data
             const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
-            
+
             // Convert proof object to array format for submission
             // No need for ABI encoding here - the API does that
             const proofArray = [
@@ -1342,7 +1692,7 @@ export default function CreatePage() {
                 proof.pi_b[0][0], proof.pi_b[0][1], proof.pi_b[1][0], proof.pi_b[1][1],
                 proof.pi_c[0], proof.pi_c[1]
             ];
-            
+
             // Use the temp wallet to submit the proof
             const tempWallet = proofData.tempWallet;
             if (!tempWallet || !tempWallet.privateKey) {
@@ -1368,14 +1718,14 @@ export default function CreatePage() {
                         tempWalletAddress: tempWallet.address
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok && result.success) {
                     setTxHash(result.transactionHash);
                     setSuccess(true);
                     setIsSubmittingProof(false);
-                    
+
                     alert(`ZK Proof submitted! Transaction hash: ${result.transactionHash.substring(0, 10)}...`);
                 } else {
                     throw new Error(result.error || 'Failed to submit proof');
@@ -1397,11 +1747,12 @@ export default function CreatePage() {
     /**
      * Submits the finalized proof to the blockchain
      * Creates and submits the transaction when all signatures are collected
+     * First prompts user to select a wallet for transaction that is verified with MetaMask
      */
     const submitFinalProof = async () => {
         console.log("submitFinalProof called");
         console.log("Current state:", { proofStage, hasProofData: !!proofData, proofCategory: proofData?.proofCategory });
-        
+
         if (proofStage === 'ready' && proofData) {
             console.log("Conditions met, proceeding with submission");
             try {
@@ -1412,50 +1763,48 @@ export default function CreatePage() {
                     return await handleZKProofSubmission();
                 }
 
-                // Standard proof submission flow
-                // First, ensure we're connected to a wallet
-                if (!isConnected || !address) {
-
-                    const metamaskConnector = connectors.find(c => c.id === 'metaMask');
-                    if (metamaskConnector) {
-                        await connect({ connector: metamaskConnector });
-                    } else {
-                        throw new Error("MetaMask connector not found");
-                    }
+                // STEP 1: SELECT TRANSACTION WALLET FIRST
+                // We need to select a wallet for the transaction BEFORE preparing the API call
+                // This ensures the wallet is available in MetaMask and avoids mismatches
+                console.log("Prompting user to select transaction wallet first...");
+                
+                const selectedWallet = await selectTransactionWallet();
+                if (!selectedWallet) {
+                    throw new Error("Transaction cancelled: No wallet was selected for transaction");
                 }
-
-                // Check if write function is available
-                if (typeof writeStandardProof !== 'function') {
-                    console.error("Write function not available yet. Attempting to prepare...");
-                    // Wait a moment for hooks to initialize
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-
-                    // If still not available, try to manually prepare
-                    if (typeof writeStandardProof !== 'function') {
-                        throw new Error("Contract write function could not be initialized. Please refresh and try again.");
-                    }
-                }
-
+                
+                console.log("User selected wallet for transaction:", selectedWallet);
+                
+                // STEP 2: VERIFY PRIMARY WALLET FOR SIGNATURES
+                // For signature verification, we still need the primary wallet that was used for signatures
                 const primaryWallet = connectedWallets.find(w => w.id === selectedWallets[0]);
                 if (!primaryWallet) {
-                    throw new Error('Primary wallet not found');
+                    throw new Error('Primary wallet not found among connected wallets');
                 }
-
-                // Dynamically import ethers here to ensure it's available
-                const { ethers } = await getEthers();
-
-                // Convert amount to Wei for blockchain submission
-                const amountInWei = ethers.utils.parseEther(
-                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString()
-                );
-
-                const expiryTime = getExpiryTimestamp(expiryDays);
-
-                // Get the signature for this wallet
+                
+                console.log("Using primary wallet for signatures:", primaryWallet.fullAddress);
+                console.log("Using selected wallet for transaction:", selectedWallet.address);
+                
+                // Since we have signatures, we'll use a server-side approach similar to ZK proofs
+                // This will avoid the wallet connection issues in the browser
+                console.log("Using API-based submission approach for standard proof");
+                
+                // Get signature and other required data
                 const walletSignature = walletSignatures[primaryWallet.id]?.signature;
                 if (!walletSignature) {
                     throw new Error('Wallet signature not found. Please sign with your wallet.');
                 }
+                
+                // Dynamically import our ethers utility functions
+                const ethersUtils = await import('@proof-of-funds/common/ethersUtils');
+                
+                // Convert amount to Wei for blockchain submission
+                const amountInWei = await ethersUtils.parseAmount(
+                    amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString(),
+                    18 // Use 18 decimals for ETH
+                );
+                
+                const expiryTime = getExpiryTimestamp(expiryDays);
 
                 if (proofCategory === 'standard') {
 
@@ -1473,106 +1822,206 @@ export default function CreatePage() {
                     );
 
                     // For threshold and maximum types, we use the threshold amount
+                    // Use a simplified approach - just use '0' directly
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
-                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                        : '0'; // Use 0 for standard proof type
 
-                    // Try one more check of the write function
-
+                    // Format for API submission
+                    const numericProofType = Number(proofTypeValue);
+                    
                     try {
-                        // Make sure we have an active connector
-                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
-                        if (metamaskConnector) {
-                            // Store it for reuse
-                            window.wagmiMetaMaskConnector = metamaskConnector;
-
-                            // First make sure we are connected
-                            if (!isConnected) {
-
-                                await connect({ connector: metamaskConnector });
-                            }
-
-                            // Verify if the contract method exists
-                            const isMethodAvailable = await verifyContractMethod(CONTRACT_ADDRESS, 'submitProof');
-                            if (!isMethodAvailable) {
-                                alert("Contract method 'submitProof' is not available at the specified address. Check your contract deployment.");
-                                return;
-                            }
-
-                            // Get provider for gas price calculation - handle both ethers v5 and v6
-                            let provider;
-
-                            if (ethers.providers && ethers.providers.Web3Provider) {
-                                // ethers v5
-
-                                provider = new ethers.providers.Web3Provider(window.ethereum);
-                            } else if (ethers.BrowserProvider) {
-                                // ethers v6
-
-                                provider = new ethers.BrowserProvider(window.ethereum);
-                            } else {
-                                throw new Error('Unsupported ethers.js version - could not find Web3Provider or BrowserProvider');
-                            }
-
-                            // Format parameters 
-                            const numericProofType = Number(proofTypeValue);
-                            const bigIntExpiry = BigInt(expiryTime);
-
-                            // Set appropriate threshold amount based on proof type
-                            let bigIntThreshold;
-                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
-                                // For threshold/maximum types, use the actual amount from user input
-                                bigIntThreshold = amountInWei;
-
-                            } else {
-                                // For standard proof type, threshold can be 0
-                                bigIntThreshold = ethers.utils.parseEther('0');
-                            }
-
-                            try {
-                                writeStandardProof({
-                                    recklesslySetUnpreparedArgs: [
-                                        numericProofType,
-                                        proofHash,
-                                        bigIntExpiry,
-                                        bigIntThreshold,
-                                        signatureMessage,
-                                        walletSignature
-                                    ],
-                                    // Use a simpler approach with just gas limit
-                                    gasLimit: BigInt(500000)
-                                });
-
-                            } catch (innerError) {
-                                console.error("Inner error calling writeStandardProof:", innerError);
-
-                                if (innerError.message.includes("function selector was not recognized")) {
-                                    alert("Error: Contract interface mismatch. The method signature doesn't match what's deployed at the contract address. Check your contract deployment and ABI.");
-                                } else {
-                                    alert(`Error calling contract: ${innerError.message}`);
+                        // Alert user about submission 
+                        
+                        console.log("Submitting standard proof via API:", {
+                            proofType: numericProofType,
+                            hasProofHash: !!proofHash,
+                            expiryTime,
+                            hasSignature: !!walletSignature
+                        });
+                        
+                        console.log("=== FRONTEND SIGNATURE DEBUG ===");
+                        console.log("walletSignature:", walletSignature);
+                        console.log("signatureMessage:", signatureMessage);
+                        console.log("primaryWallet.fullAddress:", primaryWallet.fullAddress);
+                        console.log("signature length:", walletSignature ? walletSignature.length : 'null');
+                        
+                        // Submit the standard proof to the blockchain using an API endpoint
+                        // Include the contract address from the current network configuration
+                        const response = await fetch('/api/submitStandardProof', {
+                            method: 'POST', 
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime,
+                                threshold: thresholdAmount,
+                                signatureMessage,
+                                signature: walletSignature,
+                                walletAddress: primaryWallet.fullAddress, // Keep primary wallet for signature verification
+                                transactionWallet: selectedWallet.address, // Add the selected wallet address for transaction
+                                contractAddress: networkConfig.contractAddress, // Include the contract address
+                                isStandard: true // Flag to indicate a standard (non-ZK) proof
+                            })
+                        });
+                        
+                        // Process response
+                        if (response.ok) {
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                console.log("Proof data validated successfully, preparing transaction...", result);
+                                
+                                // Now we need to submit the transaction from the user's wallet
+                                try {
+                                    // We already prompted the user for the wallet earlier in the flow
+                                    console.log("Using pre-selected wallet for transaction:", selectedWallet);
+                                    
+                                    // Double-check we have a valid wallet
+                                    if (!selectedWallet || !selectedWallet.address) {
+                                        throw new Error("Transaction cancelled: No wallet properly selected for submission");
+                                    }
+                                    
+                                    // Get transaction data from API response
+                                    const txData = result.transactionData;
+                                    console.log("Transaction data:", txData);
+                                    
+                                    if (!txData) {
+                                        throw new Error("Missing transaction data in API response");
+                                    }
+                                    
+                                    // Import the transaction utility
+                                    const { submitStandardProofTx } = await import('../utils/submitStandardTx');
+                                    
+                                    
+                                    alert("Please confirm the transaction in your wallet.");
+                                    
+                                    // Submit the transaction with the selected wallet
+                                    const receipt = await submitStandardProofTx({
+                                        ...txData,
+                                        walletAddress: selectedWallet.address
+                                    });
+                                    
+                                    // Extract transaction hash with fallback logic (ethers v6 compatibility)
+                                    const txHash = receipt.transactionHash || receipt.hash || receipt.blockHash;
+                                    
+                                    // Update UI
+                                    setIsSubmittingProof(false);
+                                    setSuccess(true);
+                                    setTxHash(txHash);
+                                    
+                                    // Display success message with transaction hash
+                                    if (txHash) {
+                                        alert(`Proof submitted successfully!\nTransaction hash: ${txHash.substring(0, 10)}...`);
+                                    } else {
+                                        alert('Proof submitted successfully! Transaction confirmed.');
+                                    }
+                                } catch (walletError) {
+                                    console.error("Error submitting transaction from wallet:", walletError);
+                                    setIsSubmittingProof(false);
+                                    
+                                    // Display a more helpful error message for wallet connection issues
+                                    if (walletError.message.includes("not available in MetaMask")) {
+                                        // For wallet mismatch errors, show the full detailed message with available wallets
+                                        alert(walletError.message);
+                                    } else {
+                                        // For other errors, show a simpler message
+                                        alert(`Error submitting transaction: ${walletError.message}`);
+                                    }
                                 }
+                            } else {
+                                throw new Error(result.error || "Unknown error submitting proof");
                             }
                         } else {
-                            throw new Error("MetaMask connector not found");
+                            // Handle API error
+                            const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+                            throw new Error(errorData.error || `API error: ${response.status}`);
                         }
-                    } catch (error) {
-                        console.error("Error calling contract write function:", error);
-                        alert(`Error calling contract: ${error.message}`);
+                    } catch (apiError) {
+                        console.error("Error submitting proof via API:", apiError);
+                        setIsSubmittingProof(false);
+                        
+                        let errorMessage = `Error submitting proof: ${apiError.message}`;
+                        
+                        // Provide more helpful error message for contract configuration issues
+                        if (apiError.message?.includes('Contract') && 
+                            apiError.message?.includes('address')) {
+                            errorMessage = "Contract address is missing or invalid. Please ensure your wallet is connected to the correct network.";
+                        }
+                        
+                        alert(errorMessage);
                     }
 
                 } else if (proofCategory === 'zk') {
-                    // Handle ZK proof case as in original code
-                    // ...
-                }
+                    // Zero-knowledge proofs handling
+                    // Import ethers for ABI encoding
+                    const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
+                    const ethersData = await getEthers();
+                    const { ethers } = ethersData;
 
+                    // For ethers v5 compatibility - use the right ABI coder
+                    const abiCoder = ethers.utils ? ethers.utils.defaultAbiCoder : ethers.AbiCoder.defaultAbiCoder();
+
+                    // Use the actual proof data from proofData state
+                    const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
+
+                    // Submit ZK proof via API
+                    try {
+                        // Get the temporary wallet data from proofData
+                        const tempWallet = proofData.tempWallet;
+                        if (!tempWallet || !tempWallet.privateKey) {
+                            throw new Error("Temporary wallet information is missing");
+                        }
+
+                        // Convert proof object to array format
+                        const proofArray = [
+                            proof.pi_a[0], proof.pi_a[1],
+                            proof.pi_b[0][0], proof.pi_b[0][1], proof.pi_b[1][0], proof.pi_b[1][1],
+                            proof.pi_c[0], proof.pi_c[1]
+                        ];
+
+                        // Submit via API
+                        const response = await fetch('/api/zk/submitProof', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                proof: proofArray,
+                                publicSignals,
+                                expiryTime,
+                                proofType: zkProofType === 'standard' ? 0 : zkProofType === 'threshold' ? 1 : 2,
+                                signatureMessage,
+                                signature: walletSignature,
+                                tempWalletPrivateKey: tempWallet.privateKey,
+                                tempWalletAddress: tempWallet.address
+                            })
+                        });
+
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                            setTxHash(result.transactionHash);
+                            setSuccess(true);
+                            setIsSubmittingProof(false);
+                            alert(`ZK Proof submitted! Transaction hash: ${result.transactionHash.substring(0, 10)}...`);
+                        } else {
+                            throw new Error(result.error || 'Failed to submit proof');
+                        }
+                    } catch (zkError) {
+                        console.error("Error submitting ZK proof:", zkError);
+                        setIsSubmittingProof(false);
+                        alert(`Failed to submit ZK proof: ${zkError.message}`);
+                    }
+                }
             } catch (error) {
                 console.error('Error submitting proof:', error);
                 alert(`Error: ${error.message}`);
             } finally {
                 setIsSubmittingProof(false);
             }
-        } else {
-
         }
     };
 
@@ -1593,7 +2042,7 @@ export default function CreatePage() {
 
         return allSigned;
     };
-    
+
     /**
      * Keep signed wallets status persistent across proof stages
      * This ensures signatures persist until proof is submitted
@@ -1730,14 +2179,13 @@ export default function CreatePage() {
                     throw new Error('Primary wallet not found');
                 }
 
-                // Dynamically import ethers
-
-                const { parseAmount } = await import('@proof-of-funds/common/ethersUtils');
+                // Dynamically import ethers utilities
+                const ethersUtils = await import('@proof-of-funds/common/ethersUtils');
 
                 // Convert amount to Wei for blockchain submission
                 const amountValue = amountInputType === 'usd' ? amount : calculateTotalUsdValue().toString();
 
-                const amountInWei = await parseAmount(amountValue, 18);
+                const amountInWei = await ethersUtils.parseAmount(amountValue, 18);
 
                 const expiryTime = getExpiryTimestamp(expiryDays);
 
@@ -1763,87 +2211,155 @@ export default function CreatePage() {
                     );
 
                     // For threshold and maximum types, we use the threshold amount
+                    // Use a simplified approach - just use '0' directly
                     const thresholdAmount = (proofType === 'threshold' || proofType === 'maximum')
                         ? amountInWei
-                        : ethers.utils.parseEther('0'); // Use 0 for standard proof type
+                        : '0'; // Use 0 for standard proof type
 
-                    // Use the same submitProof function for all standard proof types
-
-                    if (typeof writeStandardProof !== 'function') {
-                        console.error("writeStandardProof is not a function:", writeStandardProof);
-                        alert("Error: Contract write function is not properly initialized");
-                        return;
-                    }
-
+                    // Format for API submission
+                    const numericProofType = Number(proofTypeValue);
+                    
                     try {
-                        // Make sure we have an active connector
-                        const metamaskConnector = connectors.find(c => c.id === 'metaMask');
-                        if (metamaskConnector) {
-                            // Store it for reuse
-                            window.wagmiMetaMaskConnector = metamaskConnector;
-
-                            // First make sure we are connected
-                            if (!isConnected) {
-
-                                await connect({ connector: metamaskConnector });
-                            }
-
-                            // Format parameters 
-                            const numericProofType = Number(proofTypeValue);
-                            const bigIntExpiry = BigInt(expiryTime);
-
-                            // Set appropriate threshold amount based on proof type
-                            let bigIntThreshold;
-                            if (numericProofType === PROOF_TYPES.THRESHOLD || numericProofType === PROOF_TYPES.MAXIMUM) {
-                                // For threshold/maximum types, use the actual amount from user input
-                                bigIntThreshold = amountInWei;
-
+                        // Alert user about submission 
+                        
+                        console.log("Submitting standard proof via API:", {
+                            proofType: numericProofType,
+                            hasProofHash: !!proofHash,
+                            expiryTime,
+                            hasSignature: !!walletSignature
+                        });
+                        
+                        console.log("=== FRONTEND SIGNATURE DEBUG ===");
+                        console.log("walletSignature:", walletSignature);
+                        console.log("signatureMessage:", signatureMessage);
+                        console.log("primaryWallet.fullAddress:", primaryWallet.fullAddress);
+                        console.log("signature length:", walletSignature ? walletSignature.length : 'null');
+                        
+                        // Submit the standard proof to the blockchain using an API endpoint
+                        // Include the contract address from the current network configuration
+                        const response = await fetch('/api/submitStandardProof', {
+                            method: 'POST', 
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                proofType: numericProofType,
+                                proofHash,
+                                expiryTime,
+                                threshold: thresholdAmount,
+                                signatureMessage,
+                                signature: walletSignature,
+                                walletAddress: primaryWallet.fullAddress, // Keep primary wallet for signature verification
+                                transactionWallet: selectedWallet.address, // Add the selected wallet address for transaction
+                                contractAddress: networkConfig.contractAddress, // Include the contract address
+                                isStandard: true // Flag to indicate a standard (non-ZK) proof
+                            })
+                        });
+                        
+                        // Process response
+                        if (response.ok) {
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                console.log("Proof data validated successfully, preparing transaction...", result);
+                                
+                                // Now we need to submit the transaction from the user's wallet
+                                try {
+                                    // We already prompted the user for the wallet earlier in the flow
+                                    console.log("Using pre-selected wallet for transaction:", selectedWallet);
+                                    
+                                    // Double-check we have a valid wallet
+                                    if (!selectedWallet || !selectedWallet.address) {
+                                        throw new Error("Transaction cancelled: No wallet properly selected for submission");
+                                    }
+                                    
+                                    // Get transaction data from API response
+                                    const txData = result.transactionData;
+                                    console.log("Transaction data:", txData);
+                                    
+                                    if (!txData) {
+                                        throw new Error("Missing transaction data in API response");
+                                    }
+                                    
+                                    // Import the transaction utility
+                                    const { submitStandardProofTx } = await import('../utils/submitStandardTx');
+                                    
+                                    
+                                    alert("Please confirm the transaction in your wallet.");
+                                    
+                                    // Submit the transaction with the selected wallet
+                                    const receipt = await submitStandardProofTx({
+                                        ...txData,
+                                        walletAddress: selectedWallet.address
+                                    });
+                                    
+                                    // Extract transaction hash with fallback logic (ethers v6 compatibility)
+                                    const txHash = receipt.transactionHash || receipt.hash || receipt.blockHash;
+                                    
+                                    // Update UI
+                                    setIsSubmittingProof(false);
+                                    setSuccess(true);
+                                    setTxHash(txHash);
+                                    
+                                    // Display success message with transaction hash
+                                    if (txHash) {
+                                        alert(`Proof submitted successfully!\nTransaction hash: ${txHash.substring(0, 10)}...`);
+                                    } else {
+                                        alert('Proof submitted successfully! Transaction confirmed.');
+                                    }
+                                } catch (walletError) {
+                                    console.error("Error submitting transaction from wallet:", walletError);
+                                    setIsSubmittingProof(false);
+                                    
+                                    // Display a more helpful error message for wallet connection issues
+                                    if (walletError.message.includes("not available in MetaMask")) {
+                                        // For wallet mismatch errors, show the full detailed message with available wallets
+                                        alert(walletError.message);
+                                    } else {
+                                        // For other errors, show a simpler message
+                                        alert(`Error submitting transaction: ${walletError.message}`);
+                                    }
+                                }
                             } else {
-                                // For standard proof type, threshold can be 0
-                                bigIntThreshold = ethers.utils.parseEther('0');
-                            }
-
-                            try {
-                                writeStandardProof({
-                                    recklesslySetUnpreparedArgs: [
-                                        numericProofType,
-                                        proofHash,
-                                        bigIntExpiry,
-                                        bigIntThreshold,
-                                        signatureMessage,
-                                        walletSignature
-                                    ]
-                                });
-
-                            } catch (innerError) {
-                                console.error("Inner error calling writeStandardProof:", innerError);
-                                alert(`Inner error: ${innerError.message}`);
+                                throw new Error(result.error || "Unknown error submitting proof");
                             }
                         } else {
-                            throw new Error("MetaMask connector not found");
+                            // Handle API error
+                            const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+                            throw new Error(errorData.error || `API error: ${response.status}`);
                         }
-                    } catch (error) {
-                        console.error("Error calling contract write function:", error);
-                        alert(`Error calling contract: ${error.message}`);
+                    } catch (apiError) {
+                        console.error("Error submitting proof via API:", apiError);
+                        setIsSubmittingProof(false);
+                        
+                        let errorMessage = `Error submitting proof: ${apiError.message}`;
+                        
+                        // Provide more helpful error message for contract configuration issues
+                        if (apiError.message?.includes('Contract') && 
+                            apiError.message?.includes('address')) {
+                            errorMessage = "Contract address is missing or invalid. Please ensure your wallet is connected to the correct network.";
+                        }
+                        
+                        alert(errorMessage);
                     }
 
                 } else if (proofCategory === 'zk') {
                     // Zero-knowledge proofs handling
-                    
+
                     // Import ethers for ABI encoding
                     const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
                     const ethersData = await getEthers();
                     const { ethers } = ethersData;
-                    
+
                     // For ethers v5 compatibility - use the right ABI coder
                     const abiCoder = ethers.utils ? ethers.utils.defaultAbiCoder : ethers.AbiCoder.defaultAbiCoder();
-                    
+
                     // Log the actual structure of proofData
 
                     // Use the actual proof data from proofData state
                     // Note: The proof is stored as zkProof and zkPublicSignals
                     const { zkProof: proof, zkPublicSignals: publicSignals } = proofData;
-                    
+
                     // Check if proof exists and has the expected structure
                     if (!proof) {
                         throw new Error('Proof data is missing');
@@ -1873,7 +2389,7 @@ export default function CreatePage() {
                         console.error("Unknown proof format:", proof);
                         throw new Error('Unknown proof format');
                     }
-                    
+
                     const encodedProof = abiCoder.encode(
                         ['uint256[]'],
                         [proofArray]
@@ -2231,8 +2747,58 @@ export default function CreatePage() {
     // Synchronize wallet connections
     useEffect(() => {
         const connectWagmiIfNeeded = async () => {
+            try {
+                // Read from localStorage to get previously connected wallets
+                if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+                    try {
+                        const walletData = localStorage.getItem('walletData');
+                        if (walletData) {
+                            const parsedData = JSON.parse(walletData);
+                            
+                            // Create a reference to compare against later
+                            const existingWalletIds = new Set(connectedWallets.map(w => w.id || w.address || w.fullAddress));
+                            let shouldUpdateWallets = false;
+                            
+                            if (parsedData.wallets) {
+                                const storedWallets = [];
+                                
+                                // Add MetaMask wallets
+                                if (parsedData.wallets.metamask && Array.isArray(parsedData.wallets.metamask)) {
+                                    storedWallets.push(...parsedData.wallets.metamask);
+                                }
+                                
+                                // Add Phantom wallets
+                                if (parsedData.wallets.phantom && Array.isArray(parsedData.wallets.phantom)) {
+                                    storedWallets.push(...parsedData.wallets.phantom);
+                                }
+                                
+                                // Only update state if we have wallets and they're different
+                                if (storedWallets.length > 0) {
+                                    // Check if the wallet list has changed
+                                    const storedWalletIds = new Set(storedWallets.map(w => w.id || w.address || w.fullAddress));
+                                    shouldUpdateWallets = 
+                                        storedWallets.length !== connectedWallets.length || 
+                                        storedWallets.some(w => !existingWalletIds.has(w.id || w.address || w.fullAddress));
+                                    
+                                    if (shouldUpdateWallets) {
+                                        // Use stored wallets from localStorage only if they're different
+                                        setConnectedWallets(storedWallets);
+                                        console.log("Loaded new wallets from localStorage:", storedWallets);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (localStorageError) {
+                        console.warn("Error reading wallets from localStorage:", localStorageError);
+                    }
+                }
+            } catch (error) {
+                console.warn("Error syncing wallet connections:", error);
+            }
+            
+            // TEMPORARILY DISABLED AUTO-CONNECTION to preserve account selection dialog
             // Only attempt reconnection if we have wallets in localStorage but wagmi reports disconnected
-            if (!isConnected && connectedWallets.length > 0) {
+            if (false && !isConnected && connectedWallets.length > 0) {
                 try {
                     // Make sure the connector is set globally for use in contract calls
                     const metamaskConnector = connectors.find(c => c.id === 'metaMask');
@@ -2241,12 +2807,18 @@ export default function CreatePage() {
                         try {
                             // Connect using the MetaMask connector without logging errors
                             const originalConsoleError = console.error;
-                            console.error = () => {}; // Temporarily suppress console.error
-                            
+                            console.error = () => { }; // Temporarily suppress console.error
+
                             try {
-                                await connect({ connector: metamaskConnector });
-                                // Store the connector for later use
-                                window.wagmiMetaMaskConnector = metamaskConnector;
+                                // Only connect if not already connected
+                                if (!isConnected) {
+                                    console.log("Auto-connecting wallet...");
+                                    await connect({ connector: metamaskConnector });
+                                    // Store the connector for later use
+                                    window.wagmiMetaMaskConnector = metamaskConnector;
+                                } else {
+                                    console.log("Already connected, skipping auto-connect");
+                                }
                             } finally {
                                 console.error = originalConsoleError; // Restore console.error
                             }
@@ -2260,9 +2832,37 @@ export default function CreatePage() {
             }
         };
 
-        // Try to connect when component mounts or connectedWallets change
+        // Try to connect when component mounts (only once)
         connectWagmiIfNeeded();
-    }, [isConnected, connectedWallets, connect, connectors]);
+        
+        // Listen for MetaMask account changes, but don't automatically connect
+        const handleAccountsChanged = async (accounts) => {
+            console.log("MetaMask accounts changed:", accounts);
+            
+            // Get updated wallets from localStorage - don't automatically connect
+            try {
+                const { getConnectedWallets } = await import('@proof-of-funds/common/walletHelpers');
+                const currentWallets = getConnectedWallets();
+                setConnectedWallets(currentWallets);
+            } catch (error) {
+                console.warn("Could not update wallets after account change:", error);
+            }
+        };
+        
+        // Add listeners
+        if (typeof window !== 'undefined' && window.ethereum) {
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+        }
+        
+        // Cleanup function
+        return () => {
+            if (typeof window !== 'undefined' && window.ethereum) {
+                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+            }
+        };
+    // Use only isConnected as dependency to prevent infinite render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isConnected]);
 
     // Helper function to check if all token amounts are valid
     const areAllTokenAmountsValid = () => {
@@ -2270,18 +2870,154 @@ export default function CreatePage() {
         return !selectedTokens.some(token => !isValidAmount(token.amount));
     };
 
+    /**
+     * Prompts the user to select a wallet for transaction submission
+     * Works with currently connected wallets in the UI and verifies they're available in MetaMask
+     * @returns {Promise<Object|null>} The selected wallet or null if cancelled
+     */
+    const selectTransactionWallet = async () => {
+        console.log("selectTransactionWallet called");
+        
+        // First, check if we have connected wallets in the UI
+        if (!connectedWallets || connectedWallets.length === 0) {
+            alert("No wallets connected. Please connect a wallet first.");
+            console.error("selectTransactionWallet: No connected wallets found");
+            return null;
+        }
+        
+        // FIRST SYNC METAMASK WALLETS WITH LOCALSTORAGE
+        // This step is critical to ensure we're working with up-to-date wallet data
+        console.log("Syncing MetaMask wallets before transaction...");
+        await syncMetaMaskWallets();
+        
+        // Use the properly connected wallets instead of calling MetaMask directly
+        // This avoids the phantom address issue by using our verified wallet state
+        const currentConnectedWallets = getConnectedWallets();
+        const availableWallets = currentConnectedWallets.filter(w => 
+            w.type === 'evm' && w.provider === 'metamask' && w.connected
+        );
+        
+        console.log("Available connected wallets after sync:", availableWallets);
+        
+        // Check if we have available wallets from our custom connection
+        if (availableWallets.length === 0) {
+            alert("No wallets connected. Please connect your wallet first.");
+            return null;
+        }
+        
+        // If we have wagmi connection, try to match it with available wallets
+        if (isConnected && address) {
+            console.log("Wagmi reports connected address:", address);
+            
+            const matchingWallet = availableWallets.find(w => 
+                (w.address || w.fullAddress || '').toLowerCase() === address.toLowerCase()
+            );
+            
+            if (!matchingWallet) {
+                console.warn("No matching wallet found for wagmi address:", address);
+                // Create a wallet object from the wagmi connection
+                const wagmiWallet = {
+                    id: `metamask-${address.substring(2, 10)}`,
+                    address: address,
+                    displayAddress: `${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+                    fullAddress: address,
+                    type: 'evm',
+                    provider: 'metamask',
+                    name: `MetaMask ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+                    connected: true,
+                    wagmiVerified: true
+                };
+                availableWallets.push(wagmiWallet);
+            }
+        } else {
+            console.log("No wagmi connection, using available wallets from custom connection");
+        }
+        
+        console.log("Available connected wallets:", availableWallets);
+        
+        // Determine which network we're targeting based on the environment
+        const targetNetwork = useTestNetwork ? 'polygon-amoy' : 'polygon';
+        const networkDisplay = useTestNetwork ? 'Polygon Amoy (testnet)' : 'Polygon';
+        
+        // Display network information
+        alert(`Please select a wallet for submitting your proof to the ${networkDisplay} blockchain.`);
+        
+        // Check if we have any available wallets to show
+        if (availableWallets.length === 0) {
+            alert(`No connected wallets are currently available in MetaMask. Please unlock your wallet and try again.`);
+            return null;
+        }
+        
+        // Use JavaScript's built-in prompt for selection with clearer formatting
+        let walletOptions = `Select wallet for ${networkDisplay} transaction submission:\n\n`;
+        availableWallets.forEach((w, idx) => {
+            const address = w.address || w.fullAddress;
+            const displayName = w.name || formatAddress(address);
+            walletOptions += `${idx + 1}. ${displayName} (${address})\n`;
+        });
+        
+        const selection = prompt(`${walletOptions}\n\nEnter wallet number (1-${availableWallets.length}):`);
+        
+        // Handle cancellation
+        if (selection === null) {
+            console.log("Wallet selection cancelled by user");
+            return null;
+        }
+        
+        // Convert to number and adjust for zero-based indexing
+        const walletIndex = parseInt(selection) - 1;
+        
+        // Validate selection
+        if (isNaN(walletIndex) || walletIndex < 0 || walletIndex >= availableWallets.length) {
+            alert("Invalid selection. Please select a valid wallet number.");
+            return null;
+        }
+        
+        // Get selected wallet
+        const selectedWallet = availableWallets[walletIndex];
+        console.log("User selected wallet:", selectedWallet);
+        
+        // Return the selected wallet
+        return selectedWallet;
+    };
+
     // Add a function to check contract ABI and verify the method exists
     const verifyContractMethod = async (contractAddress, methodName) => {
         try {
             // Dynamically import ethers
             const { getEthers } = await import('@proof-of-funds/common/ethersUtils');
-            const { ethers } = await getEthers();
-
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const { ethers, isV5, isV6 } = await getEthers();
+            
+            console.log("Verifying contract method with ethers version:", { isV5, isV6 });
+            
+            // Create provider based on ethers version
+            let provider;
+            if (isV5 && ethers.providers && ethers.providers.Web3Provider) {
+                // ethers v5
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+            } else if (isV6 && ethers.BrowserProvider) {
+                // ethers v6
+                provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // For testing without connecting, we can check just using ABI
+                // This is useful when we have signatures but no active connection
+                if (!window.ethereum || !window.ethereum.isConnected()) {
+                    console.log("No active ethereum connection, using basic ABI check");
+                    // Just verify the method exists in the ABI
+                    return CONTRACT_ABI.some(item => 
+                        item.type === 'function' && item.name === methodName
+                    );
+                }
+            } else {
+                console.warn("Could not create a provider with the available ethers version");
+                return true; // Assume method exists if we can't check
+            }
+            
+            // Create contract instance
             const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, provider);
 
             // Check if the method exists in the contract interface
-            const fragments = contract.interface.fragments;
+            const fragments = contract.interface.fragments || [];
             const methodExists = fragments.some(fragment =>
                 fragment.type === 'function' && fragment.name === methodName
             );
@@ -2330,19 +3066,33 @@ export default function CreatePage() {
 
                             <div className="space-y-2">
                                 {connectedWallets.length > 0 ? (
-                                    connectedWallets.map(wallet => (
-                                        <div
-                                            key={wallet.id}
-                                            className={`px-4 py-2 border rounded-md flex justify-between items-center cursor-pointer
-                                                ${selectedWallets.includes(wallet.id)
-                                                    ? 'bg-primary-600 text-white border-primary-600'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                                            onClick={() => handleWalletSelection(wallet.id)}
-                                        >
-                                            <div className="font-medium">{wallet.name} - {wallet.address}</div>
-                                            <div className="text-sm">{wallet.chain}</div>
-                                        </div>
-                                    ))
+                                    connectedWallets.map(wallet => {
+                                        // Determine if the wallet is Polygon compatible
+                                        const isPolygonCompatible = 
+                                            wallet.chain === 'polygon' || 
+                                            wallet.chain === 'Polygon' ||
+                                            (wallet.supportedChains && 
+                                            wallet.supportedChains.some(chain => 
+                                                chain === 'polygon' || 
+                                                chain === 'Polygon' || 
+                                                chain === 'MATIC'));
+                                            
+                                        return (
+                                            <div
+                                                key={wallet.id}
+                                                className={`px-4 py-2 border rounded-md flex justify-between items-center cursor-pointer
+                                                    ${selectedWallets.includes(wallet.id)
+                                                        ? 'bg-primary-600 text-white border-primary-600'
+                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                                onClick={() => handleWalletSelection(wallet.id)}
+                                            >
+                                                <div className="font-medium">{wallet.name} - {wallet.address}</div>
+                                                <div className="flex flex-col items-end">
+                                                    <div className="text-sm">{wallet.chain}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 ) : userInitiatedConnection ? (
                                     <div className="text-sm text-gray-500 italic">
                                         No wallets connected. Please connect a wallet to create a proof.
@@ -2359,9 +3109,9 @@ export default function CreatePage() {
                                     className="mt-3 py-2 px-4 text-sm font-medium rounded-md border bg-primary-600 text-white border-primary-600"
                                     onClick={() => {
                                         // Find any connect wallet button in the document
-                                        const connectBtn = document.querySelector('.ConnectWallet-module_connectButton__1MX_K') || 
-                                                          document.getElementById('connect-wallet-button');
-                                        
+                                        const connectBtn = document.querySelector('.ConnectWallet-module_connectButton__1MX_K') ||
+                                            document.getElementById('connect-wallet-button');
+
                                         if (connectBtn) {
                                             connectBtn.click();
                                         } else {
@@ -2443,7 +3193,7 @@ export default function CreatePage() {
                                                         <div className="text-sm font-medium text-gray-700 text-right">${Number(assetSummary.totalUSDValue).toFixed(2)}</div>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {/* Refresh Button */}
                                                 <div className="flex justify-end mb-3">
                                                     <button
@@ -2987,7 +3737,7 @@ export default function CreatePage() {
                                                                                 e.stopPropagation();
                                                                                 // Remove this wallet's signature
                                                                                 setWalletSignatures(prev => {
-                                                                                    const newSigs = {...prev};
+                                                                                    const newSigs = { ...prev };
                                                                                     delete newSigs[walletId];
                                                                                     return newSigs;
                                                                                 });
@@ -3051,8 +3801,8 @@ export default function CreatePage() {
                                             <div>
                                                 <div className="flex items-center mb-2">
                                                     <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="absolute top-0 left-0 h-full bg-primary-600 rounded-full" 
+                                                        <div
+                                                            className="absolute top-0 left-0 h-full bg-primary-600 rounded-full"
                                                             style={{ width: `${(Object.keys(walletSignatures).length / selectedWallets.length) * 100}%` }}
                                                         ></div>
                                                     </div>
@@ -3065,7 +3815,7 @@ export default function CreatePage() {
                                                 </div>
                                             </div>
                                         )}
-                                        
+
                                         {/* Show timestamp of last signature */}
                                         {Object.keys(walletSignatures).length > 0 && (
                                             <div className="mt-3 pt-3 border-t border-gray-200">
@@ -3334,6 +4084,30 @@ export default function CreatePage() {
                             </button>
                         </div>
                     ) : null}
+                    
+                    {/* DEBUG BUTTONS - TEMPORARY */}
+                    <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <h3 className="text-lg font-semibold text-red-800 mb-2">🐛 Debug Tools (Temporary)</h3>
+                        <div className="space-x-4">
+                            <button
+                                type="button"
+                                onClick={debugWalletState}
+                                className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200"
+                            >
+                                Debug Wallet State
+                            </button>
+                            <button
+                                type="button"
+                                onClick={resetMetaMaskConnection}
+                                className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                            >
+                                Reset MetaMask (NUCLEAR)
+                            </button>
+                        </div>
+                        <p className="text-sm text-red-600 mt-2">
+                            Click "Debug Wallet State" first to see what's happening. Use "Reset MetaMask" only if needed (will reload page).
+                        </p>
+                    </div>
                 </form>
             </div>
 

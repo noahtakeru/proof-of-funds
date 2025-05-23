@@ -1,28 +1,42 @@
 /**
- * Error handling module for ZK proof operations.
- * This module re-exports all error handling functionality from the migrated implementation.
+ * Unified Error Handling System
  * 
- * @module error-handling
+ * This is the main entry point for the error handling system.
+ * It exports all error handling functionality from the various modules.
  */
 
-// Export all from the error handling system
-export * from './zkErrorHandler.mjs';
-export * from './zkErrorLogger.mjs';
+// Export core error system
+export * from './ErrorSystem';
 
-// Ensure backward compatibility with any code that might be using these exports directly
-import { 
-  ErrorSeverity, 
-  ErrorCategory, 
-  ErrorCode as ZKErrorCode,
-  getErrorLogger,
-  createZKError
-} from './zkErrorHandler.mjs';
+// Export specialized error handlers
+export * from './ZkErrors';
+export * from './ApiErrors';
 
-// Re-export the specific exports that might be used directly
-export { 
-  ErrorSeverity, 
-  ErrorCategory, 
-  ZKErrorCode,
-  getErrorLogger,
-  createZKError 
+// Export error logger
+export { getErrorLogger } from './zkErrorHandler.mjs';
+
+// Import everything for re-export
+import ErrorSystem from './ErrorSystem';
+import ZkErrors from './ZkErrors';
+import ApiErrors from './ApiErrors';
+
+// Configure a default export with commonly used functions
+export default {
+  // Core error system
+  ...ErrorSystem,
+  
+  // ZK-specific errors
+  ...ZkErrors,
+  
+  // API-specific errors
+  ...ApiErrors,
+  
+  // Common error handlers
+  handleApiError: ApiErrors.handleApiError,
+  handleZkError: ZkErrors.handleZkError,
+  handleClientError: ErrorSystem.handleClientError,
+  
+  // Validation
+  validateApiRequest: ApiErrors.validateApiRequest,
+  validators: ApiErrors.validators
 };

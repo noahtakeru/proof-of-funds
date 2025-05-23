@@ -13,7 +13,7 @@ import { verifySignature, generateTokenPairForWallet, getAdminWalletAddress } fr
 import { validateApiRequest, validators } from '../../../utils/apiValidator';
 import { handleApiError } from '../../../utils/apiErrorHandler';
 import rateLimiter from '../../../lib/rateLimit';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
+import auditLogger from '@proof-of-funds/common/logging/auditLogger';
 
 // Apply strict rate limiting to auth endpoints (3 attempts per minute)
 const applyRateLimit = rateLimiter(3);

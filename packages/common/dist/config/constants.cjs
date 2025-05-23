@@ -18,12 +18,18 @@
  * rather than the entire module to improve code maintainability.
  */
 
-// Use the address from the deployment script (see deployments directory)
-// This was previously incorrectly set to a wallet address
-// The contract should be deployed on Polygon Amoy testnet (ChainID: 80002)
-// IMPORTANT: This is a placeholder address - replace with your actual deployed contract address
-const CONTRACT_ADDRESS = exports.CONTRACT_ADDRESS = '0xD6bd1eFCE3A2c4737856724f96F39037a3564890';
-const ZK_VERIFIER_ADDRESS = exports.ZK_VERIFIER_ADDRESS = '0x0000000000000000000000000000000000000456'; // Placeholder address for testing
+// Contract addresses - these should be set via environment variables in production
+// Fallback values from deployment files for development/testing only
+const CONTRACT_ADDRESS = exports.CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x19180Cc2d399257F2ea6212A2985eBEcA9EC9970';
+const ZK_VERIFIER_ADDRESS = exports.ZK_VERIFIER_ADDRESS = process.env.ZK_VERIFIER_ADDRESS || '0x9E98DdFD14e47295a9e900a3dF332EcF6a9587B5';
+
+// Export the dynamic contract registry functions (when needed for advanced usage)
+module.exports = { 
+  getContractAddress, 
+  getCurrentContractAddress, 
+  CONTRACT_TYPES, 
+  CHAIN_IDS 
+} from './contractRegistry.js';
 const POLYGON_AMOY_CHAIN_ID = exports.POLYGON_AMOY_CHAIN_ID = 80002; // Polygon Amoy testnet chain ID
 
 // Polygon Amoy Testnet RPC URL

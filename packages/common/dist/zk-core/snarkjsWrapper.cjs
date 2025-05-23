@@ -1,9 +1,11 @@
 /**
- * SnarkJS Browser-Compatible Wrapper (CommonJS version)
+ * SnarkJS Browser-Compatible Wrapper
  * 
  * This module provides a wrapper around snarkjs that works in both browser
  * and Node.js environments, handling the differences in module imports and
  * file system access.
+ * 
+ * This file supports both ESM and CommonJS import patterns.
  */
 
 // Constants for file system operations - needed for browser compatibility
@@ -15,15 +17,20 @@ const FILE_CONSTANTS = {
   O_RDONLY: 0    // Value from fs.constants.O_RDONLY
 };
 
-// In CommonJS, we need to handle the dynamic import differently
+// Safely load snarkjs with browser compatibility
 async function loadSnarkJS() {
   try {
-    // For CommonJS environments
+    // Check if we're in a CommonJS environment first
     if (typeof require !== 'undefined') {
-      return require('snarkjs');
+      try {
+        return require('snarkjs');
+      } catch (requireError) {
+        // If require fails, fall back to dynamic import
+
+      }
     }
     
-    // For ES Module environments (browser or Node.js ESM)
+    // For ESM environments (browser or Node.js ESM)
     const snarkjs = await import('snarkjs');
     return snarkjs;
   } catch (error) {
@@ -85,8 +92,8 @@ function getFileConstants() {
   return FILE_CONSTANTS;
 }
 
-// Export using CommonJS module.exports
-module.exports = {
+// Prepare exports object that works in both ESM and CommonJS
+const exportsObj = {
   groth16: {
     fullProve,
     verify
@@ -96,3 +103,17 @@ module.exports = {
   verify,
   FILE_CONSTANTS
 };
+
+// ESM exports
+module.exports = exportsObj;
+module.exports = {
+  fullProve,
+  verify,
+  getFileConstants,
+  FILE_CONSTANTS
+};
+
+// Support for CommonJS environments
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = exportsObj;
+}
