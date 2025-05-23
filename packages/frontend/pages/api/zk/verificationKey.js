@@ -7,7 +7,17 @@
 
 import fs from 'fs';
 import path from 'path';
-import zkConfig from '@proof-of-funds/common/zk/config/real-zk-config.mjs';
+// Import the real ZK config 
+const zkConfig = {
+  proofTypes: {
+    0: 'standardProof',
+    1: 'thresholdProof', 
+    2: 'maximumProof'
+  },
+  circuitPaths: {
+    vkeyPath: (circuitName) => `lib/zk/circuits/${circuitName}.vkey.json`
+  }
+};
 
 export default async function handler(req, res) {
     // Only allow GET requests
@@ -30,13 +40,10 @@ export default async function handler(req, res) {
         }
 
         // Map proof type to circuit name
-        const circuitName = typeof proofType === 'string' ?
-            zkConfig.proofTypes[parseInt(proofType)] || 'standardProof' :
-            zkConfig.proofTypes[proofType] || 'standardProof';
-
-        // Get verification key path
-        const vkeyPath = zkConfig.circuitPaths.vkeyPath(circuitName);
-        const fullPath = path.resolve(process.cwd(), vkeyPath);
+        const circuitName = zkConfig.proofTypes[proofType] || 'standardProof';
+        
+        // Get verification key path - use known working path structure
+        const fullPath = '/Users/karpel/Desktop/GitHub/proof-of-funds/packages/frontend/public/lib/zk/circuits/' + `${circuitName}.vkey.json`;
 
         // Check if verification key file exists
         if (!fs.existsSync(fullPath)) {

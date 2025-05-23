@@ -89,15 +89,56 @@ export default async function handler(req, res) {
         ? 'Expired' 
         : 'Valid';
     
-    // Return formatted proof data
+    // Decode the cryptographic proof data from blockchain storage
+    let cryptographicProof = null;
+    let publicSignals = null;
+    
+    try {
+      if (zkProof.proof && zkProof.proof !== '0x') {
+        // Decode the ABI-encoded proof array
+        const decodedProofArray = ethers.utils.defaultAbiCoder.decode(['uint256[]'], zkProof.proof)[0];
+        
+        // Convert to Groth16 proof format (pi_a, pi_b, pi_c)
+        if (decodedProofArray.length >= 8) {
+          cryptographicProof = {
+            pi_a: [decodedProofArray[0].toString(), decodedProofArray[1].toString()],
+            pi_b: [
+              [decodedProofArray[2].toString(), decodedProofArray[3].toString()],
+              [decodedProofArray[4].toString(), decodedProofArray[5].toString()]
+            ],
+            pi_c: [decodedProofArray[6].toString(), decodedProofArray[7].toString()],
+            protocol: "groth16",
+            curve: "bn128"
+          };
+        }
+      }
+      
+      if (zkProof.publicSignals && zkProof.publicSignals !== '0x') {
+        // Decode the ABI-encoded public signals array
+        const decodedSignalsArray = ethers.utils.defaultAbiCoder.decode(['uint256[]'], zkProof.publicSignals)[0];
+        publicSignals = decodedSignalsArray.map(signal => signal.toString());
+      }
+    } catch (decodeError) {
+      console.error('Error decoding proof data:', decodeError);
+      // Continue with metadata only if decoding fails
+    }
+    
+    // Return formatted proof data with cryptographic components
     return res.status(200).json({
       user: zkProof.user,
       submissionDate,
       expiryDate,
       proofType: PROOF_TYPES[zkProof.proofType] || 'Unknown',
+      proofTypeNumber: zkProof.proofType,
       status,
       signatureMessage: zkProof.signatureMessage,
       isRevoked: zkProof.isRevoked,
+      // Add the decoded cryptographic proof components
+      cryptographicProof,
+      publicSignals,
+      // Include raw data for debugging if needed
+      rawProof: zkProof.proof,
+      rawPublicSignals: zkProof.publicSignals
     });
 
   } catch (error) {

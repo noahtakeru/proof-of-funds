@@ -23,6 +23,15 @@ module.exports = {
     ]
   ],
   plugins: [
+    // Transform runtime for async/await and other helpers in Web Workers
+    ['@babel/plugin-transform-runtime', {
+      absoluteRuntime: false,
+      corejs: false,
+      helpers: true,
+      regenerator: true,
+      version: '^7.27.1'
+    }],
+    
     // These plugins help with ES6+ features in older environments
     '@babel/plugin-transform-optional-chaining',
     '@babel/plugin-transform-nullish-coalescing-operator',

@@ -81,7 +81,7 @@ const headerConfig = isDev
 
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@proof-of-funds/common', 'snarkjs', 'fastfile', 'ffjavascript', 'ioredis'],
+  transpilePackages: ['@proof-of-funds/common'],
   
   // Add contract address to both public and server runtime configs
   // Making sure we prioritize direct environment variables
@@ -129,6 +129,15 @@ const nextConfig = {
       'ioredis': isServer ? require.resolve('ioredis') : false,
     };
     
+    // Provide global polyfills for Web Workers  
+    const webpack = require('webpack');
+    config.plugins.push(
+      new webpack.ProvidePlugin({
+        Buffer: ['buffer', 'Buffer'],
+        process: 'process/browser',
+      })
+    );
+    
     // Ensure snarkjs can be properly imported in browser
     if (!isServer) {
       // Add alias for constants module to use our shim
@@ -137,45 +146,8 @@ const nextConfig = {
         constants: path.resolve(__dirname, './lib/constants-shim.js')
       };
       
-      // Fix for fastfile named exports error
-      config.module.rules.push({
-        test: /node_modules\/fastfile\/src\/fastfile\.js$/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env'],
-            plugins: [
-              // Fix O_TRUNC and other named exports
-              ['module-resolver', {
-                resolvePath(sourcePath, currentFile, opts) {
-                  if (sourcePath === 'constants' && currentFile.includes('fastfile')) {
-                    return path.resolve(__dirname, './lib/constants-shim.js');
-                  }
-                  if (sourcePath === 'fs' && currentFile.includes('fastfile')) {
-                    return 'browserify-fs';
-                  }
-                  return sourcePath;
-                },
-              }],
-            ],
-          },
-        },
-      });
-      
-      // Add specific handling for snarkjs dependencies
-      config.module.rules.push({
-        test: /node_modules\/(snarkjs|ffjavascript)\/.*\.js$/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env'],
-            plugins: [
-              '@babel/plugin-proposal-optional-chaining',
-              '@babel/plugin-proposal-nullish-coalescing-operator',
-            ],
-          },
-        },
-      });
+      // Exclude snarkjs and its dependencies from babel processing to avoid conflicts
+      // but still make runtime helpers available globally
     }
     
     return config;

@@ -12,13 +12,13 @@ const proofTypes = {
 };
 
 // Base paths for circuit files
-const basePath = 'public/zk';
+const basePath = 'public/lib/zk/circuits';
 
 // Circuit paths configuration
 const circuitPaths = {
-  wasmPath: (circuitName) => `${basePath}/${circuitName}/${circuitName}.wasm`,
-  zkeyPath: (circuitName) => `${basePath}/${circuitName}/${circuitName}.zkey`,
-  vkeyPath: (circuitName) => `${basePath}/${circuitName}/${circuitName}_verification_key.json`
+  wasmPath: (circuitName) => `${basePath}/${circuitName}.wasm`,
+  zkeyPath: (circuitName) => `${basePath}/${circuitName}.zkey`,
+  vkeyPath: (circuitName) => `${basePath}/${circuitName}.vkey.json`
 };
 
 // Development mode setting

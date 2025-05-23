@@ -14,21 +14,25 @@
     "gcp:verify-zkeys": "node scripts/verify-zkeys.js"
   },
   "dependencies": {
+    "@babel/runtime": "^7.27.1",
     "@google-cloud/secret-manager": "^5.2.0",
     "@google-cloud/storage": "^7.7.0",
     "@heroicons/react": "^2.2.0",
     "@proof-of-funds/common": "^0.1.0",
+    "buffer": "^6.0.3",
     "ethers": "^5.7.2",
     "express-rate-limit": "^7.5.0",
     "ioredis": "^5.6.1",
     "jsonwebtoken": "^9.0.2",
     "next": "^14.0.4",
+    "process": "^0.11.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "server-only": "^0.0.1",
     "wagmi": "^1.4.13"
   },
   "devDependencies": {
+    "@babel/plugin-transform-runtime": "^7.27.1",
     "autoprefixer": "^10.4.16",
     "dotenv": "^16.3.1",
     "postcss": "^8.4.31",

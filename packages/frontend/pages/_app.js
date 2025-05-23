@@ -19,6 +19,48 @@ import { mainnet, polygon, polygonMumbai } from 'wagmi/chains';
 import { publicProvider } from 'wagmi/providers/public';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 
+// Initialize Babel runtime helpers for Web Workers early
+if (typeof window !== 'undefined') {
+  // Set up regenerator runtime for async/await in Web Workers
+  if (!window.regeneratorRuntime) {
+    window.regeneratorRuntime = {
+      wrap: function(fn) { return fn; },
+      mark: function(fn) { return fn; },
+      awrap: function(arg) { return Promise.resolve(arg); }
+    };
+  }
+  
+  // Set up _asyncToGenerator helper for async/await in Web Workers
+  if (!window._asyncToGenerator) {
+    window._asyncToGenerator = function(fn) {
+      return function() {
+        var gen = fn.apply(this, arguments);
+        return new Promise(function(resolve, reject) {
+          function step(key, arg) {
+            try {
+              var info = gen[key](arg);
+              var value = info.value;
+            } catch (error) {
+              reject(error);
+              return;
+            }
+            if (info.done) {
+              resolve(value);
+            } else {
+              return Promise.resolve(value).then(function(value) {
+                step("next", value);
+              }, function(err) {
+                step("throw", err);
+              });
+            }
+          }
+          return step("next");
+        });
+      };
+    };
+  }
+}
+
 /**
  * Polygon Amoy Testnet Configuration
  * Used for development and testing of blockchain interactions

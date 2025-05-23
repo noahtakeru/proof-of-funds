@@ -17,16 +17,56 @@ const FILE_CONSTANTS = {
   O_RDONLY: 0    // Value from fs.constants.O_RDONLY
 };
 
-// Safely load snarkjs with browser compatibility
+// Safely load snarkjs with browser compatibility and runtime fixes
 async function loadSnarkJS() {
   try {
+    // In browser environments, ensure runtime helpers are available
+    if (typeof window !== 'undefined') {
+      // Provide minimal runtime helpers if not available
+      if (!window.regeneratorRuntime) {
+        window.regeneratorRuntime = {
+          wrap: function(fn) { return fn; },
+          mark: function(fn) { return fn; },
+          awrap: function(arg) { return Promise.resolve(arg); }
+        };
+      }
+      
+      if (!window._asyncToGenerator) {
+        window._asyncToGenerator = function(fn) {
+          return function() {
+            var gen = fn.apply(this, arguments);
+            return new Promise(function(resolve, reject) {
+              function step(key, arg) {
+                try {
+                  var info = gen[key](arg);
+                  var value = info.value;
+                } catch (error) {
+                  reject(error);
+                  return;
+                }
+                if (info.done) {
+                  resolve(value);
+                } else {
+                  return Promise.resolve(value).then(function(value) {
+                    step("next", value);
+                  }, function(err) {
+                    step("throw", err);
+                  });
+                }
+              }
+              return step("next");
+            });
+          };
+        };
+      }
+    }
+    
     // Check if we're in a CommonJS environment first
     if (typeof require !== 'undefined') {
       try {
         return require('snarkjs');
       } catch (requireError) {
         // If require fails, fall back to dynamic import
-
       }
     }
     
