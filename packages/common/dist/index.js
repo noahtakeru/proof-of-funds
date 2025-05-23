@@ -26,6 +26,9 @@ export * from './utils/index.js';
 // Resources - contains resource management modules
 export * from './resources/index.js';
 
+// React hooks - contains useUnifiedWallet and other custom hooks
+export * from './hooks/index.js';
+
 // Phantom wallet context
 export * from './PhantomMultiWalletContext.js';
 

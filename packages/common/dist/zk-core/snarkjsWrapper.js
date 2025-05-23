@@ -26,7 +26,7 @@ async function loadSnarkJS() {
         return require('snarkjs');
       } catch (requireError) {
         // If require fails, fall back to dynamic import
-        console.log('Failed to require snarkjs, trying import:', requireError.message);
+
       }
     }
     

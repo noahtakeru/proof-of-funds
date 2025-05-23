@@ -326,7 +326,7 @@ async function importEthers() {
   } catch (error) {
     // Try fallback import from common
     try {
-      const { getEthers } = await import('@proof-of-funds/common/src/utils/ethersUtils');
+      const { getEthers } = await import('@proof-of-funds/common/utils/ethersUtils');
       const { ethers } = await getEthers();
       return ethers;
     } catch (fallbackError) {

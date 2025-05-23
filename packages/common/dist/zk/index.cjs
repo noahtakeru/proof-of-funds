@@ -6,8 +6,7 @@
 
 // Import all ZK core functions and types from zk-core
 const {
-  ZK_PROOF_TYPES,
-  generateZKProof as generateZKProofCore,
+  generateZKProofCore,
   verifyZKProof,
   serializeZKProof,
   deserializeZKProof,
@@ -18,6 +17,9 @@ const {
   SNARK_FIELD_SIZE,
   getErrorLogger
 } = require('../zk-core/index.js');
+
+// Import ZK_PROOF_TYPES from config to avoid duplication
+const { ZK_PROOF_TYPES } = require('../config/constants.js');
 
 // Create a frontend-friendly wrapper for generateZKProof that adapts the interface
 export async function generateZKProof(inputObj, providedProofType, options = {}) {

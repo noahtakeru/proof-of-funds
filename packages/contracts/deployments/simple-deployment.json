@@ -1,7 +1,9 @@
 {
-  "contractAddress": "0xFc50FF0f7e1d9Fafe6AaCfF60cE80125eBaF6228",
-  "deploymentTransactionHash": "0xd6306b42ef0fa2b58a9bcf68825907838406d282f75986064486729bcb72ed68",
+  "contractAddress": "0x19180Cc2d399257F2ea6212A2985eBEcA9EC9970",
+  "deploymentTransactionHash": "0x929a4dbc60efa0060c14aadcae0a877dd3e36be7bfb6549ba854b6336cab6242",
   "network": "polygon-amoy",
-  "timestamp": "2025-03-29T04:46:22.316Z",
-  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  "timestamp": "2025-05-22T09:05:23.665Z",
+  "deployer": "0xD6bd1eFCE3A2c4737856724f96F39037a3564890",
+  "contractType": "ProofOfFunds",
+  "note": "Full ProofOfFunds contract deployment (not simple version)"
 }

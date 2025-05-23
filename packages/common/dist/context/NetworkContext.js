@@ -17,6 +17,7 @@ import {
   POLYGON_MAINNET_CHAIN_ID,
   POLYGON_MAINNET_RPC_URL
 } from '../config/constants';
+import { getChainId, getRpcUrl } from '../utils/chainMappings.js';
 
 // Create the context
 const NetworkContext = createContext(null);
@@ -55,9 +56,12 @@ export const NetworkProvider = ({ children }) => {
   
   // Get current network configuration based on selected network
   const getNetworkConfig = () => {
+    // Use chainMappings utility for consistency
+    const chainName = useTestNetwork ? 'polygon-amoy' : 'polygon';
+    
     return {
       chainId: useTestNetwork ? POLYGON_AMOY_CHAIN_ID : POLYGON_MAINNET_CHAIN_ID,
-      rpcUrl: useTestNetwork ? POLYGON_AMOY_RPC_URL : POLYGON_MAINNET_RPC_URL,
+      rpcUrl: useTestNetwork ? getRpcUrl(chainName) : getRpcUrl('polygon'),
       contractAddress: useTestNetwork ? CONTRACT_ADDRESS : POLYGON_MAINNET_CONTRACT_ADDRESS,
       networkName: useTestNetwork ? 'Polygon Amoy (Testnet)' : 'Polygon Mainnet',
       isTestnet: useTestNetwork

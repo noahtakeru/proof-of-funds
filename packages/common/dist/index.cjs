@@ -26,6 +26,9 @@ Object.assign(exports, require('./utils/index.js'));
 // Resources - contains resource management modules
 Object.assign(exports, require('./resources/index.js'));
 
+// React hooks - contains useUnifiedWallet and other custom hooks
+Object.assign(exports, require('./hooks/index.js'));
+
 // Phantom wallet context
 Object.assign(exports, require('./PhantomMultiWalletContext.js'));
 

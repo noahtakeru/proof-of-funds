@@ -171,11 +171,36 @@ const parseAmount = async (amount, decimals = 18) => {
     }
 };
 
+/**
+ * Parses an Ether amount string to Wei representation (18 decimals)
+ * A convenience wrapper for parseAmount with decimals fixed at 18
+ * Works with both ethers v5 and v6
+ * 
+ * @param {string} amount - The amount in Ether as a decimal string
+ * @returns {Promise<string>} - The amount in Wei as a string
+ */
+const parseEther = async (amount) => {
+    return parseAmount(amount, 18);
+};
+
+/**
+ * Creates a zero amount in Wei (18 decimals)
+ * Utility function to avoid having to use ethers.utils.parseEther('0')
+ * which differs between v5 and v6
+ * 
+ * @returns {Promise<string>} - Zero in Wei as a string ('0')
+ */
+const getZeroWei = async () => {
+    return '0';
+};
+
 // Define the exports object
 const ethersUtils = {
     getEthers,
     isValidAmount,
-    parseAmount
+    parseAmount,
+    parseEther,
+    getZeroWei
 };
 
 // For CommonJS environments
@@ -190,5 +215,7 @@ export default ethersUtils;
 export {
   getEthers,
   isValidAmount,
-  parseAmount
+  parseAmount,
+  parseEther,
+  getZeroWei
 };

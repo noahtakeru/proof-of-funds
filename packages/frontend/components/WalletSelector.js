@@ -199,9 +199,45 @@ export default function WalletSelector({ onClose }) {
                     return;
                 }
                 
-                // Directly use the improved connectMetaMask function
+                // FORCE FRESH METAMASK CONNECTION WITH ACCOUNT SELECTION
                 try {
-                    console.log('Connecting via direct MetaMask method...');
+                    console.log('🔄 FORCING FRESH METAMASK CONNECTION...');
+                    
+                    // Step 1: Find the correct MetaMask provider
+                    let provider = window.ethereum;
+                    if (window.ethereum?.providers) {
+                        console.log('Multiple providers detected, finding MetaMask...');
+                        const metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+                        if (metaMaskProvider) {
+                            console.log('✅ Found MetaMask provider');
+                            provider = metaMaskProvider;
+                        } else {
+                            throw new Error('MetaMask provider not found');
+                        }
+                    }
+                    
+                    // Step 2: Force account selection by requesting permissions
+                    console.log('🔐 Requesting fresh wallet permissions...');
+                    await provider.request({
+                        method: 'wallet_requestPermissions',
+                        params: [{
+                            eth_accounts: {}
+                        }]
+                    });
+                    
+                    // Step 3: Get the selected accounts
+                    console.log('📋 Getting selected accounts...');
+                    const accounts = await provider.request({
+                        method: 'eth_accounts'
+                    });
+                    
+                    console.log('✅ Account selection completed:', accounts);
+                    
+                    if (!accounts || accounts.length === 0) {
+                        throw new Error('No accounts selected');
+                    }
+                    
+                    // Step 4: Use connectMetaMask to finish the connection process
                     const wallet = await connectMetaMask();
                     console.log('MetaMask wallet connected successfully:', wallet);
                     

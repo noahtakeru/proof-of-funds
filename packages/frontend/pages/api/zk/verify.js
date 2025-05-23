@@ -5,7 +5,7 @@
  * Part of the ZK Proof Execution Plan implementation.
  */
 
-import snarkjsWrapper from '@proof-of-funds/common/src/zk-core/snarkjsWrapper';
+import snarkjsWrapper from '@proof-of-funds/common/zk-core/snarkjsWrapper';
 import path from 'path';
 import fs from 'fs';
 import { handleApiError } from '../../../utils/apiErrorHandler';

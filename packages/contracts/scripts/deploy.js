@@ -13,12 +13,12 @@ async function main() {
     console.log("Starting deployment transaction...");
     const proofOfFunds = await ProofOfFunds.deploy();
 
-    // Wait for the contract to be deployed
-    await proofOfFunds.waitForDeployment();
+    // Wait for the contract to be deployed (ethers v5 syntax)
+    await proofOfFunds.deployed();
 
     // Get contract address and transaction hash
-    const contractAddress = await proofOfFunds.getAddress();
-    const deployTransaction = proofOfFunds.deploymentTransaction();
+    const contractAddress = proofOfFunds.address;
+    const deployTransaction = proofOfFunds.deployTransaction;
     const txHash = deployTransaction.hash;
 
     console.log(`ProofOfFunds deployed to: ${contractAddress}`);

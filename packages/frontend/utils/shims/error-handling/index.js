@@ -86,7 +86,7 @@ function validateApiRequest(data, schema) {
 // Common field validators
 const validators = {
   isString: (value, fieldName) => {
-    if (typeof value !== 'string') {
+    if (value !== undefined && typeof value !== 'string') {
       return {
         isValid: false,
         error: 'invalid_type',
@@ -97,7 +97,7 @@ const validators = {
   },
   
   isEnum: (allowedValues) => (value, fieldName) => {
-    if (!allowedValues.includes(value)) {
+    if (value !== undefined && !allowedValues.includes(value)) {
       return {
         isValid: false,
         error: 'invalid_value',
@@ -119,7 +119,7 @@ const validators = {
   },
   
   isNumber: (value, fieldName) => {
-    if (typeof value !== 'number' || isNaN(value)) {
+    if (value !== undefined && (typeof value !== 'number' || isNaN(value))) {
       return {
         isValid: false,
         error: 'invalid_number',
@@ -129,8 +129,22 @@ const validators = {
     return { isValid: true };
   },
   
+  isPositiveNumber: (value, fieldName) => {
+    // Accept string numbers and convert them
+    const num = typeof value === 'string' ? Number(value) : value;
+    
+    if (value !== undefined && (typeof num !== 'number' || isNaN(num) || num <= 0)) {
+      return {
+        isValid: false,
+        error: 'invalid_positive_number',
+        message: `The field '${fieldName}' must be a positive number`
+      };
+    }
+    return { isValid: true };
+  },
+  
   isEthAddress: (value, fieldName) => {
-    if (!value || typeof value !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(value)) {
+    if (value !== undefined && (!value || typeof value !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(value))) {
       return {
         isValid: false,
         error: 'invalid_address',
@@ -147,7 +161,11 @@ function handleApiError(error, res) {
   
   // If it's already a structured error, use it
   if (error.type && error.status) {
-    return res.status(error.status).json(error);
+    return res.status(error.status).json({
+      error: error.type,
+      message: error.message,
+      details: error.details || {}
+    });
   }
   
   // Default error response
@@ -163,8 +181,6 @@ function handleApiError(error, res) {
   
   return res.status(error.status || 500).json(errorResponse);
 }
-
-// No need to define createRateLimitError again - it's already defined above
 
 module.exports = {
   ZkErrorType,

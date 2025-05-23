@@ -83,6 +83,16 @@ const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@proof-of-funds/common', 'snarkjs', 'fastfile', 'ffjavascript', 'ioredis'],
   
+  // Add contract address to both public and server runtime configs
+  // Making sure we prioritize direct environment variables
+  // No fallbacks - must be explicitly set in environment
+  publicRuntimeConfig: {
+    PROOF_CONTRACT_ADDRESS: process.env.PROOF_CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_PROOF_CONTRACT_ADDRESS,
+  },
+  serverRuntimeConfig: {
+    PROOF_CONTRACT_ADDRESS: process.env.PROOF_CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_PROOF_CONTRACT_ADDRESS,
+  },
+  
   // Use environment-specific headers
   headers: headerConfig.headers,
   

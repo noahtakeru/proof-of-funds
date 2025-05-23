@@ -26,16 +26,45 @@ export function getConnectedWallets() {
       return [];
     }
     
-    const connectedWallets = [];
+    let connectedWallets = [];
     
-    // Add MetaMask wallets
+    // Add MetaMask wallets with better logging
     if (parsedData.wallets.metamask && Array.isArray(parsedData.wallets.metamask)) {
+      console.log(`Found ${parsedData.wallets.metamask.length} MetaMask wallets in localStorage`);
+      
+      // Add addresses for better debugging
+      if (parsedData.wallets.metamask.length > 0) {
+        console.log("MetaMask wallet addresses:", parsedData.wallets.metamask.map(w => 
+          w.address || w.fullAddress || 'unknown'
+        ));
+      }
+      
       connectedWallets.push(...parsedData.wallets.metamask);
     }
     
-    // Add Phantom wallets
+    // Add Phantom wallets with better logging
     if (parsedData.wallets.phantom && Array.isArray(parsedData.wallets.phantom)) {
+      console.log(`Found ${parsedData.wallets.phantom.length} Phantom wallets in localStorage`);
+      
+      // Add addresses for better debugging
+      if (parsedData.wallets.phantom.length > 0) {
+        console.log("Phantom wallet addresses:", parsedData.wallets.phantom.map(w => 
+          w.address || w.fullAddress || 'unknown'
+        ));
+      }
+      
       connectedWallets.push(...parsedData.wallets.phantom);
+    }
+    
+    // Check for ethereum provider (MetaMask) to verify which wallets are actually available
+    if (typeof window !== 'undefined' && window.ethereum && connectedWallets.length > 0) {
+      console.log("Ethereum provider detected, checking for available accounts...");
+      
+      // We don't want to make this function async, so we'll just log information
+      // for now and let the actual checks happen in other functions
+      if (window.ethereum.selectedAddress) {
+        console.log(`Current selected MetaMask address: ${window.ethereum.selectedAddress}`);
+      }
     }
     
     return connectedWallets;
@@ -62,9 +91,7 @@ export async function saveWalletConnection(walletType, accounts) {
       console.warn('localStorage not available, cannot save wallet connection');
       return false;
     }
-    
-    console.log(`Saving wallet connection for ${walletType}:`, accounts);
-    
+
     // Get existing wallet data or initialize new structure
     let walletData;
     try {
@@ -90,18 +117,35 @@ export async function saveWalletConnection(walletType, accounts) {
       // Handle both array and single wallet object
       const walletArray = Array.isArray(accounts) ? accounts : [accounts];
       
-      // Clear existing metamask wallets if we're explicitly setting new ones
-      walletData.wallets.metamask = [];
+      // Get existing addresses for deduplication
+      const existingAddresses = new Set(
+        walletData.wallets.metamask.map(w => w.address?.toLowerCase() || w.fullAddress?.toLowerCase())
+      );
       
       // Add each wallet
       for (const wallet of walletArray) {
         if (typeof wallet === 'string') {
           // If it's just an address string
           const address = wallet;
+          const addressLower = address.toLowerCase();
           const displayAddress = address.length > 10 
             ? `${address.substring(0, 6)}...${address.substring(address.length - 4)}` 
             : address;
+          
+          // Skip if already exists
+          if (existingAddresses.has(addressLower)) {
+            // Update connection time for existing wallet
+            const existingWallet = walletData.wallets.metamask.find(
+              w => (w.address?.toLowerCase() || w.fullAddress?.toLowerCase()) === addressLower
+            );
+            if (existingWallet) {
+              existingWallet.connected = true;
+              existingWallet.connectedAt = new Date().toISOString();
+            }
+            continue;
+          }
             
+          // Add new wallet
           walletData.wallets.metamask.push({
             id: `metamask-${address.substring(2, 10)}`,
             address: address,
@@ -114,9 +158,36 @@ export async function saveWalletConnection(walletType, accounts) {
             connected: true,
             connectedAt: new Date().toISOString()
           });
+          
+          // Add to tracking set
+          existingAddresses.add(addressLower);
         } else if (typeof wallet === 'object' && wallet !== null) {
-          // If it's a wallet object, add it directly
-          walletData.wallets.metamask.push(wallet);
+          // If it's a wallet object, check for duplication first
+          const walletAddress = wallet.address?.toLowerCase() || wallet.fullAddress?.toLowerCase();
+          
+          if (walletAddress && existingAddresses.has(walletAddress)) {
+            // Update connection time for existing wallet
+            const existingWallet = walletData.wallets.metamask.find(
+              w => (w.address?.toLowerCase() || w.fullAddress?.toLowerCase()) === walletAddress
+            );
+            if (existingWallet) {
+              existingWallet.connected = true;
+              existingWallet.connectedAt = new Date().toISOString();
+            }
+            continue;
+          }
+          
+          // Add new wallet
+          walletData.wallets.metamask.push({
+            ...wallet,
+            connected: true,
+            connectedAt: new Date().toISOString()
+          });
+          
+          // Add to tracking set if it has an address
+          if (walletAddress) {
+            existingAddresses.add(walletAddress);
+          }
         }
       }
     } else if (walletType === 'phantom' || walletType === 'solana') {
@@ -128,14 +199,33 @@ export async function saveWalletConnection(walletType, accounts) {
       // Handle both array and single wallet object
       const walletArray = Array.isArray(accounts) ? accounts : [accounts];
       
+      // Get existing addresses for deduplication
+      const existingAddresses = new Set(
+        walletData.wallets.phantom.map(w => w.address?.toLowerCase() || w.fullAddress?.toLowerCase())
+      );
+      
       // Add each wallet
       for (const wallet of walletArray) {
         if (typeof wallet === 'string') {
           // If it's just an address string
           const address = wallet;
+          const addressLower = address.toLowerCase();
           const displayAddress = address.length > 10 
             ? `${address.substring(0, 6)}...${address.substring(address.length - 4)}` 
             : address;
+          
+          // Skip if already exists
+          if (existingAddresses.has(addressLower)) {
+            // Update connection time for existing wallet
+            const existingWallet = walletData.wallets.phantom.find(
+              w => (w.address?.toLowerCase() || w.fullAddress?.toLowerCase()) === addressLower
+            );
+            if (existingWallet) {
+              existingWallet.connected = true;
+              existingWallet.connectedAt = new Date().toISOString();
+            }
+            continue;
+          }
             
           walletData.wallets.phantom.push({
             id: `phantom-${address.substring(0, 8)}`,
@@ -149,17 +239,43 @@ export async function saveWalletConnection(walletType, accounts) {
             connected: true,
             connectedAt: new Date().toISOString()
           });
+          
+          // Add to tracking set
+          existingAddresses.add(addressLower);
         } else if (typeof wallet === 'object' && wallet !== null) {
-          // If it's a wallet object, add it directly
-          walletData.wallets.phantom.push(wallet);
+          // If it's a wallet object, check for duplication first
+          const walletAddress = wallet.address?.toLowerCase() || wallet.fullAddress?.toLowerCase();
+          
+          if (walletAddress && existingAddresses.has(walletAddress)) {
+            // Update connection time for existing wallet
+            const existingWallet = walletData.wallets.phantom.find(
+              w => (w.address?.toLowerCase() || w.fullAddress?.toLowerCase()) === walletAddress
+            );
+            if (existingWallet) {
+              existingWallet.connected = true;
+              existingWallet.connectedAt = new Date().toISOString();
+            }
+            continue;
+          }
+          
+          // Add new wallet
+          walletData.wallets.phantom.push({
+            ...wallet,
+            connected: true,
+            connectedAt: new Date().toISOString()
+          });
+          
+          // Add to tracking set if it has an address
+          if (walletAddress) {
+            existingAddresses.add(walletAddress);
+          }
         }
       }
     }
     
     // Save updated wallet data
     localStorage.setItem('walletData', JSON.stringify(walletData));
-    console.log('Wallet data saved successfully');
-    
+
     // Dispatch wallet connection change event
     if (typeof window !== 'undefined') {
       const walletChangeEvent = new CustomEvent('wallet-connection-changed', {
@@ -190,16 +306,7 @@ export async function connectMetaMask() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   
   // Log ethereum provider details to help with debugging
-  console.log('Environment check:', { 
-    hasEthereum: !!window.ethereum,
-    isMetaMask: window.ethereum?.isMetaMask,
-    hasProviders: !!window.ethereum?.providers,
-    providerCount: window.ethereum?.providers?.length,
-    userAgent: navigator.userAgent,
-    isSafari,
-    isMobile
-  });
-  
+
   if (!window.ethereum) {
     if (isMobile) {
       throw new Error('MetaMask not detected. On mobile, please use the MetaMask mobile app browser.');
@@ -208,48 +315,118 @@ export async function connectMetaMask() {
     }
   }
   
+  // DETAILED PROVIDER DEBUGGING
+  console.log("=== PROVIDER DETECTION DEBUG ===");
+  console.log("window.ethereum exists:", !!window.ethereum);
+  console.log("window.ethereum.isMetaMask:", window.ethereum?.isMetaMask);
+  console.log("window.ethereum.isPhantom:", window.ethereum?.isPhantom);
+  console.log("window.ethereum.providers:", window.ethereum?.providers);
+  
+  if (window.ethereum?.providers) {
+    console.log("Multiple providers found:");
+    window.ethereum.providers.forEach((p, i) => {
+      console.log(`Provider ${i}:`, {
+        isMetaMask: p.isMetaMask,
+        isPhantom: p.isPhantom,
+        isCoinbaseWallet: p.isCoinbaseWallet,
+        selectedAddress: p.selectedAddress
+      });
+    });
+  }
+
   // If we have multiple providers (common with multiple wallets installed)
-  // explicitly try to find MetaMask
+  // explicitly try to find MetaMask (NOT Phantom!)
   let provider = window.ethereum;
   if (window.ethereum.providers) {
+    console.log("Searching for MetaMask provider among multiple providers...");
     const metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
     if (metaMaskProvider) {
-      console.log('Using dedicated MetaMask provider from multiple providers');
+      console.log("✅ Found MetaMask provider");
       provider = metaMaskProvider;
+    } else {
+      console.error("❌ MetaMask provider not found in providers array");
+      throw new Error('MetaMask not found among installed wallet providers. Please make sure MetaMask is installed.');
     }
+  } else if (window.ethereum.isMetaMask) {
+    console.log("✅ Using default MetaMask provider");
+    provider = window.ethereum;
+  } else {
+    console.error("❌ Default provider is not MetaMask");
+    console.log("Default provider details:", {
+      isMetaMask: window.ethereum.isMetaMask,
+      isPhantom: window.ethereum.isPhantom,
+      isCoinbaseWallet: window.ethereum.isCoinbaseWallet
+    });
+    throw new Error('MetaMask not found. Please make sure MetaMask is installed.');
   }
   
   try {
-    console.log('Requesting MetaMask accounts...');
-    
-    // Clear localStorage items that might affect connection
+
+    // Clear localStorage items that might affect connection and force fresh selection
     if (typeof localStorage !== 'undefined') {
       try {
+        // Clear wagmi connection state
         localStorage.removeItem('wagmi.connected');
         localStorage.removeItem('wagmi.connectors');
         localStorage.removeItem('wagmi.injected.shimDisconnect');
+        
+        // Keep our wallet data but clear connection state
+        // localStorage.removeItem('walletData'); // Keep this for now
+        // localStorage.removeItem('userInitiatedConnection'); // Keep this for now
+        
+        console.log("Cleared wagmi connection cache to force fresh wallet selection");
       } catch (e) {
-        console.log('Non-critical localStorage cleanup error:', e);
+        console.warn("Could not clear connection cache:", e);
       }
     }
     
-    // Simplified connection approach - directly request accounts with force parameter
-    const accounts = await provider.request({
-      method: 'eth_requestAccounts',
-      params: [{ force: true }]
-    });
+    // We're now forcing fresh wallet selection every time
+
+    console.log("=== FORCING METAMASK ACCOUNT SELECTION ===");
     
-    console.log('MetaMask returned accounts:', accounts);
+    // Method 1: Try the simple approach first
+    console.log("Attempting direct eth_requestAccounts (should show selection dialog)...");
+    let accounts;
     
+    try {
+      // This should show the account selection dialog if no accounts are connected
+      // or if we've cleared the connection state properly
+      accounts = await provider.request({
+        method: 'eth_requestAccounts'
+      });
+      
+      console.log("eth_requestAccounts returned:", accounts);
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts returned from MetaMask");
+      }
+      
+    } catch (requestError) {
+      console.log("Direct request failed, trying permission-based approach:", requestError.message);
+      
+      // Method 2: Force permissions dialog
+      try {
+        await provider.request({
+          method: 'wallet_requestPermissions',
+          params: [{
+            eth_accounts: {}
+          }]
+        });
+        
+        accounts = await provider.request({
+          method: 'eth_accounts'
+        });
+        
+        console.log("Permission-based approach returned:", accounts);
+        
+      } catch (permissionError) {
+        console.error("Both connection methods failed:", permissionError);
+        throw new Error(`Failed to connect to MetaMask: ${permissionError.message}`);
+      }
+    }
+
     if (!accounts || accounts.length === 0) {
       throw new Error('No accounts found. Please unlock MetaMask and try again.');
-    }
-    
-    // Get the connected wallet address
-    const address = accounts[0];
-    
-    if (!address) {
-      throw new Error('Failed to get wallet address');
     }
     
     // Get the current chain ID with better error handling
@@ -298,27 +475,33 @@ export async function connectMetaMask() {
       console.warn(`Using fallback chain information in connectMetaMask: ${chainId} (${chainIdHex})`);
     }
     
-    // Create wallet object for return value and storage
-    const displayAddress = address.length > 10 ? 
-                          `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : 
-                          address;
+    // Create wallet objects for all accounts
+    const wallets = accounts.map(address => {
+      const displayAddress = address.length > 10 ? 
+                            `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : 
+                            address;
+      
+      return {
+        id: `metamask-${address.substring(2, 10)}`,
+        address: address,
+        displayAddress: displayAddress,
+        fullAddress: address,
+        type: 'evm',
+        provider: 'metamask',
+        name: `MetaMask ${displayAddress}`,
+        chain: chainName,
+        chainId,
+        connected: true,
+        connectedAt: new Date().toISOString()
+      };
+    });
     
-    const wallet = {
-      id: `metamask-${address.substring(2, 10)}`,
-      address: address,
-      displayAddress: displayAddress,
-      fullAddress: address,
-      type: 'evm',
-      provider: 'metamask',
-      name: `MetaMask ${displayAddress}`,
-      chain: chainName,
-      chainId,
-      connected: true,
-      connectedAt: new Date().toISOString()
-    };
+    // Get the primary address (first account)
+    const primaryAddress = accounts[0];
+    const primaryWallet = wallets[0];
     
-    // Save wallet connection
-    await saveWalletConnection('metamask', [wallet]);
+    // Save all wallet connections
+    await saveWalletConnection('metamask', wallets);
     
     // Set user initiated flag for asset scanning
     if (typeof localStorage !== 'undefined') {
@@ -331,11 +514,10 @@ export async function connectMetaMask() {
         detail: { timestamp: Date.now(), walletType: 'metamask' }
       });
       window.dispatchEvent(walletChangeEvent);
-      console.log('Dispatched wallet-connection-changed event');
     }
-    
-    console.log('Successfully connected to MetaMask:', wallet);
-    return wallet;
+
+    // Return the primary wallet (first connected account)
+    return primaryWallet;
     
   } catch (error) {
     console.error('MetaMask connection error:', error);
@@ -485,6 +667,22 @@ export async function scanMultiChainAssets(wallets, options = {}) {
     // For error tracking
     const chainResults = {};
     
+    // Check if we're in a test environment - use the same logic as in moralisApi.js
+    // This is based on the NetworkContext toggle in create/verify pages
+    let isTestEnvironment = false;
+    try {
+      // The authoritative source is the NetworkContext toggle saved in localStorage
+      if (typeof window !== 'undefined' && window.localStorage) {
+        isTestEnvironment = window.localStorage.getItem('useTestNetwork') === 'true';
+      }
+    } catch (e) {
+      // If we can't check localStorage, default to false
+      console.warn('Could not check test environment status:', e);
+    }
+    
+    // Add a debug log to help with troubleshooting
+    console.log(`Environment check: isTestEnvironment=${isTestEnvironment} (from localStorage)`)
+    
     // Process each chain sequentially to avoid rate limits
     
     // Ensure we have chains to scan
@@ -492,6 +690,9 @@ export async function scanMultiChainAssets(wallets, options = {}) {
       console.warn('No chains specified for scanning, using default chains');
       chainsToScan = ['ethereum', 'polygon', 'bsc']; // Use minimal set of defaults
     }
+    
+    // Track if we had at least one successful chain scan
+    let hasAtLeastOneSuccessfulScan = false;
     
     for (const chainName of chainsToScan) {
       chainResults[chainName] = { success: false, error: null };
@@ -505,8 +706,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
             console.warn(`Skipping wallet without address for chain ${chainName}`);
             continue;
           }
-          
-          
+
           // Get wallet assets with options for token-agnosticism
           const walletAssets = await moralisApi.getWalletAssetsWithValue(
             walletAddress, 
@@ -578,7 +778,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
             chainResults[chainName].success = true;
           } else if (walletAssets.meta) {
             // No assets but API call succeeded
-            console.log(`No assets found for ${walletAddress} on ${chainName}`);
+
             chainResults[chainName].success = true;
             chainResults[chainName].emptyWallet = true;
           }
@@ -603,11 +803,14 @@ export async function scanMultiChainAssets(wallets, options = {}) {
       // Organize all assets by cross-chain grouping
       if (organizeAssetsByCrossChain && assetSummary.totalAssets.length > 0) {
         assetSummary.crossChain = organizeAssetsByCrossChain(assetSummary.totalAssets);
-        console.log(`Organized assets into ${assetSummary.crossChain.crossChainSummary.length} cross-chain groups`);
+
       }
     } catch (importError) {
       console.warn('Could not import cross-chain organization utilities:', importError.message);
     }
+    
+    // Update success tracking
+    hasAtLeastOneSuccessfulScan = Object.values(chainResults).some(result => result.success);
     
     // Add scan metadata
     assetSummary.meta = {
@@ -622,6 +825,9 @@ export async function scanMultiChainAssets(wallets, options = {}) {
       totalTokenCount: assetSummary.totalAssets.length,
       hasErrors: scanErrors.length > 0,
       errors: scanErrors.length > 0 ? scanErrors : undefined,
+      // Add success tracking
+      hasAtLeastOneSuccessfulScan,
+      isTestEnvironment,
       // Add pagination summary 
       pagination: assetSummary.paginationInfo || {},
       paginationSummary: {
@@ -637,30 +843,99 @@ export async function scanMultiChainAssets(wallets, options = {}) {
       } : undefined
     };
     
-    
+    // In production, if we have no successful scans and errors, throw instead of returning empty data
+    // This ensures consistent behavior with the moralisApi.js error handling
+    if (!isTestEnvironment && !hasAtLeastOneSuccessfulScan && scanErrors.length > 0) {
+      // Throw an error that will be caught by the calling function
+      const error = new Error('Failed to get asset data from any chain');
+      error.details = scanErrors;
+      error.chainResults = chainResults;
+      throw error;
+    }
+
     return assetSummary;
   } catch (error) {
     console.error('Error in scanMultiChainAssets:', error);
     
-    // Return error result with structured data
-    return {
-      totalAssets: [],
-      totalValue: 0,
-      totalUSDValue: 0,
-      chains: {},
-      walletAddresses: wallets.map(w => w.address || w.fullAddress),
-      success: false,
-      error: error.message,
-      meta: {
-        scanStartTime: Date.now(),
-        scanEndTime: Date.now(),
-        walletCount: wallets.length,
-        hasErrors: true,
-        criticalError: error.message,
-        includeZeroBalances,
-        includePotentialSpam
+    // Check for test environment here as well - using the same logic as above for consistency
+    let isTestEnv = false;
+    try {
+      // Check localStorage for the network toggle state (from NetworkContext)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        isTestEnv = window.localStorage.getItem('useTestNetwork') === 'true';
+        console.log(`Error handler environment check: isTestEnv=${isTestEnv} (from localStorage)`);
       }
-    };
+    } catch (e) {
+      console.warn('Could not check test environment status in error handler:', e);
+    }
+    
+    if (isTestEnv) {
+      // In test environment, use a demo asset with 1 ETH
+      console.log('In test environment, returning demo asset with 1 ETH');
+      
+      // Import moralisApi for consistent fallback behavior
+      return import('./moralisApi.js').then(moralisApi => {
+        return moralisApi.getWalletAssetsWithValue(
+          wallets[0]?.address || wallets[0]?.fullAddress || '0xDemoAddress',
+          'ethereum',
+          { includeZeroBalances, includePotentialSpam }
+        );
+      }).catch(importError => {
+        console.error('Failed to import moralisApi for fallback:', importError);
+        
+        // Simplified fallback if import fails
+        return {
+          totalAssets: [{
+            symbol: 'ETH',
+            name: 'Ethereum',
+            token_address: '0xEth-Demo-Asset',
+            balance: 1.0,
+            price: 2432.04,
+            usdValue: 2432.04,
+            chain: 'ethereum',
+            type: 'native',
+            isDemoAsset: true
+          }],
+          totalValue: 2432.04,
+          totalUSDValue: 2432.04,
+          chains: { 'ethereum': { nativeBalance: 1.0, tokens: {}, nativeUSDValue: 2432.04, tokensUSDValue: {} }},
+          walletAddresses: wallets.map(w => w.address || w.fullAddress),
+          success: true,
+          isTestFallback: true,
+          meta: {
+            scanStartTime: Date.now(),
+            scanEndTime: Date.now(),
+            walletCount: wallets.length,
+            hasErrors: true,
+            criticalError: error.message,
+            includeZeroBalances,
+            includePotentialSpam,
+            isTestEnvironment: true,
+            isDemoAsset: true
+          }
+        };
+      });
+    } else {
+      // In production, return a clean error with no mock data
+      return {
+        totalAssets: [],
+        totalValue: 0,
+        totalUSDValue: 0,
+        chains: {},
+        walletAddresses: wallets.map(w => w.address || w.fullAddress),
+        success: false,
+        error: error.message,
+        meta: {
+          scanStartTime: Date.now(),
+          scanEndTime: Date.now(),
+          walletCount: wallets.length,
+          hasErrors: true,
+          criticalError: error.message,
+          errorDetails: error.details || error.stack?.split('\n')[0] || 'Unknown error',
+          includePotentialSpam
+        }
+      };
+    }
   }
 }
 
@@ -676,8 +951,7 @@ export async function convertAssetsToUSD(assets) {
   }
   
   try {
-    console.log('Converting assets to USD using Moralis API');
-    
+
     // Import Moralis API
     let moralisApi;
     try {
@@ -686,8 +960,7 @@ export async function convertAssetsToUSD(assets) {
       if (!moralisApi || !moralisApi.getTokenPricesWithMoralis) {
         throw new Error('Moralis API module missing required price functions');
       }
-      
-      console.log('Successfully imported Moralis API module for price conversion');
+
     } catch (importError) {
       console.error('Failed to import Moralis API module:', importError);
       throw new Error(`Moralis API module import failed: ${importError.message}`);
@@ -695,15 +968,14 @@ export async function convertAssetsToUSD(assets) {
     
     // If assets already have USD values, return early
     if (assets.convertedAssets && assets.totalUSDValue !== undefined) {
-      console.log('Assets already converted to USD, returning as-is');
+
       return assets;
     }
     
     // Check if the assets were already processed with Moralis
     if (assets.totalAssets && assets.totalAssets.length > 0 && 
         assets.totalAssets[0].usdValue !== undefined) {
-      console.log('Assets already have USD values from Moralis scan');
-      
+
       // Create a properly formatted result with the existing USD values
       const result = JSON.parse(JSON.stringify(assets));
       
@@ -734,33 +1006,27 @@ export async function convertAssetsToUSD(assets) {
     
     // Skip processing if no assets
     if (totalAssets.length === 0) {
-      console.log('No assets to convert to USD');
+
       return result;
     }
-    
-    console.log(`Converting ${totalAssets.length} assets to USD`);
-    
+
     // Get prices from Moralis for all tokens at once
     const prices = await moralisApi.getTokenPricesWithMoralis(
       totalAssets.map(asset => ({ symbol: asset.symbol, chain: asset.chain }))
     );
-    
-    console.log('Retrieved prices from Moralis:', prices);
-    
+
     // Convert all total assets
     for (const asset of totalAssets) {
       // Skip zero balances
       if (asset.balance <= 0) {
-        console.log(`Skipping zero balance asset: ${asset.symbol}`);
+
         continue;
       }
       
       // Get price from our price map (case insensitive)
       const price = prices[asset.symbol.toLowerCase()] || 0;
       const usdValue = asset.balance * price;
-      
-      console.log(`Converting ${asset.symbol}: ${asset.balance} * $${price} = $${usdValue}`);
-      
+
       // Add to converted assets
       result.convertedAssets.push({
         ...asset,
@@ -789,28 +1055,21 @@ export async function convertAssetsToUSD(assets) {
       
       // Only convert if we need to (not already converted)
       if (Object.keys(result.chains[chain].tokensUSDValue).length === 0) {
-        console.log(`Converting chain-specific balances for ${chain}`);
-        
+
         // Convert native balance
         const nativeSymbol = getNativeSymbolForChain(chain);
         const nativePrice = prices[nativeSymbol.toLowerCase()] || 0;
         result.chains[chain].nativeUSDValue = chainData.nativeBalance * nativePrice;
-        
-        console.log(`Native ${nativeSymbol} on ${chain}: ${chainData.nativeBalance} * $${nativePrice} = $${result.chains[chain].nativeUSDValue}`);
-        
+
         // Convert token balances
         for (const [tokenSymbol, tokenBalance] of Object.entries(chainData.tokens || {})) {
           const tokenPrice = prices[tokenSymbol.toLowerCase()] || 0;
           result.chains[chain].tokensUSDValue[tokenSymbol] = tokenBalance * tokenPrice;
-          
-          console.log(`Token ${tokenSymbol} on ${chain}: ${tokenBalance} * $${tokenPrice} = $${result.chains[chain].tokensUSDValue[tokenSymbol]}`);
+
         }
       }
     }
-    
-    console.log(`Total USD value: $${result.totalUSDValue}`);
-    console.log('Finished converting assets to USD');
-    
+
     return result;
   } catch (error) {
     console.error('Error in convertAssetsToUSD:', error);
@@ -830,8 +1089,7 @@ export async function convertAssetsToUSD(assets) {
         result.chains[chain].nativeUSDValue = 0;
         result.chains[chain].tokensUSDValue = {};
       }
-      
-      console.log('Returning assets with zero USD values due to error');
+
       return result;
     }
     
@@ -1244,6 +1502,108 @@ async function getTokenListUrl(chain) {
 }
 
 // Removed hardcoded token lists - we now dynamically discover tokens
+
+/**
+ * Synchronize wallet list with actual MetaMask accounts
+ * @returns {Promise<Array>} Array of synchronized wallet objects
+ * @throws {Error} If synchronization fails or MetaMask is not available
+ */
+export async function syncMetaMaskWallets() {
+  if (typeof window === 'undefined' || !window.ethereum) {
+    throw new Error('MetaMask not available');
+  }
+  
+  try {
+    // Get current wallets from localStorage
+    const currentWallets = getConnectedWallets();
+    
+    // Find the actual MetaMask provider (not Phantom!)
+    let metaMaskProvider = window.ethereum;
+    if (window.ethereum.providers) {
+      console.log("Multiple providers detected in sync, finding MetaMask...");
+      metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask && !p.isPhantom);
+      if (!metaMaskProvider) {
+        throw new Error('MetaMask provider not found among multiple providers');
+      }
+    } else if (window.ethereum.isPhantom && !window.ethereum.isMetaMask) {
+      throw new Error('Default provider is Phantom, not MetaMask');
+    }
+    
+    // Get fresh accounts directly from MetaMask - this gets ACTUAL current accounts, not cached ones
+    const accounts = await metaMaskProvider.request({
+      method: 'eth_requestAccounts'
+    });
+    
+    if (!accounts || accounts.length === 0) {
+      // No accounts connected in MetaMask
+      console.log('No accounts connected in MetaMask during sync');
+      return currentWallets;
+    }
+    
+    console.log('Synchronizing wallets with MetaMask accounts:', accounts);
+    
+    // Get chain information for wallet metadata
+    let chainId = 1; // Default to Ethereum mainnet
+    let chainName = 'ethereum';
+    
+    try {
+      const chainIdHex = await window.ethereum.request({ 
+        method: 'eth_chainId' 
+      });
+      
+      chainId = parseInt(chainIdHex, 16);
+      
+      // Basic chain name mapping
+      const chainMap = {
+        1: 'ethereum',
+        5: 'goerli',
+        11155111: 'sepolia',
+        137: 'polygon',
+        80001: 'mumbai',
+        80002: 'polygon-amoy',
+        42161: 'arbitrum',
+        10: 'optimism',
+        56: 'bsc',
+        43114: 'avalanche',
+        250: 'fantom'
+      };
+      
+      chainName = chainMap[chainId] || `chain-${chainId}`;
+    } catch (error) {
+      console.warn('Error getting chain info during wallet sync:', error);
+    }
+    
+    // Create wallet objects for all accounts
+    const metaMaskWallets = accounts.map(address => {
+      const displayAddress = address.length > 10 ? 
+                          `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : 
+                          address;
+      
+      return {
+        id: `metamask-${address.substring(2, 10)}`,
+        address: address,
+        displayAddress: displayAddress,
+        fullAddress: address,
+        type: 'evm',
+        provider: 'metamask',
+        name: `MetaMask ${displayAddress}`,
+        chain: chainName,
+        chainId,
+        connected: true,
+        connectedAt: new Date().toISOString()
+      };
+    });
+    
+    // Save all wallet connections
+    await saveWalletConnection('metamask', metaMaskWallets);
+    
+    // Return updated wallet list
+    return getConnectedWallets();
+  } catch (error) {
+    console.error('Error synchronizing wallets with MetaMask:', error);
+    throw new Error(`Failed to synchronize wallets: ${error.message}`);
+  }
+}
 
 /**
  * Try to find CoinGecko ID for a token symbol

@@ -34,6 +34,10 @@
       "import": "./dist/config/secrets.js",
       "require": "./dist/config/secrets.cjs"
     },
+    "./config/contractRegistry": {
+      "import": "./dist/config/contractRegistry.js",
+      "require": "./dist/config/contractRegistry.cjs"
+    },
     "./auth/tokenManager": {
       "import": "./dist/auth/tokenManager.js",
       "require": "./dist/auth/tokenManager.cjs"
