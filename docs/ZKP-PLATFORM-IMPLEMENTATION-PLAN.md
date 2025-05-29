@@ -18,10 +18,21 @@
 15. All testing files must test the real implementation and not rely on any mock or placeholder data or paths. It's better to fail and have errors than make fake tests.
 16. Before progressing with any phase, check the codebase for existing related code files so we don't duplicate work/code.
 17. If a human is needed for anything, flag it to the human. There are likely some external services that are required. DO NOT MOCK EXTERNAL SERVICES OR CREATE PLACEHOLDERS - PAUSE AND MAKE SURE THESE EXTERNAL TASKS ARE DONE BY A HUMAN IF NEEDED.
+18. Remove vestige or redundant code we create or discover during development.
 
 ## Overview
 
 This document outlines the implementation plan for extending the Proof of Funds protocol to support both consumer-facing self-service proofs and institutional verification workflows. The implementation maintains the existing consumer UX while adding sophisticated institutional features for custom verification templates, reference tokens, and compliance needs.
+
+## Executive Summary
+
+This implementation plan follows an incremental approach with clear priorities:
+
+1. **EVM-First Strategy**: Starting with Ethereum/Polygon support and adding other chains incrementally
+2. **Simplified Database**: Beginning with core tables and evolving the schema as needed
+3. **Leveraging Existing Infrastructure**: Using established Circom trusted setups initially
+4. **Focus on Core Value**: Implementing balance verification first, then extending with advanced features
+5. **Executable Phasing**: Delivering a functional system in 12-14 weeks with a clear path for enhancement
 
 ## Table of Contents
 
@@ -41,6 +52,7 @@ This document outlines the implementation plan for extending the Proof of Funds 
 - [Audit Logging System](#audit-logging-system)
 - [Key Management System](#key-management-system)
 - [Circuit Upgrade Protocol](#circuit-upgrade-protocol)
+- [Future Features](#future-features)
 
 ## Project Phases
 
@@ -84,11 +96,12 @@ The following outlines when human intervention will be required during the imple
 | Phase | Human Intervention | Timeline | Blocking Level |
 |-------|-------------------|----------|--------------|
 | Phase 1 | External Service Setup | Week 1-2 | Medium - Can start development but needed for full testing |
-| Phase 3 | KYC Provider Integration | Week 5-6 | Low - Only blocks KYC attestation features |
-| Phase 3 | Trusted Setup Ceremony | Week 7-8 | High - Required for secure ZK proof generation |
-| Phase 5 | Smart Contract Deployment | Week 12-13 | High - Required for on-chain anchoring |
-| Phase 6 | External Security Review | Week 15-16 | Medium - Can develop while review occurs |
-| Phase 7 | Production Deployment Authorization | Week 19-20 | Critical - Final step before launch |
+| Phase 1 | Smart Contract Deployment | Week 2-3 | Medium - Early deployment allows development against real contract |
+| Phase 3 | Existing Trusted Setup Verification | Week 5-6 | Medium - Required for parameter validation |
+| Phase 6 | External Security Review | Week 11-12 | Medium - Can develop while review occurs |
+| Phase 7 | Production Deployment Authorization | Week 13-14 | Critical - Final step before launch |
+| Future | KYC Provider Integration | Post-launch | Low - Only needed for KYC features |
+| Future | Custom Trusted Setup Ceremony | Post-launch | Medium - Enhances security of existing implementation |
 
 For each of these intervention points, the implementation plan includes detailed instructions on what is needed from human operators, allowing development to continue efficiently while awaiting these necessary human inputs.
 
@@ -96,26 +109,26 @@ For each of these intervention points, the implementation plan includes detailed
 
 **Duration: 2 weeks**
 
-### 1.1 Multi-Chain Support Extension
+### 1.1 EVM Chain Support Enhancement
 
-- Enhance wallet connection interface to support EVM, Solana, and Bitcoin networks
-- Implement chain-specific balance and transaction retrieval functions
-- Create abstraction layer for unified data structures across chains
-- Build transaction normalization utilities for cross-chain compatibility
+- Enhance existing wallet connection interface to fully support all EVM networks
+- Optimize Ethereum/Polygon balance and transaction retrieval
+- Create abstraction layer that can later be extended to other chains
+- Build transaction normalization utilities with extensibility in mind
 
-#### Cross-Chain Wallet Integration UI
+#### EVM Wallet Integration Enhancements
 
-- Create chain-specific wallet connection adapters:
-  - EVM: Extend existing MetaMask/WalletConnect integration
-  - Solana: Implement Phantom/Solflare integration with proper transaction signing
-  - Bitcoin: Add xPub/address derivation support via BitcoinJS
-- Develop chain selection UI component with appropriate signing methods per chain
-- Implement unified balance display component supporting all chain types
-- Build chain-specific address validation utilities
+- Improve existing MetaMask/WalletConnect integration:
+  - Add support for all major EVM networks (Ethereum, Polygon, Arbitrum, Optimism)
+  - Enhance connection reliability and error handling
+  - Implement proper chain switching and validation
+- Develop network selection UI component with appropriate configuration
+- Implement enhanced balance display component
+- Build EVM-specific address validation utilities
 
-#### Chain Adapter Implementation
+#### Chain Adapter Foundation
 
-- Create `ChainAdapter` interface with common methods:
+- Create `ChainAdapter` interface designed for future extensibility:
   ```typescript
   interface ChainAdapter {
     getBalance(address: string): Promise<BigNumber>;
@@ -125,17 +138,20 @@ For each of these intervention points, the implementation plan includes detailed
     getAddressFromSignature(message: string, signature: string): string;
   }
   ```
-- Implement concrete adapters for each chain type:
+- Implement EVM adapter with comprehensive support:
   - `EVMChainAdapter`: Uses ethers.js for Ethereum/Polygon
-  - `SolanaChainAdapter`: Uses @solana/web3.js for Solana
-  - `BitcoinChainAdapter`: Uses bitcoinjs-lib for Bitcoin
+- Create placeholder interfaces for future adapters:
+  - (Future Phase) `SolanaChainAdapter`: For future Solana support
+  - (Future Phase) `BitcoinChainAdapter`: For future Bitcoin support
 
-### 1.2 Database Schema Updates
+### 1.2 Core Database Schema Implementation
 
-- Add organization and user role tables
-- Create heuristic template storage schema
-- Implement reference token tables
-- Add consent tracking fields
+- Focus on essential tables first:
+  - Organizations and user roles (minimal fields)
+  - Basic templates (simplified schema)
+  - Core reference token storage
+- Implement simple binary consent tracking
+- Design schema for extensibility with future fields
 
 ### 1.3 Shared Backend Services
 
@@ -152,7 +168,14 @@ For each of these intervention points, the implementation plan includes detailed
 - Implement log rotation and retention policies
 - Create organization-level log export functionality
 
-### 1.5 🔴 HUMAN REQUIRED: External Service Setup
+### 1.5 Smart Contract Development
+
+- Create simple ReferenceTokenRegistry contract for on-chain anchoring
+- Implement token batch submission and verification logic
+- Add signing key management and token revocation capabilities
+- Develop test suite for contract functionality validation
+
+### 1.6 🔴 HUMAN REQUIRED: External Service Setup
 
 **Description:** The following external services and configurations are required to proceed with full implementation. Development can start without these, but will reach blocking points.
 
@@ -175,9 +198,17 @@ For each of these intervention points, the implementation plan includes detailed
    - Create service account with minimal required permissions
    - Generate and securely store service account credentials
 
+3. **Smart Contract Deployment**
+   - Deploy ReferenceTokenRegistry contract to Polygon Amoy testnet
+   - Verify contract code on Polygonscan
+   - Test contract functions with sample data
+   - Create dedicated service wallet for contract interactions
+   - Document deployed contract address and ABI
+
 **Handoff Instructions:**
 - Provide all API keys and credentials through secure channel
 - Document any rate limits or restrictions
+- Share deployed contract address and configuration details
 - Create `.env.example` file with required environment variables
 
 ### Deliverables:
@@ -243,75 +274,28 @@ For each of these intervention points, the implementation plan includes detailed
 
 ### 3.2 Blacklist Verification Circuit
 
-- Create Merkle tree-based blacklist verification
-- Implement transaction history scanning circuit
-- Build address interaction graph components
-- Optimize for large blacklists using batching
+- Implement simple address-based blacklist checking
+- Create efficient lookup mechanism for address verification
+- Add basic validation logic for blacklist entries
+- Design for future extensibility with minimal initial complexity
 
-### 3.3 KYC Attestation Integration
+### 3.3 Proof Generation with Existing Setup
 
-- Implement circuit components for external attestation verification
-- Create secure attestation signature checking
-- Build revocation checking for attestations
-- Add timestamp validity verification
+- Implement core verification logic for standard proofs
+- Use existing Circom trusted setups for initial deployment
+- Create verification key management system
+- Design extensible system for future custom trusted setups
 
-#### 🔴 HUMAN REQUIRED: KYC Provider Integration
+#### Leveraging Existing Trusted Setup
 
-**Description:** Integration with KYC/identity providers requires business agreements, API credentials, and compliance considerations that cannot be automated.
+- Use established Powers of Tau ceremonies for initial implementation:
+  - Adopt existing Phase 2 setup from the Circom ecosystem
+  - Document provenance of chosen parameters
+  - Implement verification key management
+  - Store trusted setup parameters securely in GCP
+  - Create documentation for transparency
 
-**Required Actions:**
-1. **KYC Provider Selection**
-   - Evaluate and select compatible KYC/identity providers
-   - Consider jurisdictional coverage and compliance requirements
-   - Assess technical compatibility with ZK attestations
-   - Compare pricing and service level agreements
-
-2. **Business Agreement Setup**
-   - Establish business relationship with selected provider(s)
-   - Review and sign necessary contracts
-   - Address compliance and data handling requirements
-   - Set up billing and payment arrangements
-
-3. **API Access Configuration**
-   - Obtain API credentials and access tokens
-   - Document rate limits and usage requirements
-   - Set up secure credential storage in GCP Secret Manager
-   - Establish communication channels for support
-
-**Handoff Instructions:**
-- Provide API documentation from selected provider
-- Share API credentials through secure channels
-- Document compliance requirements for integration
-- Clarify data retention and handling policies
-
-**Integration Requirements Checklist:**
-- [ ] KYC provider selected and agreements signed
-- [ ] API credentials obtained and securely stored
-- [ ] Test environment access configured
-- [ ] Compliance requirements documented
-- [ ] Data handling procedures established
-
-### 3.4 Composite Proof Generation
-
-- Develop logic for combining multiple verification types
-- Create proper witness generation for complex heuristics
-- Implement optimized proof generation pipeline
-- Add verification key management
-
-#### Trusted Setup Protocol
-
-- Implement Trusted Setup coordination for Groth16 circuits:
-  - Create ceremony coordination service that manages:
-    - Participant registration and verification
-    - Contribution sequencing and validation
-    - Final key publishing and verification
-  - Build trusted setup dashboard for administrators
-  - Implement secure contribution verification system
-  - Store ceremony artifacts with cryptographic integrity checks
-  - Generate and publish verification keys for each circuit version
-  - Document trusted setup protocol for new circuit versions
-
-- Trusted Setup Storage:
+- Trusted Setup Storage (for Future Custom Ceremony):
   ```typescript
   interface TrustedSetupArtifact {
     circuitId: string;
@@ -325,42 +309,37 @@ For each of these intervention points, the implementation plan includes detailed
   }
   ```
 
-#### 🔴 HUMAN REQUIRED: Trusted Setup Ceremony Coordination
+#### 🔴 HUMAN REQUIRED: Future Trusted Setup Planning
 
-**Description:** The security of Groth16 ZK proofs depends on a secure multi-party computation ceremony. This cannot be automated and requires human coordination.
+**Description:** While we'll use existing setups initially, planning for a future custom ceremony is important for long-term security.
 
 **Required Actions:**
-1. **Ceremony Preparation**
-   - Identify and recruit trusted participants (minimum 3-5 independent contributors)
-   - Schedule contribution windows for each participant
-   - Prepare secure communication channels for coordination
+1. **Evaluation of Existing Setups**
+   - Identify existing Powers of Tau phase 1 ceremony to leverage
+   - Document security properties and participation level
+   - Determine appropriateness for production use
 
-2. **Entropy Generation**
-   - Generate secure entropy source for initial parameters
-   - Document entropy generation process for transparency
-   - Ensure high-quality randomness (e.g., use hardware RNG if available)
+2. **Documentation and Transparency**
+   - Document the provenance of the parameters being used
+   - Create transparency report for users explaining the security
+   - Plan for future ceremony enhancement
 
-3. **Contribution Verification**
-   - Verify each participant's contribution hash
-   - Ensure proper contribution sequence is followed
-   - Validate contribution signatures and attestations
-
-4. **Final Publication**
-   - Review final ceremony transcript
-   - Publish verification keys and ceremony transcript
-   - Sign and attest to the integrity of the process
+3. **Future Custom Ceremony Planning (Post-Launch)**
+   - Create design document for future custom ceremony
+   - Identify potential participants for post-launch ceremony
+   - Establish security requirements for future ceremony
 
 **Handoff Instructions:**
-- Provide final verification keys through secure channel
-- Document hashes of all artifacts
-- Confirm final participant count and contribution sequence
+- Provide links to existing ceremony documentation
+- Document hash verification procedures
+- Create plan for future upgrade path
 
-**Ceremony Security Checklist:**
-- [ ] Each participant used different hardware/software
-- [ ] No single participant has knowledge of all toxic waste
-- [ ] At least one honest participant ensures security
-- [ ] Full ceremony transcript is published and verifiable
-- [ ] Final parameters verified independently by multiple parties
+**Setup Security Checklist:**
+- [ ] Existing parameters thoroughly vetted
+- [ ] Security properties documented
+- [ ] Verification process established
+- [ ] Secure storage implemented
+- [ ] Future upgrade path defined
 
 ### 3.5 Circuit Testing Framework
 
@@ -413,31 +392,33 @@ For each of these intervention points, the implementation plan includes detailed
   - Add background thread execution for non-blocking proof generation
   - Implement graceful degradation for mobile and low-power devices
 
-### 3.9 Metadata Provenance in ZK Proofs
+### 3.9 Secure Metadata Management
 
-- Include metadata field hash inside ZK proof as a commitment:
-  - Generate cryptographic hash of the metadata fields
-  - Add metadata hash as a public input to ZK circuits
-  - Create circuit components for hash verification
-  - Implement proofs that verify the decrypted metadata matches the committed hash
-  - Update existing circuits to include metadata hash verification
-  - Build metadata provenance verification service
-  - Create UI components to display provenance verification status
-  - Implement API endpoints for metadata provenance verification
-  - Add documentation for integrating metadata provenance in third-party verifiers
+- Implement simple encrypted metadata system:
+  - Generate cryptographic hash of metadata fields
+  - Securely encrypt metadata with proper key management
+  - Store metadata and hash separately for verification
+  - Design system to be upgradable to full ZK provenance in future
+  - Create documentation for metadata format and encryption
+
+**Note:** Full ZK provenance with metadata hash inside the circuit will be implemented in a future phase after core functionality is validated.
 
 ### Deliverables:
 - Enhanced balance verification circuits
-- Blacklist verification circuits
-- KYC attestation verification
-- Composite proof generation system
+- Basic blacklist verification
 - Updated circuit compilation and key generation scripts
 - Circuit testing framework
 - Circuit schema manifest system
-- Trusted setup protocol and artifacts
-- Circuit version management system
+- Initial verification key management
 - Adaptive WASM execution strategy
-- Metadata provenance verification system
+- Secure metadata encryption system
+
+**Future Phase Deliverables:**
+- Advanced blacklist verification with Merkle trees and transaction scanning
+- KYC attestation verification
+- Composite proof generation system
+- Full metadata provenance in ZK circuits
+- Custom trusted setup ceremony
 
 ## Phase 4: Institutional Interface
 
@@ -464,19 +445,18 @@ For each of these intervention points, the implementation plan includes detailed
 - Create audit logging for administrative actions
 - Implement invitation and user management
 
-### 4.4 Consent Management UI
+### 4.4 Basic Consent Management
 
-- Create detailed consent display component:
+- Create simple consent display component:
   ```
   /components/consent/ConsentDisplay.tsx
   ```
-- Implement consent lifecycle management:
-  - Clear consent presentation
-  - Granular acceptance options
-  - Revocation workflow
-  - Consent history tracking
-- Build consent management dashboard for users
-- Create organization consent template editor
+- Implement binary consent system:
+  - Clear presentation of what user is consenting to
+  - Simple accept/decline options
+  - Basic revocation capability
+- Implement consent storage in database
+- Design for future extensibility to more granular consent
 
 ### Deliverables:
 - Heuristic configuration UI
@@ -493,26 +473,25 @@ For each of these intervention points, the implementation plan includes detailed
 
 - Implement secure token generation service
 - Create metadata encryption with proper key management
-- Build on-chain anchoring (Polygon) for token references
+- Leverage previously deployed on-chain anchoring (Polygon) for token references
 - Implement token expiration and revocation mechanisms
 
-#### Reference Token Structure
+#### Simplified Reference Token Structure
 
-Implement secure token structure with the following components:
+Implement streamlined token structure with essential components:
 ```typescript
 interface ReferenceToken {
   id: string;                    // UUID for the token
   proofHash: string;             // Hash of the ZK proof
-  templateId: string;            // ID of the heuristic template
+  templateId: string;            // ID of the template
   userPublicKey: string;         // Public key of the user
   organizationId: string;        // ID of the requesting organization
   createdAt: number;             // Unix timestamp of creation
   expiresAt: number;             // Unix timestamp of expiration
   nonce: string;                 // Random nonce for replay protection
   chainId: number;               // Chain ID where anchored
-  version: number;               // Token format version
   metadata: EncryptedMetadata;   // Encrypted metadata
-  metadataHash: string;          // Hash of unencrypted metadata (for ZK provenance)
+  metadataHash: string;          // Hash of metadata for verification
   signature: string;             // Signature for token integrity
   signingKeyId: string;          // Reference to the signing key used
 }
@@ -666,43 +645,6 @@ contract ReferenceTokenRegistry {
         );
     }
 }
-```
-
-#### 🔴 HUMAN REQUIRED: Smart Contract Deployment
-
-**Description:** The on-chain anchoring system requires a smart contract deployed to Polygon. This process requires human intervention for security and proper deployment.
-
-**Required Actions:**
-1. **Contract Deployment Preparation**
-   - Review final smart contract code
-   - Set up MetaMask or other wallet with the deployer account
-   - Fund deployer account with sufficient MATIC for deployment
-   - Configure deployment environment for Polygon Amoy testnet
-
-2. **Contract Deployment**
-   - Deploy ReferenceTokenRegistry contract to Polygon Amoy testnet
-   - Verify contract code on Polygonscan
-   - Test contract functions with sample data
-   - Document deployed contract address
-
-3. **Service Wallet Setup**
-   - Create dedicated service wallet for contract interactions
-   - Fund service wallet with MATIC for gas fees
-   - Securely store wallet credentials
-   - Grant appropriate permissions to service wallet
-
-**Handoff Instructions:**
-- Provide deployed contract address
-- Document contract ABI
-- Share service wallet public address (keep private key secure)
-- Verify contract is correctly functioning on testnet
-
-**Deployment Verification Checklist:**
-- [ ] Contract successfully deployed to Polygon Amoy testnet
-- [ ] Contract verified on Polygonscan
-- [ ] All functions tested and working correctly
-- [ ] Service wallet has sufficient MATIC for operations
-- [ ] Contract address documented in configuration
 ```
 
 ### 5.2 Verification Interface
@@ -1012,9 +954,11 @@ Create comprehensive device compatibility test suite:
 - CI/CD pipeline
 - Monitoring and logging services
 
-## Database Schema Updates
+## Core Database Schema
 
 ```sql
+-- Phase 1: Core Tables
+
 -- Organizations Table
 CREATE TABLE organizations (
   id UUID PRIMARY KEY,
@@ -1022,9 +966,96 @@ CREATE TABLE organizations (
   email VARCHAR(255) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  subscription_tier VARCHAR(50) NOT NULL DEFAULT 'free',
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- User Roles
+CREATE TABLE user_roles (
+  id UUID PRIMARY KEY,
+  organization_id UUID REFERENCES organizations(id),
+  user_id UUID REFERENCES users(id),
+  role VARCHAR(50) NOT NULL, -- 'admin', 'verifier'
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Basic Templates
+CREATE TABLE templates (
+  id UUID PRIMARY KEY,
+  organization_id UUID REFERENCES organizations(id),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID REFERENCES users(id),
+  parameters JSONB NOT NULL -- Simplified schema storing parameters directly
+);
+
+-- Simple Consents
+CREATE TABLE user_consents (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  template_id UUID REFERENCES templates(id),
+  is_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  granted_at TIMESTAMP WITH TIME ZONE,
+  is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  revoked_at TIMESTAMP WITH TIME ZONE,
+  ip_address VARCHAR(50)
+);
+
+-- Signing Keys
+CREATE TABLE signing_keys (
+  id UUID PRIMARY KEY,
+  key_hash VARCHAR(255) NOT NULL,
+  public_key TEXT NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Reference Tokens
+CREATE TABLE reference_tokens (
+  id UUID PRIMARY KEY,
+  token VARCHAR(100) UNIQUE NOT NULL,
+  user_id UUID REFERENCES users(id),
+  template_id UUID REFERENCES templates(id),
+  organization_id UUID REFERENCES organizations(id),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  metadata_encryption_key_id VARCHAR(255), -- Reference to encrypted key
+  metadata_hash VARCHAR(255) NOT NULL, -- Hash of metadata for verification
+  transaction_hash VARCHAR(255), -- On-chain reference
+  nonce VARCHAR(100) NOT NULL, -- Replay protection
+  proof_hash VARCHAR(255) NOT NULL, -- Hash of the ZK proof
+  signing_key_id UUID REFERENCES signing_keys(id), -- Key used to sign token
+  verification_status VARCHAR(50) NOT NULL DEFAULT 'pending'
+);
+
+-- Verifications
+CREATE TABLE verifications (
+  id UUID PRIMARY KEY,
+  reference_token_id UUID REFERENCES reference_tokens(id),
+  verified_by UUID REFERENCES users(id),
+  verified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  verification_method VARCHAR(50) NOT NULL, -- 'ui', 'api'
+  verification_result JSONB NOT NULL
+);
+
+-- Audit Logs
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY,
+  timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  event_type VARCHAR(100) NOT NULL,
+  user_id UUID,
+  resource_type VARCHAR(100),
+  resource_id UUID,
+  action VARCHAR(50) NOT NULL,
+  details JSONB,
+  ip_address VARCHAR(50)
+);
+
+-- Phase 2-3: Extension Tables (Added incrementally)
 
 -- Organization API Keys
 CREATE TABLE organization_api_keys (
@@ -1037,221 +1068,20 @@ CREATE TABLE organization_api_keys (
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
--- User Roles
-CREATE TABLE user_roles (
-  id UUID PRIMARY KEY,
-  organization_id UUID REFERENCES organizations(id),
-  user_id UUID REFERENCES users(id),
-  role VARCHAR(50) NOT NULL, -- 'admin', 'manager', 'verifier'
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Heuristic Templates
-CREATE TABLE heuristic_templates (
-  id UUID PRIMARY KEY,
-  organization_id UUID REFERENCES organizations(id),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by UUID REFERENCES users(id),
-  version INT NOT NULL DEFAULT 1
-);
-
--- Template Components
-CREATE TABLE template_components (
-  id UUID PRIMARY KEY,
-  template_id UUID REFERENCES heuristic_templates(id),
-  component_type VARCHAR(50) NOT NULL, -- 'threshold', 'maximum', 'standard', 'blacklist', 'kyc'
-  parameters JSONB NOT NULL,
-  required BOOLEAN NOT NULL DEFAULT TRUE,
-  order_index INT NOT NULL
-);
-
--- Consent Requirements
-CREATE TABLE consent_requirements (
-  id UUID PRIMARY KEY,
-  template_id UUID REFERENCES heuristic_templates(id),
-  consent_type VARCHAR(50) NOT NULL, -- 'ownership', 'history', 'future'
-  description TEXT NOT NULL,
-  required BOOLEAN NOT NULL DEFAULT TRUE,
-  duration_days INT -- For time-bound consents
-);
-
--- User Consents
-CREATE TABLE user_consents (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  consent_requirement_id UUID REFERENCES consent_requirements(id),
-  is_granted BOOLEAN NOT NULL DEFAULT FALSE,
-  granted_at TIMESTAMP WITH TIME ZONE,
-  expires_at TIMESTAMP WITH TIME ZONE,
-  is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
-  revoked_at TIMESTAMP WITH TIME ZONE,
-  revocation_reason TEXT,
-  ip_address VARCHAR(50),
-  user_agent TEXT
-);
-
--- Signing Keys
-CREATE TABLE signing_keys (
-  id UUID PRIMARY KEY,
-  key_hash VARCHAR(255) NOT NULL,
-  public_key TEXT NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  activated_at TIMESTAMP WITH TIME ZONE,
-  deactivated_at TIMESTAMP WITH TIME ZONE,
-  is_active BOOLEAN NOT NULL DEFAULT FALSE,
-  description TEXT,
-  transaction_hash VARCHAR(255), -- On-chain registration reference
-  metadata JSONB
-);
-
 -- Circuit Versions
 CREATE TABLE circuit_versions (
   id UUID PRIMARY KEY,
-  circuit_type VARCHAR(50) NOT NULL, -- 'standard', 'threshold', 'maximum', 'blacklist', 'kyc'
+  circuit_type VARCHAR(50) NOT NULL, -- 'standard', 'threshold', 'maximum'
   version VARCHAR(20) NOT NULL,
   description TEXT,
-  constraint_count INT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  activated_at TIMESTAMP WITH TIME ZONE,
-  deactivated_at TIMESTAMP WITH TIME ZONE,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   manifest JSONB NOT NULL, -- Schema definition
   zkey_hash VARCHAR(255) NOT NULL, -- Hash of proving key
-  vkey_hash VARCHAR(255) NOT NULL, -- Hash of verification key
-  trusted_setup_id UUID, -- Reference to trusted setup ceremony
-  compatible_with JSONB -- List of compatible versions
+  vkey_hash VARCHAR(255) NOT NULL -- Hash of verification key
 );
 
--- Trusted Setup Ceremonies
-CREATE TABLE trusted_setup_ceremonies (
-  id UUID PRIMARY KEY,
-  circuit_version_id UUID REFERENCES circuit_versions(id),
-  status VARCHAR(50) NOT NULL, -- 'pending', 'in_progress', 'completed', 'failed'
-  started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMP WITH TIME ZONE,
-  participant_count INT NOT NULL DEFAULT 0,
-  final_zkey_hash VARCHAR(255),
-  final_vkey_hash VARCHAR(255),
-  coordinator_id UUID REFERENCES users(id),
-  description TEXT,
-  metadata JSONB
-);
-
--- Trusted Setup Contributions
-CREATE TABLE trusted_setup_contributions (
-  id UUID PRIMARY KEY,
-  ceremony_id UUID REFERENCES trusted_setup_ceremonies(id),
-  participant_id UUID,
-  contribution_index INT NOT NULL,
-  contribution_hash VARCHAR(255) NOT NULL,
-  contributed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  verified_at TIMESTAMP WITH TIME ZONE,
-  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  verification_result JSONB,
-  metadata JSONB
-);
-
--- Reference Tokens
-CREATE TABLE reference_tokens (
-  id UUID PRIMARY KEY,
-  token VARCHAR(100) UNIQUE NOT NULL,
-  user_id UUID REFERENCES users(id),
-  template_id UUID REFERENCES heuristic_templates(id),
-  organization_id UUID REFERENCES organizations(id),
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
-  revoked_at TIMESTAMP WITH TIME ZONE,
-  revocation_reason TEXT,
-  metadata_encryption_key_id VARCHAR(255), -- Reference to encrypted key
-  metadata_hash VARCHAR(255) NOT NULL, -- Hash of unencrypted metadata for ZK provenance
-  transaction_hash VARCHAR(255), -- On-chain reference
-  merkle_root VARCHAR(255), -- Merkle root for verification
-  merkle_proof JSONB, -- Merkle proof for this token
-  batch_id VARCHAR(100), -- Batch ID for anchoring
-  nonce VARCHAR(100) NOT NULL, -- Replay protection
-  proof_hash VARCHAR(255) NOT NULL, -- Hash of the ZK proof
-  signing_key_id UUID REFERENCES signing_keys(id), -- Key used to sign token
-  verification_status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'verified', 'failed'
-  verification_result JSONB
-);
-
--- Device Capabilities
-CREATE TABLE device_capabilities (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  device_id VARCHAR(255) NOT NULL,
-  user_agent TEXT,
-  browser_type VARCHAR(100),
-  browser_version VARCHAR(50),
-  os_type VARCHAR(100),
-  os_version VARCHAR(50),
-  wasm_supported BOOLEAN,
-  proof_generation_capable BOOLEAN,
-  avg_proof_time_ms INT,
-  avg_memory_usage_mb INT,
-  last_used_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  metadata JSONB
-);
-
--- Verifications
-CREATE TABLE verifications (
-  id UUID PRIMARY KEY,
-  reference_token_id UUID REFERENCES reference_tokens(id),
-  verified_by UUID REFERENCES users(id),
-  verified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  verification_method VARCHAR(50) NOT NULL, -- 'ui', 'api'
-  verification_result JSONB NOT NULL,
-  ip_address VARCHAR(50),
-  user_agent TEXT
-);
-
--- Blacklists
-CREATE TABLE blacklists (
-  id UUID PRIMARY KEY,
-  organization_id UUID REFERENCES organizations(id),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Blacklisted Addresses
-CREATE TABLE blacklisted_addresses (
-  id UUID PRIMARY KEY,
-  blacklist_id UUID REFERENCES blacklists(id),
-  address VARCHAR(255) NOT NULL,
-  chain_id INT NOT NULL,
-  reason TEXT,
-  added_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  added_by UUID REFERENCES users(id)
-);
-
--- Audit Logs
-CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY,
-  timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  event_type VARCHAR(100) NOT NULL,
-  user_id UUID,
-  organization_id UUID,
-  resource_type VARCHAR(100),
-  resource_id UUID,
-  action VARCHAR(50) NOT NULL,
-  details JSONB,
-  ip_address VARCHAR(50),
-  user_agent TEXT,
-  hash VARCHAR(255), -- Hash of previous log + this log for tamper evidence
-  previous_hash VARCHAR(255) -- Hash of previous log entry
-);
+-- Future extension tables will be added as needed during later phases
 ```
 
 ## API Endpoints
@@ -1778,11 +1608,45 @@ The circuit upgrade protocol ensures smooth transitions between circuit versions
    - Blue/green deployment for major updates
    - Automated rollback capability
 
+## Future Features
+
+The following features have been intentionally deferred to post-launch phases to streamline the initial implementation:
+
+### Advanced Blacklist Verification
+- Merkle tree-based blacklist verification for large datasets
+- Transaction history scanning for tracking fund flows
+- Address interaction graph components for relationship analysis
+- Optimization for large blacklists using batching techniques
+
+### KYC Attestation Integration
+- Circuit components for external attestation verification
+- Secure attestation signature checking
+- Revocation checking for attestations
+- Timestamp validity verification
+
+#### 🔴 HUMAN REQUIRED: KYC Provider Integration
+- KYC provider selection process
+- Business agreement setup with selected providers
+- API access configuration and credential management
+- Compliance requirements documentation
+
+### Custom Trusted Setup Ceremony
+- Design and implementation of custom ceremony protocol
+- Participant coordination and contribution verification
+- Secure entropy generation process
+- Publishing and verification of final keys
+
+### Full Metadata Provenance
+- Enhanced ZK circuits with direct metadata hash commitment
+- Advanced selective disclosure mechanisms
+- Cryptographic linking between proof and metadata
+- Enhanced verification interfaces for detailed provenance checks
+
 ## Conclusion
 
 This implementation plan provides a structured approach to extending the Proof of Funds protocol to support both consumer-facing and institutional use cases. By carefully enhancing the existing architecture while adding new components, we can preserve the user experience for individual users while enabling powerful new capabilities for institutional clients.
 
-The phased implementation approach ensures that we can deliver value incrementally while maintaining system stability and security. Each phase builds on the previous one, creating a complete platform that addresses both consumer and institutional needs.
+The phased implementation approach ensures that we can deliver value incrementally while maintaining system stability and security. Each phase builds on the previous one, creating a complete platform that addresses core needs immediately while enabling more advanced features in future releases.
 
 ## Implementation Progress
 
