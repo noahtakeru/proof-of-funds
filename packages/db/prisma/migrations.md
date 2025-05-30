@@ -2,131 +2,127 @@
 
 This document describes the database migration system for the Proof of Funds platform.
 
-## Migration Architecture
+## Overview
 
-The Proof of Funds platform uses Prisma Migrate for database schema migrations. This provides:
+The migration system is built on Prisma Migrate, which provides:
 
-1. **Version Control**: All schema changes are tracked in migration files
-2. **Automated Application**: Migrations are applied automatically during deployment
-3. **Rollback Capability**: Migrations can be rolled back if needed
-4. **Environment Awareness**: Different strategies for development vs. production
+- Version-controlled schema changes
+- Automatic SQL generation
+- Up and down migrations
+- Migration history tracking
+- Safe production deployments
 
 ## Migration Files
 
-Migrations are stored in the `prisma/migrations` directory with the following structure:
+Migrations are stored in the `prisma/migrations` directory. Each migration is in its own folder with the format `YYYYMMDDHHMMSS_name`:
 
 ```
 prisma/migrations/
-  ├── 20240529000000_initial_schema/
-  │   └── migration.sql
-  ├── 20240529120000_add_indexes/
-  │   └── migration.sql
-  ├── 20240529130000_add_foreign_key_indexes/
-  │   └── migration.sql
-  └── migration_lock.toml
+├── 20240529000000_initial_schema/
+│   └── migration.sql
+├── 20240529120000_add_indexes/
+│   └── migration.sql
+├── 20240529130000_add_foreign_key_indexes/
+│   └── migration.sql
+└── migration_lock.toml
 ```
-
-Each migration is contained in a timestamped directory with a descriptive name, containing a `migration.sql` file with the SQL statements to apply.
 
 ## Current Migrations
 
-### 20240529000000_initial_schema
+### Initial Schema (20240529000000_initial_schema)
 
-Initial database schema creation with:
+The initial schema migration creates all the base tables and relations:
 
-- User tables
-- Wallet tables
-- Proof tables
-- Verification tables
-- Batch tables
-- Organization tables
-- Basic indexes
-- Foreign key relationships
+- Users
+- Wallets
+- Proofs
+- Verifications
+- Batches
+- Organizations
+- OrganizationUsers
+- ProofTemplates
+- AuditLogs
 
-### 20240529120000_add_indexes
+It also creates the necessary enums, primary keys, foreign keys, and basic indexes.
 
-Additional indexes for performance optimization:
+### Performance Indexes (20240529120000_add_indexes)
 
-- Specialized indexes (hash, GIN, etc.)
-- Indexes for common query patterns
-- Full coverage of all major tables
+This migration adds comprehensive indexes for performance optimization:
 
-### 20240529130000_add_foreign_key_indexes
-
-Advanced indexing for complex queries:
-
-- Foreign key indexes
-- Partial indexes
+- Hash indexes for quick lookups on frequently queried columns
 - B-tree indexes for range queries
-- Full text search indexes
-- Required PostgreSQL extensions
+- GIN indexes for array and JSON columns
+- Composite indexes for common query patterns
+- Partial indexes for specific conditions
+
+### Foreign Key Indexes (20240529130000_add_foreign_key_indexes)
+
+This migration adds additional indexes to optimize foreign key relationships:
+
+- Indexes on foreign key columns
+- Partial indexes for conditional relationships
+- Composite indexes for join operations
+- Text search indexes for text columns
+- PostgreSQL extensions for advanced indexing
 
 ## Creating Migrations
 
-To create a new migration:
+New migrations can be created using the migration script:
 
 ```bash
-node scripts/run-migrations.js --create migration_name
+npm run run-migrations -- --create migration_name
 ```
 
-This will:
-1. Create a new migration file based on the difference between the current schema and the database
-2. Allow you to edit the migration file before applying it
+This creates a new migration file that you can edit before applying.
 
 ## Applying Migrations
 
-To apply all pending migrations:
+To apply pending migrations:
 
 ```bash
-node scripts/run-migrations.js
+npm run run-migrations
 ```
 
-In development, this will:
-1. Apply all pending migrations
-2. Generate an updated Prisma client
+In development, this will apply migrations to the development database.
 
-In production, it will:
-1. Apply all pending migrations without modifying the schema
-2. Generate an updated Prisma client
+## Development vs Production
 
-## Checking Migration Status
+### Development
 
-To check the status of migrations:
+In development, migrations are created and applied directly:
 
 ```bash
-node scripts/run-migrations.js --status
+npm run run-migrations -- --create add_new_feature
+# Edit migration file
+npm run run-migrations
 ```
 
-This will show:
-1. Which migrations have been applied
-2. Which migrations are pending
-3. Any drift between the expected and actual schema
+### Production
 
-## Resetting the Database (Development Only)
-
-To reset the database in development:
+For production, we use the deployment mode which is safer:
 
 ```bash
-node scripts/run-migrations.js --reset
+NODE_ENV=production npm run run-migrations
 ```
 
-This will:
-1. Drop all tables
-2. Reapply all migrations
-3. Run the seed script to populate reference data
+This runs migrations without generating new migration files and is suitable for CI/CD pipelines.
 
-## Production Deployment
+## Rollbacks
 
-When deploying to production:
+Prisma Migrate doesn't directly support rollbacks, but you can:
 
-1. Use `npx prisma migrate deploy` to apply migrations without schema modifications
-2. Never use `reset` or development migrations in production
-3. Always back up the database before applying migrations
+1. Create a new migration that reverses the changes
+2. Use the reset command in development (NOT production):
+
+```bash
+npm run run-migrations -- --reset
+```
 
 ## Best Practices
 
-1. **Incremental Changes**: Make small, focused migrations
-2. **Testing**: Test migrations in development/staging before production
-3. **Documentation**: Document complex migrations in the migration file
-4. **Performance**: Consider the impact of migrations on large tables
-5. **Compatibility**: Ensure backward compatibility for rolling deployments
+1. **Keep migrations small**: Each migration should make a focused set of changes
+2. **Test migrations**: Always test migrations in development before applying to production
+3. **Version control**: Always commit migration files to version control
+4. **Documentation**: Document complex migrations in the migration file
+5. **Avoid raw SQL**: Use Prisma schema changes where possible
+6. **Handle data migrations**: Add data migration code when schema changes affect existing data

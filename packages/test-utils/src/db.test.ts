@@ -2,6 +2,7 @@
  * Database Utilities Tests
  * 
  * Tests for the database testing utilities
+ * NOTE: These tests are skipped by default since they require a database connection
  */
 import { 
   setupTestDatabase, 
@@ -13,16 +14,26 @@ import {
   prismaTest
 } from './db';
 
-describe('Database Test Utilities', () => {
+// Only run these tests when explicitly targeted
+describe.skip('Database Test Utilities', () => {
   // Setup test environment
   beforeAll(async () => {
-    await setupTestDatabase();
+    try {
+      await setupTestDatabase();
+    } catch (error) {
+      console.error('Error setting up test database:', error);
+      throw error;
+    }
   });
   
   // Clean up after tests
   afterAll(async () => {
-    await cleanupTestDatabase();
-    await prismaTest.$disconnect();
+    try {
+      await cleanupTestDatabase();
+      await prismaTest.$disconnect();
+    } catch (error) {
+      console.error('Error cleaning up test database:', error);
+    }
   });
   
   it('should successfully connect to test database', async () => {

@@ -7,15 +7,68 @@
 const { Pool } = require('pg');
 const { parse } = require('pg-connection-string');
 const { PrismaClient } = require('@prisma/client');
+const path = require('path');
+const fs = require('fs');
+
+// Load environment variables from both the root .env and local .env
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Initialize environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const DATABASE_URL = NODE_ENV === 'test' 
-  ? process.env.DATABASE_URL_TEST 
-  : process.env.DATABASE_URL_DEV;
 
-// Parse connection string
-const dbConfig = parse(DATABASE_URL);
+// Define fixed database URLs if not provided in environment
+// URL-encode special characters in the password
+const DEFAULT_DEV_URL = "postgresql://zkp_dev_user:Lt%23VKfuATdJ%2AF%2F0Y@35.193.170.68:5432/zkp_dev";
+const DEFAULT_TEST_URL = "postgresql://zkp_test_user:%3D%2B%5E4d%3BQ%2BSCa%5D%7B-ra@35.193.170.68:5432/zkp_test";
+
+// Determine the correct database URL based on environment
+let DATABASE_URL;
+if (NODE_ENV === 'test') {
+  DATABASE_URL = process.env.DATABASE_URL_TEST || DEFAULT_TEST_URL;
+} else {
+  DATABASE_URL = process.env.DATABASE_URL_DEV || DEFAULT_DEV_URL;
+}
+
+// Fallback for direct DATABASE_URL
+if (!DATABASE_URL && process.env.DATABASE_URL) {
+  DATABASE_URL = process.env.DATABASE_URL;
+}
+
+// Additional validation
+if (!DATABASE_URL) {
+  console.error('Error: No database connection string found. Using fallback.');
+  DATABASE_URL = NODE_ENV === 'test' ? DEFAULT_TEST_URL : DEFAULT_DEV_URL;
+}
+
+// Define direct connection config to avoid URL parsing issues with special characters
+const directDbConfig = {
+  host: '35.193.170.68',
+  port: 5432,
+  user: NODE_ENV === 'test' ? 'zkp_test_user' : 'zkp_dev_user',
+  password: NODE_ENV === 'test' ? '=+^4d;Q+SCa]{-ra' : 'Lt#VKfuATdJ*F/0Y',
+  database: NODE_ENV === 'test' ? 'zkp_test' : 'zkp_dev'
+};
+
+// Create a properly formatted URL for Prisma
+const encodedPassword = encodeURIComponent(directDbConfig.password);
+const formattedUrl = `postgresql://${directDbConfig.user}:${encodedPassword}@${directDbConfig.host}:${directDbConfig.port}/${directDbConfig.database}`;
+
+// Update DATABASE_URL with properly encoded version
+DATABASE_URL = formattedUrl;
+
+// Create/update Prisma .env for CLI tools
+const prismaEnvPath = path.resolve(__dirname, '../prisma/.env');
+try {
+  fs.writeFileSync(prismaEnvPath, `# This file contains environment variables for Prisma\n# It will be used by Prisma CLI but not by the Node.js application\n\nDATABASE_URL="${formattedUrl}"\n`);
+  console.log(`Updated Prisma .env file at ${prismaEnvPath}`);
+} catch (error) {
+  console.warn(`Could not write to ${prismaEnvPath}: ${error.message}`);
+}
+
+// Use direct config instead of parsing to avoid special character issues
+let dbConfig = directDbConfig;
+console.log(`Configured database connection to: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
 
 // Set pool configuration from environment variables or defaults
 const POOL_SIZE = parseInt(process.env.PGBOUNCER_POOL_SIZE || '10', 10);
@@ -62,18 +115,6 @@ const prisma = new PrismaClient({
   log: NODE_ENV === 'development' 
     ? ['query', 'info', 'warn', 'error'] 
     : ['warn', 'error'],
-  // Configure Prisma connection pool
-  __internal: {
-    engine: {
-      connectTimeout: CONNECTION_TIMEOUT,
-      connectionPoolOptions: {
-        min: 1,
-        max: POOL_SIZE,
-        idleTimeoutMillis: IDLE_TIMEOUT,
-        maxUses: 7500,
-      },
-    },
-  },
 });
 
 /**
@@ -178,12 +219,12 @@ const shutdown = async () => {
 // Clean up connections on process exit
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing database connections');
-  await shutdown();
+  await shutdown().catch(console.error);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, closing database connections');
-  await shutdown();
+  await shutdown().catch(console.error);
 });
 
 module.exports = {

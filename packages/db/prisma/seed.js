@@ -5,7 +5,16 @@
  * In a production environment, this should be minimal and focused on reference data.
  */
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+require('dotenv').config({ path: '../.env' });
+
+// Create PrismaClient with the correct database URL
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: "postgresql://zkp_dev_user:Lt%23VKfuATdJ%2AF%2F0Y@35.193.170.68:5432/zkp_dev",
+    },
+  },
+});
 
 async function main() {
   console.log('Starting seed process...');

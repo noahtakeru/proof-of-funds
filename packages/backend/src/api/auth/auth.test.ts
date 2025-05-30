@@ -1,7 +1,7 @@
 /**
  * Authentication API Tests
  */
-import { createTestServer, authenticatedRequest, publicRequest, expectSuccess, expectError } from '../../test/api-test-helpers';
+import { createTestServer, authenticatedRequest, publicRequest, expectSuccess, expectError } from '../../../test/api-test-helpers';
 import { createUser } from '@proof-of-funds/db/test/seed-test-data';
 import { v4 as uuidv4 } from 'uuid';
 

@@ -20,7 +20,7 @@ export function authenticatedRequest(
   userId: string = uuidv4(),
   permissions: string[] = ['USER'],
   address: string = `0x${uuidv4().replace(/-/g, '')}`
-): request.SuperTest<request.Test> {
+) {
   // Generate a test JWT token
   const token = jwt.sign(
     {
@@ -46,7 +46,7 @@ export function authenticatedRequest(
 export function apiKeyRequest(
   app: any,
   apiKey: string = `api-${uuidv4()}`
-): request.SuperTest<request.Test> {
+) {
   // Create a supertest request with API key header
   return request(app).set('X-API-Key', apiKey);
 }

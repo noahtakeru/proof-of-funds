@@ -3,6 +3,7 @@
  * 
  * This file is run before each test file.
  */
+require('dotenv').config({ path: '../../.env' });
 
 // Set test environment
 process.env.NODE_ENV = 'test';
@@ -13,11 +14,11 @@ if (!process.env.DATABASE_URL_TEST) {
   process.env.DATABASE_URL_TEST = 'postgresql://zkp_test_user:=+^4d;Q+SCa]{-ra@35.193.170.68:5432/zkp_test';
 }
 
-// Set database URL to test URL
+// Set database URL to test URL for Prisma
 process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
 
 // Set test JWT secret
-process.env.JWT_SECRET = 'test-jwt-secret-for-unit-tests';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-unit-tests';
 
 // Set test API port
 process.env.PORT = '3001';

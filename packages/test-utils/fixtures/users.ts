@@ -9,7 +9,19 @@ import { v4 as uuidv4 } from 'uuid';
  * Generate a random Ethereum address
  */
 export function randomAddress(): string {
-  return `0x${uuidv4().replace(/-/g, '').substring(0, 40)}`;
+  // UUIDs are 36 characters with hyphens, 32 without
+  // We need 40 hex characters after 0x, so we generate a UUID, remove hyphens
+  // and pad with additional random hex digits as needed
+  const hexChars = '0123456789abcdef';
+  const uuidHex = uuidv4().replace(/-/g, ''); // 32 hex chars
+  
+  // Generate 8 more random hex characters to reach 40 total
+  let extraHex = '';
+  for (let i = 0; i < 8; i++) {
+    extraHex += hexChars[Math.floor(Math.random() * 16)];
+  }
+  
+  return `0x${uuidHex}${extraHex}`;
 }
 
 /**

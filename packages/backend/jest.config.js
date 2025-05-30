@@ -26,10 +26,18 @@ module.exports = {
     '**/__tests__/**/*.ts?(x)',
     '**/?(*.)+(spec|test).ts?(x)'
   ],
+  
+  // Modify Jest's handling of TypeScript for our custom types
+  moduleNameMapper: {
+    '^@proof-of-funds/db/test/(.*)$': '<rootDir>/../db/test/$1',
+    '^../../test/(.*)$': '<rootDir>/test/$1'
+  },
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: 'tsconfig.test.json'
+    }]
   },
 
   // The paths to modules that run some code to configure or set up the testing environment before each test

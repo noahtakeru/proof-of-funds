@@ -14,8 +14,30 @@ const { cleanupTestData } = require('./seed-test-data');
 async function setupTestDatabase() {
   // Verify connection to test database
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    console.log('Connected to test database');
+    // Verify connection with retries
+    let connected = false;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (!connected && attempts < maxAttempts) {
+      try {
+        attempts++;
+        console.log(`Attempting to connect to test database (attempt ${attempts}/${maxAttempts})...`);
+        await prisma.$queryRaw`SELECT 1`;
+        connected = true;
+        console.log('Connected to test database successfully');
+      } catch (err) {
+        console.warn(`Connection attempt ${attempts} failed: ${err.message}`);
+        if (attempts < maxAttempts) {
+          console.log('Retrying in 2 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+    
+    if (!connected) {
+      throw new Error(`Failed to connect to test database after ${maxAttempts} attempts`);
+    }
     
     // Clean existing data
     await cleanupTestData();

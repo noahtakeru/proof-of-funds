@@ -5,27 +5,46 @@
  * This script initializes the database by running migrations
  * and seeding with initial data.
  */
-require('dotenv').config();
-const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
+
+// Load environment variables from both the root .env and local .env
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Determine environment
 const NODE_ENV = process.env.NODE_ENV || 'development';
 console.log(`Initializing database for environment: ${NODE_ENV}`);
 
-// Validate database connection URLs
-const DATABASE_URL_DEV = process.env.DATABASE_URL_DEV;
-const DATABASE_URL_TEST = process.env.DATABASE_URL_TEST;
+// Define direct connection config to avoid URL parsing issues with special characters
+const directDbConfig = {
+  host: '35.193.170.68',
+  port: 5432,
+  user: NODE_ENV === 'test' ? 'zkp_test_user' : 'zkp_dev_user',
+  password: NODE_ENV === 'test' ? '=+^4d;Q+SCa]{-ra' : 'Lt#VKfuATdJ*F/0Y',
+  database: NODE_ENV === 'test' ? 'zkp_test' : 'zkp_dev'
+};
 
-if (!DATABASE_URL_DEV || !DATABASE_URL_TEST) {
-  console.error('Error: DATABASE_URL_DEV and DATABASE_URL_TEST must be set in .env');
-  process.exit(1);
-}
+// Create a properly formatted URL for Prisma
+const encodedPassword = encodeURIComponent(directDbConfig.password);
+const DATABASE_URL = `postgresql://${directDbConfig.user}:${encodedPassword}@${directDbConfig.host}:${directDbConfig.port}/${directDbConfig.database}`;
 
-// Set the appropriate database URL based on environment
-process.env.DATABASE_URL = NODE_ENV === 'test' ? DATABASE_URL_TEST : DATABASE_URL_DEV;
-console.log(`Using database URL: ${process.env.DATABASE_URL.split('@')[1]}`);
+console.log(`Using database: ${directDbConfig.host}:${directDbConfig.port}/${directDbConfig.database}`);
+
+// Create or update the Prisma .env file with the current DATABASE_URL
+const prismaEnvPath = path.resolve(__dirname, '../prisma/.env');
+fs.writeFileSync(prismaEnvPath, 
+`# This file contains environment variables for Prisma
+# It will be used by Prisma CLI but not by the Node.js application
+
+# Development database URL with encoded special characters
+DATABASE_URL="${DATABASE_URL}"
+
+# Direct connection URL - used to bypass any parsing issues
+DIRECT_URL="${DATABASE_URL}"
+`);
+console.log(`Updated Prisma .env file at ${prismaEnvPath}`);
 
 // Helper function to run a command and handle errors
 function runCommand(command, description) {

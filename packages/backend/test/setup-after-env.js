@@ -5,11 +5,10 @@
  */
 
 // Import Jest matchers for enhanced assertions
-const { toHaveProperty } = require('jest-extended');
+require('jest-extended');
 
 // Add custom matchers
 expect.extend({
-  toHaveProperty,
   
   // Custom matcher for JWT tokens
   toBeValidJWT(received) {

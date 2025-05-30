@@ -1,9 +1,9 @@
 /**
  * Verification API Tests
  */
-import { createTestServer, publicRequest, expectSuccess, expectError } from '../../test/api-test-helpers';
+import { createTestServer, publicRequest, expectSuccess, expectError } from '../../../test/api-test-helpers';
 import { createUser, createWallet, createProof } from '@proof-of-funds/db/test/seed-test-data';
-import { MockZkProofService } from '../../test/mock-services';
+import { MockZkProofService } from '../../../test/mock-services';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock ZK proof service
