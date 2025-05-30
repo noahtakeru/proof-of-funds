@@ -1,0 +1,217 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - represents platform users
+model User {
+  id                String   @id @default(uuid()) @db.Uuid
+  address           String   @unique
+  createdAt         DateTime @default(now()) @map("created_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+  isActive          Boolean  @default(true) @map("is_active")
+  permissions       String[] @default([])
+  settings          Json     @default("{}")
+  
+  wallets           Wallet[]
+  proofs            Proof[]
+  organizationUsers OrganizationUser[]
+  
+  @@map("users")
+}
+
+// Wallet model - represents user connected or temporary wallets
+model Wallet {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  address              String
+  chainId              Int      @map("chain_id")
+  type                 WalletType
+  encryptedPrivateKey  String?  @map("encrypted_private_key")
+  keyId                String?  @map("key_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  lastUsedAt           DateTime @default(now()) @map("last_used_at")
+  isArchived           Boolean  @default(false) @map("is_archived")
+  balance              String?
+  nonce                Int?
+  
+  user                 User     @relation(fields: [userId], references: [id])
+  proofs               Proof[]
+  batches              Batch[]
+  
+  @@unique([address, chainId])
+  @@map("wallets")
+}
+
+// Proof model - represents generated proofs
+model Proof {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  referenceId        String    @unique @map("reference_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  expiresAt          DateTime  @map("expires_at")
+  proofType          ProofType @map("proof_type")
+  isRevoked          Boolean   @default(false) @map("is_revoked")
+  revokedAt          DateTime? @map("revoked_at")
+  revocationReason   String?   @map("revocation_reason")
+  encryptedData      String    @map("encrypted_data")
+  encryptionKeyId    String    @map("encryption_key_id")
+  tempWalletId       String    @map("temp_wallet_id") @db.Uuid
+  transactionHash    String?   @map("transaction_hash")
+  merkleRoot         String?   @map("merkle_root")
+  merklePath         Json?     @map("merkle_path")
+  batchId            String?   @map("batch_id") @db.Uuid
+  warningFlags       String[]  @map("warning_flags")
+  originalWallets    String[]  @map("original_wallets")
+  status             ProofStatus
+  
+  user               User      @relation(fields: [userId], references: [id])
+  tempWallet         Wallet    @relation(fields: [tempWalletId], references: [id])
+  batch              Batch?    @relation(fields: [batchId], references: [id])
+  verifications      Verification[]
+  
+  @@map("proofs")
+}
+
+// Verification model - represents proof verifications
+model Verification {
+  id                String   @id @default(uuid()) @db.Uuid
+  proofId           String   @map("proof_id") @db.Uuid
+  referenceId       String   @map("reference_id")
+  verifierAddress   String?  @map("verifier_address")
+  verifiedAt        DateTime @default(now()) @map("verified_at")
+  isSuccessful      Boolean  @map("is_successful")
+  failureReason     String?  @map("failure_reason")
+  verificationResult Json     @map("verification_result")
+  
+  proof             Proof    @relation(fields: [proofId], references: [id])
+  
+  @@map("verifications")
+}
+
+// Batch model - represents batched proofs for submission
+model Batch {
+  id               String     @id @default(uuid()) @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at")
+  processedAt      DateTime?  @map("processed_at")
+  status           BatchStatus
+  merkleRoot       String     @map("merkle_root")
+  transactionHash  String?    @map("transaction_hash")
+  tempWalletId     String     @map("temp_wallet_id") @db.Uuid
+  gasUsed          String?    @map("gas_used")
+  gasPrice         String?    @map("gas_price")
+  totalCost        String?    @map("total_cost")
+  retryCount       Int        @default(0) @map("retry_count")
+  maxRetries       Int        @default(3) @map("max_retries")
+  
+  tempWallet       Wallet     @relation(fields: [tempWalletId], references: [id])
+  proofs           Proof[]
+  
+  @@map("batches")
+}
+
+// Organization model - represents groups that can have members and template
+model Organization {
+  id               String     @id @default(uuid()) @db.Uuid
+  name             String
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  apiKey           String?    @unique @map("api_key")
+  settings         Json       @default("{}")
+  
+  members          OrganizationUser[]
+  templates        ProofTemplate[]
+  
+  @@map("organizations")
+}
+
+// OrganizationUser - junction table for users in organizations
+model OrganizationUser {
+  id              String     @id @default(uuid()) @db.Uuid
+  userId          String     @map("user_id") @db.Uuid
+  organizationId  String     @map("organization_id") @db.Uuid
+  role            OrgRole    @default(MEMBER)
+  joinedAt        DateTime   @default(now()) @map("joined_at")
+  
+  user            User       @relation(fields: [userId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  @@unique([userId, organizationId])
+  @@map("organization_users")
+}
+
+// ProofTemplate - reusable proof templates with preconfigured settings
+model ProofTemplate {
+  id              String     @id @default(uuid()) @db.Uuid
+  organizationId  String     @map("organization_id") @db.Uuid
+  name            String
+  description     String?
+  proofType       ProofType  @map("proof_type")
+  threshold       String
+  expiryPeriod    Int        @map("expiry_period") // in seconds
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  isActive        Boolean    @default(true) @map("is_active")
+  settings        Json       @default("{}")
+  
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  @@map("proof_templates")
+}
+
+// Audit log for security sensitive operations
+model AuditLog {
+  id              String     @id @default(uuid()) @db.Uuid
+  action          String
+  entityType      String     @map("entity_type")
+  entityId        String?    @map("entity_id")
+  userId          String?    @map("user_id") @db.Uuid
+  ipAddress       String?    @map("ip_address")
+  userAgent       String?    @map("user_agent")
+  metadata        Json?
+  timestamp       DateTime   @default(now())
+  
+  @@map("audit_logs")
+}
+
+// Enumerations
+enum WalletType {
+  USER_CONNECTED
+  TEMPORARY
+}
+
+enum ProofType {
+  STANDARD
+  THRESHOLD
+  MAXIMUM
+  ZERO_KNOWLEDGE
+}
+
+enum ProofStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+  EXPIRED
+  REVOKED
+}
+
+enum BatchStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
