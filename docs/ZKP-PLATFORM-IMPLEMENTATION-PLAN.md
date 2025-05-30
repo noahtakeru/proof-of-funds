@@ -243,19 +243,55 @@ For each of these intervention points, the implementation plan includes detailed
 
 ### 1.2 Core Database Schema Implementation
 
-- Focus on essential tables first:
-  - Organizations and user roles (minimal fields)
-  - Basic templates (simplified schema)
-  - Core reference token storage
-- Implement simple binary consent tracking
-- Design schema for extensibility with future fields
+- Focus on extending existing tables and preparing for later phases:
+  - Enhance Organizations and user roles (minimal fields)
+  - Extend basic templates (simplified schema)
+  - Add essential fields to existing tables only
+- Design schema for extensibility with future fields in mind, but do NOT implement advanced models yet
 
 #### Implementation Notes:
 - Use existing PostgreSQL database configuration (see `.env.example` for connection params)
 - Create migrations using Prisma ORM for compatibility with existing structure
 - Deploy migration files to `packages/db/migrations/` directory
-- Create schema definitions in `packages/db/schema.prisma`
-- Implement appropriate indexes for query optimization
+- Update schema definitions in `packages/db/schema.prisma` with minimal changes
+- Implement appropriate indexes for performance optimization
+
+#### IMPORTANT: Phased Database Implementation Approach
+- Follow strict incremental approach to database schema evolution
+- Only implement models and fields needed for the current phase
+- Defer complex tables and relationships to their designated phases:
+  - Reference tokens and signing keys (Phase 5)
+  - User consent tracking (Phase 4.4)
+  - Circuit version management (Phase 3.7)
+  - Organization API keys (Phase 4)
+- This ensures the database grows with the application's needs and avoids premature complexity
+
+#### Phase 1.2 Implementation Specifics
+For this phase, ONLY:
+1. Review the existing schema which already has:
+   - User model
+   - Wallet model
+   - Organization model
+   - OrganizationUser model (for user roles)
+   - ProofTemplate model
+   - Proof model
+   - Verification model
+   - Batch model
+   - AuditLog model
+
+2. Enhance these models with minimal additions if needed:
+   - Add missing fields to Organization model (e.g., email if missing)
+   - Extend ProofTemplate model with any essential fields
+   - Add appropriate indexes for performance
+
+3. Do NOT create or implement:
+   - ReferenceToken model (Phase 5)
+   - SigningKey model (Phase 5)
+   - UserConsent model (Phase 4.4)
+   - CircuitVersion model (Phase 3.7)
+   - OrganizationApiKey model (Phase 4)
+
+This phase is about enhancing what already exists, not adding entirely new models for future functionality.
 
 ### 1.3 Shared Backend Services
 
@@ -499,6 +535,8 @@ For each of these intervention points, the implementation plan includes detailed
 
 ### 3.7 Circuit Version Management
 
+> **IMPORTANT**: This feature should only be implemented during Phase 3. Do not create circuit version models, database tables, or related functionality prematurely during earlier phases.
+
 - Implement comprehensive circuit version management:
   - Create version mismatch detection logic in proof generation endpoints
   - Build version compatibility checker based on manifest metadata
@@ -506,6 +544,7 @@ For each of these intervention points, the implementation plan includes detailed
   - Create clear error responses for version mismatch situations
   - Add user-facing version mismatch notifications with upgrade paths
   - Create circuit version dashboard for administrators
+  - Add database tables for circuit versions (not before this phase)
 
 ### 3.8 WASM Performance Optimization
 
@@ -572,6 +611,8 @@ For each of these intervention points, the implementation plan includes detailed
 
 ### 4.4 Basic Consent Management
 
+> **IMPORTANT**: This feature should only be implemented during Phase 4. Do not create user consent models, database tables, or related functionality prematurely during earlier phases.
+
 - Create simple consent display component:
   ```
   /components/consent/ConsentDisplay.tsx
@@ -580,7 +621,7 @@ For each of these intervention points, the implementation plan includes detailed
   - Clear presentation of what user is consenting to
   - Simple accept/decline options
   - Basic revocation capability
-- Implement consent storage in database
+- Implement consent storage in database (add user_consents table during this phase only)
 - Design for future extensibility to more granular consent
 
 ### Deliverables:
@@ -594,16 +635,19 @@ For each of these intervention points, the implementation plan includes detailed
 
 **Duration: 2 weeks**
 
+> **IMPORTANT**: This phase should NOT be implemented until Phases 1-4 are complete. Do not create reference token models, database tables, or related functionality prematurely during earlier phases.
+
 ### 5.1 Token Generation
 
 - Implement secure token generation service
 - Create metadata encryption with proper key management
 - Leverage previously deployed on-chain anchoring (Polygon) for token references
 - Implement token expiration and revocation mechanisms
+- Add database tables for reference tokens and signing keys (not before this phase)
 
 #### Simplified Reference Token Structure
 
-Implement streamlined token structure with essential components:
+Implement streamlined token structure with essential components (only during Phase 5):
 ```typescript
 interface ReferenceToken {
   id: string;                    // UUID for the token
@@ -1079,12 +1123,18 @@ Create comprehensive device compatibility test suite:
 - CI/CD pipeline
 - Monitoring and logging services
 
-## Core Database Schema
+## Complete Database Schema
+
+The database schema below represents the FINAL schema after ALL phases are complete. It is presented here for reference and planning purposes. The actual implementation will follow the phased approach described throughout this document.
 
 ```sql
--- Phase 1: Core Tables
+-- NOTE: This is the COMPLETE schema - implementation should follow the phased approach
+-- Each table should only be added in its designated phase, as outlined below
 
--- Organizations Table
+-- PHASE 1: CORE TABLES
+-- These tables are part of the initial implementation in Phase 1.2
+
+-- Organizations Table (Phase 1.2)
 CREATE TABLE organizations (
   id UUID PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -1094,7 +1144,7 @@ CREATE TABLE organizations (
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
--- User Roles
+-- User Roles (Phase 1.2)
 CREATE TABLE user_roles (
   id UUID PRIMARY KEY,
   organization_id UUID REFERENCES organizations(id),
@@ -1104,7 +1154,7 @@ CREATE TABLE user_roles (
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
--- Basic Templates
+-- Basic Templates (Phase 1.2)
 CREATE TABLE templates (
   id UUID PRIMARY KEY,
   organization_id UUID REFERENCES organizations(id),
@@ -1116,7 +1166,50 @@ CREATE TABLE templates (
   parameters JSONB NOT NULL -- Simplified schema storing parameters directly
 );
 
--- Simple Consents
+-- Audit Logs (Phase 1.2)
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY,
+  timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  event_type VARCHAR(100) NOT NULL,
+  user_id UUID,
+  resource_type VARCHAR(100),
+  resource_id UUID,
+  action VARCHAR(50) NOT NULL,
+  details JSONB,
+  ip_address VARCHAR(50)
+);
+
+-- PHASE 3: EXTENDED ZK CIRCUITS
+-- These tables should only be added in Phase 3.7
+
+-- Circuit Versions (Phase 3.7 - Circuit Version Management)
+CREATE TABLE circuit_versions (
+  id UUID PRIMARY KEY,
+  circuit_type VARCHAR(50) NOT NULL, -- 'standard', 'threshold', 'maximum'
+  version VARCHAR(20) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  manifest JSONB NOT NULL, -- Schema definition
+  zkey_hash VARCHAR(255) NOT NULL, -- Hash of proving key
+  vkey_hash VARCHAR(255) NOT NULL -- Hash of verification key
+);
+
+-- PHASE 4: INSTITUTIONAL INTERFACE
+-- These tables should only be added in Phase 4.4 and related sub-phases
+
+-- Organization API Keys (Phase 4)
+CREATE TABLE organization_api_keys (
+  id UUID PRIMARY KEY,
+  organization_id UUID REFERENCES organizations(id),
+  key_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Simple Consents (Phase 4.4 - Basic Consent Management)
 CREATE TABLE user_consents (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
@@ -1128,7 +1221,10 @@ CREATE TABLE user_consents (
   ip_address VARCHAR(50)
 );
 
--- Signing Keys
+-- PHASE 5: REFERENCE TOKEN SYSTEM
+-- These tables should only be added in Phase 5.1
+
+-- Signing Keys (Phase 5.1 - Token Generation)
 CREATE TABLE signing_keys (
   id UUID PRIMARY KEY,
   key_hash VARCHAR(255) NOT NULL,
@@ -1138,7 +1234,7 @@ CREATE TABLE signing_keys (
   is_active BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- Reference Tokens
+-- Reference Tokens (Phase 5.1 - Token Generation)
 CREATE TABLE reference_tokens (
   id UUID PRIMARY KEY,
   token VARCHAR(100) UNIQUE NOT NULL,
@@ -1157,7 +1253,7 @@ CREATE TABLE reference_tokens (
   verification_status VARCHAR(50) NOT NULL DEFAULT 'pending'
 );
 
--- Verifications
+-- Verifications (Phase 5.2 - Verification Interface)
 CREATE TABLE verifications (
   id UUID PRIMARY KEY,
   reference_token_id UUID REFERENCES reference_tokens(id),
@@ -1167,47 +1263,11 @@ CREATE TABLE verifications (
   verification_result JSONB NOT NULL
 );
 
--- Audit Logs
-CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY,
-  timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  event_type VARCHAR(100) NOT NULL,
-  user_id UUID,
-  resource_type VARCHAR(100),
-  resource_id UUID,
-  action VARCHAR(50) NOT NULL,
-  details JSONB,
-  ip_address VARCHAR(50)
-);
-
--- Phase 2-3: Extension Tables (Added incrementally)
-
--- Organization API Keys
-CREATE TABLE organization_api_keys (
-  id UUID PRIMARY KEY,
-  organization_id UUID REFERENCES organizations(id),
-  key_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMP WITH TIME ZONE,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Circuit Versions
-CREATE TABLE circuit_versions (
-  id UUID PRIMARY KEY,
-  circuit_type VARCHAR(50) NOT NULL, -- 'standard', 'threshold', 'maximum'
-  version VARCHAR(20) NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  is_active BOOLEAN NOT NULL DEFAULT FALSE,
-  manifest JSONB NOT NULL, -- Schema definition
-  zkey_hash VARCHAR(255) NOT NULL, -- Hash of proving key
-  vkey_hash VARCHAR(255) NOT NULL -- Hash of verification key
-);
-
--- Future extension tables will be added as needed during later phases
+-- Additional tables will be added in future phases as needed
 ```
+
+> **IMPORTANT IMPLEMENTATION NOTE**: 
+> This schema represents the complete database structure that will be implemented incrementally across phases. When implementing each phase, only add the tables and fields needed for that specific phase, as indicated in the phase sections above. DO NOT implement tables from future phases prematurely.
 
 ## API Endpoints
 
