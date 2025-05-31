@@ -36,6 +36,7 @@ Multiple overlapping documentation files were consolidated into a single compreh
 - `docs/GCP-INTEGRATION.md`
 - `docs/GCP-README.md`
 - `docs/GCP-SETUP.md`
+- `docs/EXISTING-GCP-INTEGRATION.md`
 - Various findings in `docs/findings/`
 
 The new consolidated guide is at:
@@ -45,6 +46,43 @@ The new consolidated guide is at:
 
 Renamed for clarity:
 - `temp.env` → `.env.example`
+
+### 5. Key Deployment Scripts
+
+Consolidated deployment scripts for keys:
+- `scripts/deploy-keys-to-gcp.js` and `scripts/deploy-keys-to-storage.js` → `scripts/deploy-keys.js`
+
+The new script supports multiple storage backends with a unified interface:
+```bash
+# Auto-detect the best storage based on file size
+node scripts/deploy-keys.js
+
+# Use Secret Manager specifically
+node scripts/deploy-keys.js --storage=secret-manager
+
+# Use Cloud Storage specifically
+node scripts/deploy-keys.js --storage=cloud-storage
+
+# Deploy specific circuits
+node scripts/deploy-keys.js --circuits=standard,threshold
+```
+
+### 6. Entropy Generation Scripts
+
+Removed redundant entropy generation scripts that were already consolidated:
+- `scripts/generate-secure-entropy.sh` (now part of `scripts/generate-keys.sh`)
+- `scripts/automated-ceremony-coordinator.js` (redundant with consolidated key generation)
+- `scripts/run-automated-ceremony.js` (redundant with consolidated key generation)
+
+### 7. Docker Utilities
+
+Extracted shared Docker setup logic into a common utility:
+- `scripts/docker-utils.sh`
+
+This script provides common functions used across ZK execution scripts:
+- `setup_docker_environment` - For setting up the Docker environment
+- `run_docker_compilation` - For running circuit compilation in Docker
+- `run_docker_key_generation` - For running key generation in Docker
 
 ## Backward Compatibility
 
@@ -61,6 +99,8 @@ This consolidation effort has:
 3. Enhanced documentation through comprehensive guides
 4. Simplified the codebase structure
 5. Made future modifications easier by centralizing shared code
+6. Created consistent patterns for command-line interfaces
+7. Improved platform compatibility with auto-detection
 
 ## Testing
 
@@ -69,14 +109,16 @@ All consolidated files have been tested to ensure they maintain the same functio
 - Verifying GCP deployment
 - Generating setup instructions
 - Maintaining original script behavior
+- Cross-platform compatibility (Linux/macOS)
 
 ## Next Steps
 
 Further consolidation could include:
 1. Additional test file consolidation
 2. Standardizing error handling across scripts
-3. Creating a unified CLI for GCP operations
+3. Creating a unified CLI for ZK operations
 4. Improving test coverage for consolidated modules
+5. Integrating Docker utilities into all ZK scripts
 
 ## Usage Examples
 
@@ -100,4 +142,24 @@ node scripts/verify-gcp-deployment.js
 ```bash
 # Configure project
 ./scripts/configure-gcp-project.sh
+```
+
+### Deploying ZK Keys
+```bash
+# Deploy with auto-detection
+node scripts/deploy-keys.js
+
+# Use specific storage
+node scripts/deploy-keys.js --storage=cloud-storage
+
+# Deploy specific circuits
+node scripts/deploy-keys.js --circuits=standard,threshold
+```
+
+### Using Docker Utilities
+```bash
+# In a bash script
+source ./scripts/docker-utils.sh
+setup_docker_environment "$PROJECT_ROOT"
+run_docker_compilation "$PROJECT_ROOT"
 ```
