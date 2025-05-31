@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1748650637336" clover="3.2.0">
-  <project timestamp="1748650637336" name="All files">
+<coverage generated="1748665612072" clover="3.2.0">
+  <project timestamp="1748665612072" name="All files">
     <metrics statements="96" coveredstatements="66" conditionals="48" coveredconditionals="20" methods="14" coveredmethods="6" elements="158" coveredelements="92" complexity="0" loc="96" ncloc="96" packages="1" files="2" classes="2"/>
     <file name="connection.js" path="/Users/karpel/Desktop/GitHub/proof-of-funds/packages/db/src/connection.js">
       <metrics statements="86" coveredstatements="66" conditionals="43" coveredconditionals="20" methods="10" coveredmethods="6"/>

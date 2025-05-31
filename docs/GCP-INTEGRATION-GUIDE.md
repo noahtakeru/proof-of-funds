@@ -30,14 +30,14 @@ For a quick setup of GCP integration:
 # Install dependencies
 npm install
 
-# Set up GCP project and credentials
-npm run gcp:setup
-
 # Test GCP configuration
-npm run gcp:test
+node scripts/test-cloud-storage-util.js
+
+# Test complete setup
+node scripts/test-complete-setup.js
 
 # Upload proof files to GCP storage
-npm run gcp:upload-proofs
+node scripts/deploy-keys.js --storage=cloud-storage
 ```
 
 ## Project Setup
@@ -87,9 +87,9 @@ gcloud iam service-accounts keys create ./gcp-credentials.json \
 Create or update `.env.local` file with:
 
 ```
-GCP_PROJECT_ID=proof-of-funds-prod
-GOOGLE_APPLICATION_CREDENTIALS=./gcp-credentials.json
-GCP_STORAGE_BUCKET=proof-of-funds-prod-zkeys
+GCP_PROJECT_ID=proof-of-funds-455506
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-sa-key.json
+GCP_STORAGE_BUCKET=proof-of-funds-455506-zkeys
 ```
 
 ## Service Configuration
@@ -133,10 +133,18 @@ After setting up Cloud Storage:
 
 ```bash
 # From the project root
-npm run gcp:upload-proofs
+node scripts/deploy-keys.js --storage=cloud-storage
 ```
 
-This uploads the zkey files for all circuit types (standard, threshold, maximum) to your GCP bucket.
+This uploads the zkey files for all circuit types (standard, threshold, maximum) to your GCP bucket. You can also use Secret Manager for smaller files:
+
+```bash
+# For smaller files that fit in Secret Manager (<64KB)
+node scripts/deploy-keys.js --storage=secret-manager
+
+# Auto-detect best storage based on file size
+node scripts/deploy-keys.js --storage=auto
+```
 
 ### File Storage Considerations
 
@@ -159,24 +167,25 @@ When running in development mode, the app will use the credentials specified in 
 
 ### Folder Structure
 
-- `/utils/gcpAuth.js` - GCP authentication utilities
-- `/utils/zkeyStorageManager.js` - Cloud Storage client for zkeys
-- `/utils/serviceAccountManager.js` - Service account management
-- `/scripts/setup-gcp.js` - GCP setup script
-- `/scripts/upload-proof-files.js` - Uploads proof files to GCP storage
+- `/packages/backend/utils/zkeyManager.js` - GCP Secret Manager client
+- `/packages/backend/utils/zkeyStorageManager.js` - Cloud Storage client for zkeys
+- `/scripts/deploy-keys.js` - Deploys keys to GCP (consolidated script)
+- `/scripts/deploy-keys-to-gcp.js` - Legacy script (wrapper for deploy-keys.js)
+- `/scripts/deploy-keys-to-storage.js` - Legacy script (wrapper for deploy-keys.js)
 - `/scripts/test-cloud-storage-util.js` - Tests GCP storage configuration
-- `/pages/api/zk/generateProofCloudStorage.js` - Secure API endpoint
+- `/scripts/test-complete-setup.js` - Tests complete GCP integration
+- `/packages/frontend/pages/api/zk/generateProofCloudStorage.js` - Secure API endpoint
 
 ### Testing GCP Integration
 
 Run the comprehensive test suite:
 
 ```bash
-# Test overall integration
-npm run gcp:test
-
 # Test Cloud Storage specifically
 node scripts/test-cloud-storage-util.js
+
+# Test just permissions
+node scripts/test-cloud-storage-util.js permissions
 
 # Test complete setup including API endpoints
 node scripts/test-complete-setup.js
@@ -254,18 +263,16 @@ Run the test scripts to identify issues:
 # Test Cloud Storage access
 node scripts/test-cloud-storage-util.js
 
-# Check overall GCP setup
-node scripts/verify-gcp-deployment.js
+# Test complete setup
+node scripts/test-complete-setup.js
 ```
 
 ## References
 
-- [Complete GCP Setup Guide](/docs/findings/GCP-COMPLETE-GUIDE.md) - Detailed setup instructions
-- [GCP Deployment Checklist](/docs/findings/GCP-DEPLOYMENT-CHECKLIST.md) - Step-by-step deployment guide
 - [Google Cloud Platform Documentation](https://cloud.google.com/docs)
 - [Google Cloud Storage JavaScript Client](https://cloud.google.com/storage/docs/reference/libraries#client-libraries-install-nodejs)
 - [Google Secret Manager Documentation](https://cloud.google.com/secret-manager/docs)
 
 ---
 
-_This guide consolidates information from multiple source documents including GCP-INTEGRATION.md, GCP-README.md, GCP-SETUP.md, and various findings documents._
+_This guide consolidates information from multiple source documents including GCP-SETUP.md, GCP-COMPLETE-GUIDE.md, GCP-DEPLOYMENT-CHECKLIST.md, and GCP-SETUP-COMPLETE.md, which have been deprecated in favor of this comprehensive guide._

@@ -13,6 +13,8 @@ import logger from '../../utils/logger';
 import { decryptData } from '../../utils/crypto';
 import config from '../../config';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { auditLogService } from '../../services/auditLogService';
+import { AuditEventType, ActorType, AuditAction, AuditStatus, AuditSeverity } from '../../models/auditLog';
 
 // Initialize Secret Manager client if GCP integration is enabled
 const secretManager = config.gcp.secretManager.enabled
@@ -126,6 +128,26 @@ export const verifyProof = async (req: Request, res: Response, next: NextFunctio
         }
       });
       
+      // Log successful verification
+      await auditLogService.log({
+        eventType: AuditEventType.PROOF_VERIFY,
+        actorType: ActorType.ANONYMOUS,
+        action: AuditAction.VALIDATE,
+        status: AuditStatus.SUCCESS,
+        resourceType: 'proof',
+        resourceId: proof.id,
+        details: {
+          referenceId,
+          verificationId: verification.id,
+          isValid,
+          proofType: proof.proofType,
+          verifierAddress: req.body.verifierAddress || 'unknown'
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.INFO
+      });
+
       // Return verification result
       res.status(200).json({
         success: true,
@@ -161,6 +183,25 @@ export const verifyProof = async (req: Request, res: Response, next: NextFunctio
         }
       });
       
+      // Log failed verification
+      await auditLogService.log({
+        eventType: AuditEventType.PROOF_VERIFY,
+        actorType: ActorType.ANONYMOUS,
+        action: AuditAction.VALIDATE,
+        status: AuditStatus.FAILURE,
+        resourceType: 'proof',
+        resourceId: proof.id,
+        details: {
+          referenceId,
+          proofType: proof.proofType,
+          verifierAddress: req.body.verifierAddress || 'unknown',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.WARNING
+      });
+
       throw new ApiError(400, 'Proof verification failed', 'VERIFICATION_FAILED', {
         message: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -197,6 +238,25 @@ export const checkProofStatus = async (req: Request, res: Response, next: NextFu
     if (!proof) {
       throw new ApiError(404, 'Proof not found', 'PROOF_NOT_FOUND');
     }
+
+    // Log proof status check
+    await auditLogService.log({
+      eventType: AuditEventType.PROOF_VERIFY,
+      actorType: ActorType.ANONYMOUS,
+      action: AuditAction.READ,
+      status: AuditStatus.SUCCESS,
+      resourceType: 'proof',
+      details: {
+        referenceId,
+        proofType: proof.proofType,
+        status: proof.status,
+        isRevoked: proof.isRevoked,
+        isExpired: proof.expiresAt < new Date()
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      severity: AuditSeverity.INFO
+    });
 
     // Return proof status
     res.status(200).json({

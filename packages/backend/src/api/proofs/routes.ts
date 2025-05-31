@@ -6,6 +6,7 @@ import { body, param, query } from 'express-validator';
 import { validate } from '../../middleware/validation';
 import { authenticate } from '../../middleware/auth';
 import { proofRateLimit } from '../../middleware/rateLimit';
+import { proofAuditMiddleware } from '../../middleware/auditMiddleware';
 import * as proofController from './controller';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.post('/',
       .isObject()
       .withMessage('Valid input object is required')
   ]),
+  proofAuditMiddleware.create,
   proofController.generateProof
 );
 
@@ -54,6 +56,7 @@ router.get('/',
       .isIn(['STANDARD', 'THRESHOLD', 'MAXIMUM', 'ZERO_KNOWLEDGE'])
       .withMessage('Valid proof type is required')
   ]),
+  proofAuditMiddleware.list,
   proofController.getUserProofs
 );
 
@@ -67,6 +70,7 @@ router.get('/:proofId',
       .isUUID()
       .withMessage('Valid proof ID is required')
   ]),
+  proofAuditMiddleware.read,
   proofController.getProofDetails
 );
 
@@ -85,6 +89,7 @@ router.post('/:proofId/revoke',
       .isLength({ max: 255 })
       .withMessage('Reason must be a string with maximum 255 characters')
   ]),
+  proofAuditMiddleware.update,
   proofController.revokeProof
 );
 

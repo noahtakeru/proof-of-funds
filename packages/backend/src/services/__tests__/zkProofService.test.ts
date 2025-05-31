@@ -32,8 +32,67 @@ jest.mock('../../config', () => ({
       threshold: '/path/to/threshold_circuit',
       maximum: '/path/to/maximum_circuit'
     }
+  },
+  auditLog: {
+    enabled: true,
+    retention: {
+      days: 365
+    },
+    gcpBackup: {
+      enabled: false,
+      bucketName: 'test-bucket'
+    }
+  },
+  gcp: {
+    projectId: 'test-project'
   }
 }));
+
+// Mock Prisma client
+jest.mock('@prisma/client', () => {
+  const mockPrismaClient = jest.fn().mockImplementation(() => ({
+    auditLog: {
+      create: jest.fn().mockResolvedValue({
+        id: 'mock-id',
+        timestamp: new Date()
+      }),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0)
+    }
+  }));
+  return { PrismaClient: mockPrismaClient };
+});
+
+jest.mock('@proof-of-funds/db', () => ({
+  prisma: {
+    auditLog: {
+      create: jest.fn().mockResolvedValue({
+        id: 'mock-id',
+        timestamp: new Date()
+      }),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0)
+    }
+  },
+  transaction: jest.fn()
+}));
+
+// Mock Storage from @google-cloud/storage
+jest.mock('@google-cloud/storage', () => {
+  return {
+    Storage: jest.fn().mockImplementation(() => ({
+      bucket: jest.fn().mockReturnValue({
+        file: jest.fn().mockReturnValue({
+          save: jest.fn().mockResolvedValue([]),
+          getSignedUrl: jest.fn().mockResolvedValue(['https://mock-url'])
+        }),
+        setMetadata: jest.fn().mockResolvedValue([]),
+      }),
+      getBuckets: jest.fn().mockResolvedValue([[]]),
+      createBucket: jest.fn().mockResolvedValue([])
+    }))
+  };
+});
 
 // Import for type reference only
 import snarkjs from 'snarkjs';

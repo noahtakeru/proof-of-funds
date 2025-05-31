@@ -13,6 +13,8 @@ import logger from '../../utils/logger';
 import { encryptData, generateEncryptionKey } from '../../utils/crypto';
 import config from '../../config';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { auditLogService } from '../../services/auditLogService';
+import { AuditEventType, ActorType, AuditAction, AuditStatus, AuditSeverity } from '../../models/auditLog';
 
 // Initialize Secret Manager client if GCP integration is enabled
 const secretManager = config.gcp.secretManager.enabled
@@ -125,7 +127,7 @@ export const generateProof = async (req: Request, res: Response, next: NextFunct
       });
 
       // Store proof in database
-      const proof = await prisma.proof.create({
+      const proofRecord = await prisma.proof.create({
         data: {
           id: uuidv4(),
           userId,
@@ -142,17 +144,53 @@ export const generateProof = async (req: Request, res: Response, next: NextFunct
         }
       });
 
+      // Log proof generation success
+      await auditLogService.log({
+        eventType: AuditEventType.PROOF_GENERATE,
+        actorType: ActorType.USER,
+        actorId: userId,
+        action: AuditAction.CREATE,
+        status: AuditStatus.SUCCESS,
+        resourceType: 'proof',
+        resourceId: proofRecord.id,
+        details: {
+          proofType,
+          referenceId,
+          tempWalletId: tempWallet.id
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.INFO
+      });
+
       // Return success response
       res.status(201).json({
         success: true,
         referenceId,
-        proofId: proof.id,
+        proofId: proofRecord.id,
         expiresAt,
         proofType,
         decryptionKey: encryptionKey.toString('hex') // Only for demonstration, would be handled differently in production
       });
     } catch (error) {
       logger.error('ZK proof generation error', { error, proofType, userId });
+      
+      // Log proof generation failure
+      await auditLogService.log({
+        eventType: AuditEventType.PROOF_GENERATE,
+        actorType: ActorType.USER,
+        actorId: userId,
+        action: AuditAction.CREATE,
+        status: AuditStatus.FAILURE,
+        resourceType: 'proof',
+        details: {
+          proofType,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.ERROR
+      });
       
       if (error instanceof ApiError) {
         throw error;
@@ -284,6 +322,24 @@ export const revokeProof = async (req: Request, res: Response, next: NextFunctio
         isRevoked: true,
         revokedAt: true
       }
+    });
+
+    // Log proof revocation
+    await auditLogService.log({
+      eventType: AuditEventType.PROOF_REVOKE,
+      actorType: ActorType.USER,
+      actorId: userId,
+      action: AuditAction.REVOKE,
+      status: AuditStatus.SUCCESS,
+      resourceType: 'proof',
+      resourceId: proofId,
+      details: {
+        referenceId: updatedProof.referenceId,
+        reason: reason || 'No reason provided'
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      severity: AuditSeverity.INFO
     });
 
     // Return success response

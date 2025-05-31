@@ -21,6 +21,8 @@
     "dotenv": "^16.0.3",
     "ethereum-waffle": "^3.4.0",
     "ethers": "^5.7.2",
-    "hardhat": "^2.9.9"
+    "hardhat": "^2.9.9",
+    "keccak256": "^1.0.6",
+    "merkletreejs": "^0.3.10"
   }
 }
