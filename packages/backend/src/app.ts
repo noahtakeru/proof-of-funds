@@ -8,6 +8,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { json, urlencoded } from 'body-parser';
 
+// Import middleware
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { auditMiddleware } from './middleware/auditMiddleware';
+
+// Import routes
+import auditLogRoutes from './api/audit-logs';
+
 // Create Express app
 const app = express();
 
@@ -16,6 +23,12 @@ app.use(helmet());
 app.use(cors());
 app.use(json());
 app.use(urlencoded({ extended: true }));
+
+// Apply audit middleware globally
+app.use(auditMiddleware);
+
+// API routes
+app.use('/api/audit-logs', auditLogRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -211,6 +224,12 @@ app.post('/api/v1/verify/:referenceId', (req, res) => {
     verificationId: 'mock-verification-id'
   });
 });
+
+// Apply error handler
+app.use(errorHandler);
+
+// Apply 404 handler
+app.use(notFoundHandler);
 
 // Export for tests
 export { app };

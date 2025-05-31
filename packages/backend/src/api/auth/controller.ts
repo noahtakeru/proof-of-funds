@@ -12,6 +12,8 @@ import logger from '../../utils/logger';
 import { ApiError } from '../../middleware/errorHandler';
 import { verifySignature } from '../../utils/crypto';
 import { generateNonce } from '../../utils/auth';
+import { auditLogService } from '../../services/auditLogService';
+import { AuditEventType, ActorType, AuditAction, AuditStatus, AuditSeverity } from '../../models/auditLog';
 
 /**
  * Generate a nonce for wallet signature authentication
@@ -26,6 +28,21 @@ export const getNonce = async (req: Request, res: Response, next: NextFunction) 
 
     // Generate a nonce
     const nonce = generateNonce(address);
+    
+    // Log nonce generation
+    await auditLogService.log({
+      eventType: AuditEventType.AUTH_LOGIN,
+      actorType: ActorType.ANONYMOUS,
+      action: AuditAction.EXECUTE,
+      status: AuditStatus.PENDING,
+      details: {
+        address,
+        action: 'nonce_generation'
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      severity: AuditSeverity.INFO
+    });
     
     // Return the nonce
     res.status(200).json({
@@ -53,6 +70,21 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     const isValid = await verifySignature(message, signature, address);
     
     if (!isValid) {
+      // Log failed authentication attempt
+      await auditLogService.log({
+        eventType: AuditEventType.AUTH_LOGIN,
+        actorType: ActorType.ANONYMOUS,
+        action: AuditAction.LOGIN,
+        status: AuditStatus.FAILURE,
+        details: {
+          address,
+          reason: 'Invalid signature'
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.WARNING
+      });
+      
       throw new ApiError(401, 'Invalid signature', 'INVALID_SIGNATURE');
     }
 
@@ -104,6 +136,22 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     // Check if user is active
     if (!user.isActive) {
+      // Log inactive account access attempt
+      await auditLogService.log({
+        eventType: AuditEventType.AUTH_LOGIN,
+        actorType: ActorType.USER,
+        actorId: user.id,
+        action: AuditAction.LOGIN,
+        status: AuditStatus.FAILURE,
+        details: {
+          address: user.address,
+          reason: 'Inactive account'
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.WARNING
+      });
+      
       throw new ApiError(403, 'User account is inactive', 'INACTIVE_ACCOUNT');
     }
 
@@ -127,6 +175,22 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       config.jwt.secret,
       { expiresIn: config.jwt.refreshTokenExpiry }
     );
+    
+    // Log successful authentication
+    await auditLogService.log({
+      eventType: AuditEventType.AUTH_LOGIN,
+      actorType: ActorType.USER,
+      actorId: user.id,
+      action: AuditAction.LOGIN,
+      status: AuditStatus.SUCCESS,
+      details: {
+        address: user.address,
+        isNewUser: user.lastLoginAt === null
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      severity: AuditSeverity.INFO
+    });
 
     res.status(200).json({
       token,
@@ -190,6 +254,21 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
         config.jwt.secret,
         { expiresIn: config.jwt.accessTokenExpiry }
       );
+      
+      // Log token refresh
+      await auditLogService.log({
+        eventType: AuditEventType.AUTH_TOKEN_REFRESH,
+        actorType: ActorType.USER,
+        actorId: user.id,
+        action: AuditAction.EXECUTE,
+        status: AuditStatus.SUCCESS,
+        details: {
+          address: user.address
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        severity: AuditSeverity.INFO
+      });
 
       res.status(200).json({
         token: newToken,

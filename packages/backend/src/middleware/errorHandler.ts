@@ -7,6 +7,8 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import logger from '../utils/logger';
 import config from '../config';
+import { auditLogService } from '../services/auditLogService';
+import { AuditEventType, ActorType, AuditAction, AuditStatus, AuditSeverity } from '../models/auditLog';
 
 // Custom error class for API errors
 export class ApiError extends Error {
@@ -40,6 +42,33 @@ export const errorHandler = (err: Error, req: Request, res: Response, next: Next
     path: req.path,
     method: req.method
   });
+  
+  // Create audit log for errors (focus on server errors and auth errors)
+  if (statusCode >= 500 || statusCode === 401 || statusCode === 403) {
+    const severity = statusCode >= 500 ? AuditSeverity.ERROR : AuditSeverity.WARNING;
+    
+    auditLogService.log({
+      eventType: AuditEventType.SYSTEM_ERROR,
+      actorType: req.user?.id ? ActorType.USER : ActorType.ANONYMOUS,
+      actorId: req.user?.id,
+      action: AuditAction.EXECUTE,
+      status: AuditStatus.FAILURE,
+      details: {
+        path: req.path,
+        method: req.method,
+        statusCode,
+        errorCode,
+        errorMessage,
+        // Don't include stack trace in audit log for security reasons
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      severity
+    }).catch(logError => {
+      // Log error but don't fail request handling
+      logger.error('Failed to create error audit log', { error: logError });
+    });
+  }
 
   // Handle specific error types
   if (err instanceof ApiError) {

@@ -1,6 +1,11 @@
 /**
- * Backward compatibility wrapper for test-production-proof.js
- * Use test-proof-basics.js instead for new code
+ * DEPRECATED: Backward compatibility wrapper for test-production-proof.js
+ * 
+ * ⚠️ DO NOT ADD NEW CODE HERE ⚠️
+ * This file is maintained only for backward compatibility.
+ * For all new tests and modifications, use test-proof-basics.js instead.
+ * 
+ * This wrapper will be removed in a future update.
  */
 
 const { testProductionValues } = require('./test-proof-basics');

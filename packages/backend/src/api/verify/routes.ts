@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { validate } from '../../middleware/validation';
+import { verifyAuditMiddleware } from '../../middleware/auditMiddleware';
 import * as verifyController from './controller';
 
 const router = Router();
@@ -19,6 +20,7 @@ router.get('/:referenceId',
       .isLength({ min: 8 })
       .withMessage('Valid reference ID is required')
   ]),
+  verifyAuditMiddleware.read,
   verifyController.checkProofStatus
 );
 
@@ -42,6 +44,7 @@ router.post('/:referenceId',
       .isLength({ min: 42, max: 42 })
       .withMessage('Valid Ethereum address is required')
   ]),
+  verifyAuditMiddleware.create,
   verifyController.verifyProof
 );
 

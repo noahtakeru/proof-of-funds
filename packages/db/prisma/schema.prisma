@@ -27,6 +27,8 @@ model User {
   organizationUsers OrganizationUser[]
   
   @@map("users")
+  @@index([isActive], name: "idx_users_is_active")
+  @@index([createdAt], name: "idx_users_created_at")
 }
 
 // Wallet model - represents user connected or temporary wallets
@@ -80,6 +82,12 @@ model Proof {
   verifications      Verification[]
   
   @@map("proofs")
+  @@index([userId], name: "idx_proofs_user_id")
+  @@index([status], name: "idx_proofs_status")
+  @@index([proofType], name: "idx_proofs_proof_type")
+  @@index([expiresAt], name: "idx_proofs_expires_at")
+  @@index([createdAt], name: "idx_proofs_created_at")
+  @@index([isRevoked], name: "idx_proofs_is_revoked")
 }
 
 // Verification model - represents proof verifications
@@ -96,6 +104,9 @@ model Verification {
   proof             Proof    @relation(fields: [proofId], references: [id])
   
   @@map("verifications")
+  @@index([proofId], name: "idx_verifications_proof_id")
+  @@index([verifiedAt], name: "idx_verifications_verified_at")
+  @@index([isSuccessful], name: "idx_verifications_is_successful")
 }
 
 // Batch model - represents batched proofs for submission
@@ -117,12 +128,18 @@ model Batch {
   proofs           Proof[]
   
   @@map("batches")
+  @@index([status], name: "idx_batches_status")
+  @@index([merkleRoot], name: "idx_batches_merkle_root")
+  @@index([createdAt], name: "idx_batches_created_at")
 }
 
 // Organization model - represents groups that can have members and template
 model Organization {
   id               String     @id @default(uuid()) @db.Uuid
   name             String
+  email            String?
+  contactPhone     String?    @map("contact_phone")
+  description      String?
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   apiKey           String?    @unique @map("api_key")
@@ -132,6 +149,8 @@ model Organization {
   templates        ProofTemplate[]
   
   @@map("organizations")
+  @@index([name], name: "idx_organizations_name")
+  @@index([createdAt], name: "idx_organizations_created_at")
 }
 
 // OrganizationUser - junction table for users in organizations
@@ -151,21 +170,29 @@ model OrganizationUser {
 
 // ProofTemplate - reusable proof templates with preconfigured settings
 model ProofTemplate {
-  id              String     @id @default(uuid()) @db.Uuid
-  organizationId  String     @map("organization_id") @db.Uuid
-  name            String
-  description     String?
-  proofType       ProofType  @map("proof_type")
-  threshold       String
-  expiryPeriod    Int        @map("expiry_period") // in seconds
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  isActive        Boolean    @default(true) @map("is_active")
-  settings        Json       @default("{}")
+  id                    String     @id @default(uuid()) @db.Uuid
+  organizationId        String     @map("organization_id") @db.Uuid
+  name                  String
+  description           String?
+  proofType             ProofType  @map("proof_type")
+  threshold             String
+  expiryPeriod          Int        @map("expiry_period") // in seconds
+  categoryTags          String[]   @default([]) @map("category_tags")
+  isPublic              Boolean    @default(false) @map("is_public")
+  minVerificationInterval Int?      @map("min_verification_interval") // in seconds
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+  isActive              Boolean    @default(true) @map("is_active")
+  settings              Json       @default("{}")
   
-  organization    Organization @relation(fields: [organizationId], references: [id])
+  organization          Organization @relation(fields: [organizationId], references: [id])
   
   @@map("proof_templates")
+  @@index([name], name: "idx_proof_templates_name")
+  @@index([proofType], name: "idx_proof_templates_proof_type")
+  @@index([isActive], name: "idx_proof_templates_is_active")
+  @@index([isPublic], name: "idx_proof_templates_is_public")
+  @@index([createdAt], name: "idx_proof_templates_created_at")
 }
 
 // Audit log for security sensitive operations

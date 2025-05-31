@@ -72,6 +72,18 @@ const gcpConfig = {
   }
 };
 
+// Audit logging configuration
+const auditLogConfig = {
+  enabled: true,
+  retention: {
+    days: parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '365', 10)
+  },
+  gcpBackup: {
+    enabled: Boolean(process.env.AUDIT_LOG_GCP_BACKUP_ENABLED || isProduction),
+    bucketName: process.env.AUDIT_LOG_GCP_BUCKET || `${gcpConfig.projectId}-audit-logs`
+  }
+};
+
 // ZK Proof configuration
 const zkProofConfig = {
   circuitPaths: {
@@ -94,7 +106,8 @@ export const config = {
   rateLimit: rateLimitConfig,
   logging: loggingConfig,
   gcp: gcpConfig,
-  zkProof: zkProofConfig
+  zkProof: zkProofConfig,
+  auditLog: auditLogConfig
 };
 
 export default config;

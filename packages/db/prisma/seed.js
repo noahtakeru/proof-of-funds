@@ -26,10 +26,14 @@ async function main() {
     const defaultOrg = await prisma.organization.create({
       data: {
         name: 'Proof of Funds Platform',
+        email: 'support@proof-of-funds.example.com',
+        contactPhone: '+1 (555) 123-4567',
+        description: 'Default organization for the Proof of Funds platform. Provides verification services for balance proofs across multiple blockchains.',
         settings: {
           defaultProofExpiry: 604800, // 7 days in seconds
           maxProofsPerUser: 100,
-          allowedProofTypes: ['STANDARD', 'THRESHOLD', 'MAXIMUM', 'ZERO_KNOWLEDGE']
+          allowedProofTypes: ['STANDARD', 'THRESHOLD', 'MAXIMUM', 'ZERO_KNOWLEDGE'],
+          supportedChains: [1, 137, 42161, 10] // Ethereum, Polygon, Arbitrum, Optimism
         }
       }
     });
@@ -45,6 +49,9 @@ async function main() {
           proofType: 'STANDARD',
           threshold: '1000000000000000000', // 1 ETH in wei
           expiryPeriod: 2592000, // 30 days in seconds
+          categoryTags: ['KYC', 'Identity', 'Standard'],
+          isPublic: true,
+          minVerificationInterval: 3600, // 1 hour in seconds
           settings: {
             requiredChains: [1], // Ethereum mainnet
             warningThreshold: 0.8, // Warn if balance drops below 80%
@@ -57,6 +64,9 @@ async function main() {
           proofType: 'THRESHOLD',
           threshold: '10000000000000000000', // 10 ETH in wei
           expiryPeriod: 7776000, // 90 days in seconds
+          categoryTags: ['Investment', 'Threshold', 'Multi-Chain'],
+          isPublic: true,
+          minVerificationInterval: 86400, // 24 hours in seconds
           settings: {
             requiredChains: [1, 137], // Ethereum and Polygon
             allowMultipleWallets: true,
@@ -70,6 +80,9 @@ async function main() {
           proofType: 'MAXIMUM',
           threshold: '100000000000000000000', // 100 ETH in wei
           expiryPeriod: 2592000, // 30 days in seconds
+          categoryTags: ['Regulatory', 'Maximum', 'Limits'],
+          isPublic: false,
+          minVerificationInterval: 43200, // 12 hours in seconds
           settings: {
             requiredChains: [1], // Ethereum mainnet
             warningThreshold: 0.95, // Warn if balance reaches 95% of max

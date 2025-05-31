@@ -1,41 +1,13 @@
 /**
- * Deploy zkey files to Google Cloud Secret Manager
- * Run this after generating keys to upload them securely
+ * Backward compatibility wrapper for deploy-keys-to-gcp.js
+ * Use deploy-keys.js instead for new code
  */
 
-require('dotenv').config();
-const ZKeyManager = require('../packages/backend/utils/zkeyManager');
-const path = require('path');
+const deployKeys = require('./deploy-keys');
 
 async function deployKeysToGCP() {
-  console.log('=== Deploying ZK Keys to Google Cloud Secret Manager ===');
-  
-  const zkeyManager = new ZKeyManager();
-  const circuits = ['standard', 'threshold', 'maximum'];
-  
-  for (const circuit of circuits) {
-    try {
-      const localPath = path.join(
-        __dirname,
-        '..',
-        'circuits',
-        circuit,
-        `${circuit}Proof.zkey`
-      );
-      
-      console.log(`Uploading ${circuit} zkey...`);
-      await zkeyManager.uploadZKey(circuit, localPath);
-      console.log(`✅ ${circuit} zkey uploaded successfully`);
-    } catch (error) {
-      console.error(`❌ Failed to upload ${circuit} zkey:`, error);
-    }
-  }
-  
-  console.log('\n=== Deployment Complete ===');
-  console.log('Remember to:');
-  console.log('1. Remove local zkey files from public directories');
-  console.log('2. Update API endpoints to use ZKeyManager');
-  console.log('3. Set GCP_PROJECT_ID environment variable');
+  console.log('Note: This script is a wrapper for deploy-keys.js');
+  await deployKeys('secret-manager');
 }
 
 // Run if called directly

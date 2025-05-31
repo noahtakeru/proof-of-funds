@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "gcp:setup": "node scripts/setup-gcp.js",
     "gcp:upload-proofs": "node scripts/upload-proof-files.js",
     "gcp:test": "node scripts/test-gcp-setup.js",
@@ -26,12 +29,18 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "server-only": "^0.0.1",
+    "uuid": "^9.0.1",
     "wagmi": "^1.4.13"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/uuid": "^9.0.7",
     "autoprefixer": "^10.4.16",
     "dotenv": "^16.3.1",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.31",
-    "tailwindcss": "^3.3.5"
+    "tailwindcss": "^3.3.5",
+    "ts-jest": "^29.1.1"
   }
 }

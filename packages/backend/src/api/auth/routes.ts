@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { body } from 'express-validator';
 import { validate } from '../../middleware/validation';
 import { authRateLimit } from '../../middleware/rateLimit';
+import { authAuditMiddleware } from '../../middleware/auditMiddleware';
 import * as authController from './controller';
 
 const router = Router();
@@ -43,6 +44,7 @@ router.post('/authenticate',
       .isString()
       .withMessage('Valid nonce is required')
   ]),
+  authAuditMiddleware.login,
   authController.authenticate
 );
 
@@ -56,6 +58,7 @@ router.post('/refresh',
       .isString()
       .withMessage('Valid refresh token is required')
   ]),
+  authAuditMiddleware.tokenRefresh,
   authController.refreshToken
 );
 

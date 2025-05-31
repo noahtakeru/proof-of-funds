@@ -1,6 +1,11 @@
 /**
- * Backward compatibility wrapper for test-fixed-circuit.js
- * Use test-proof-basics.js instead for new code
+ * DEPRECATED: Backward compatibility wrapper for test-fixed-circuit.js
+ * 
+ * ⚠️ DO NOT ADD NEW CODE HERE ⚠️
+ * This file is maintained only for backward compatibility.
+ * For all new tests and modifications, use test-proof-basics.js instead.
+ * 
+ * This wrapper will be removed in a future update.
  */
 
 const { testFieldElements } = require('./test-proof-basics');
