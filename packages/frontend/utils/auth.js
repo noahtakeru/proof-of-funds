@@ -3,58 +3,21 @@
  * 
  * This module provides functions for secure API authentication
  * that integrates with the existing wallet-based auth system.
+ * 
+ * Uses the tokenService shim for consistent token management
+ * across the application.
  */
 
-const jwt = require('jsonwebtoken');
 const { ethers } = require('ethers');
 // Using local shims instead of common package to fix build issues
 const { getSecret } = require('./shims/config/secrets');
 
-// Simple implementation of generateTokenPair for the auth module
-// This matches the functionality from @proof-of-funds/common/src/auth/tokenManager
-async function generateTokenPair(payload, options = {}) {
-  const {
-    accessExpiresIn = '15m',
-    refreshExpiresIn = '7d'
-  } = options;
+// Import tokenService from the shim for proper compatibility with the frontend environment
+const tokenService = require('./shims/auth/tokenService');
 
-  // Get the JWT secret
-  const jwtSecret = await getSecret('JWT_SECRET', { 
-    required: true,
-    fallback: process.env.NODE_ENV !== 'production' ? 
-      'proof-of-funds-jwt-secret-dev-only' : null
-  });
-
-  if (!jwtSecret) {
-    throw new Error('JWT_SECRET is required but not found');
-  }
-
-  // Generate access token
-  const accessToken = jwt.sign(
-    { ...payload, type: 'access' },
-    jwtSecret,
-    { expiresIn: accessExpiresIn }
-  );
-
-  // Generate refresh token
-  const refreshToken = jwt.sign(
-    { ...payload, type: 'refresh' },
-    jwtSecret,
-    { expiresIn: refreshExpiresIn }
-  );
-
-  return {
-    accessToken,
-    refreshToken,
-    expiresIn: 15 * 60 // 15 minutes in seconds
-  };
-}
-
-// Token expiry time
-const JWT_EXPIRY = '24h'; 
-
-// Standard signature message for wallet verification
-const AUTH_MESSAGE = 'Sign this message to authenticate with Proof of Funds API';
+// Import standardized authentication messages
+// Note: Using require instead of import for compatibility with frontend build
+const authMessages = require('./shims/auth/messages');
 
 /**
  * Get admin wallet address from secure storage
@@ -115,9 +78,11 @@ async function generateToken(walletAddress, role = 'user') {
   // Get JWT secret securely
   const JWT_SECRET = await getJwtSecret();
   
-  // Sign the token
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRY
+  // Use the token service to generate the token
+  return tokenService.generateToken(payload, {
+    expiresIn: '24h',
+    type: 'access',
+    secret: JWT_SECRET
   });
 }
 
@@ -166,8 +131,8 @@ async function verifyToken(token) {
     // Get JWT secret securely
     const jwtSecret = await getJwtSecret();
     
-    // Verify and decode the token
-    return jwt.verify(token, jwtSecret);
+    // Use the tokenService to verify the token
+    return tokenService.verifyToken(token, { secret: jwtSecret });
   } catch (error) {
     console.error('Token verification failed:', error.message);
     return null;
@@ -238,36 +203,37 @@ function withAuth(handler, options = {}) {
     
     // No auth at all
     if (!auth) {
-      return res.status(401).json({
-        error: 'unauthorized',
-        message: 'Authentication required'
-      });
+      return res.status(401).json(
+        authMessages.createAuthError(authMessages.AuthErrorCode.UNAUTHORIZED)
+      );
     }
     
     // JWT authentication
     if (auth.type === 'jwt') {
       // Check if token payload is valid
       if (!auth.data) {
-        return res.status(401).json({
-          error: 'unauthorized',
-          message: 'Invalid authentication token'
-        });
+        return res.status(401).json(
+          authMessages.createAuthError(authMessages.AuthErrorCode.INVALID_TOKEN)
+        );
       }
       
       // Check for admin if required
       if (requireAdmin && auth.data.role !== 'admin') {
-        return res.status(403).json({
-          error: 'forbidden',
-          message: 'Admin privileges required'
-        });
+        return res.status(403).json(
+          authMessages.createAuthError(authMessages.AuthErrorCode.FORBIDDEN, {
+            requiredRole: 'admin',
+            currentRole: auth.data.role
+          })
+        );
       }
       
       // Check for wallet if required
       if (requireWallet && !auth.data.walletAddress) {
-        return res.status(401).json({
-          error: 'unauthorized',
-          message: 'Wallet authentication required'
-        });
+        return res.status(401).json(
+          authMessages.createAuthError(authMessages.AuthErrorCode.UNAUTHORIZED, {
+            reason: 'Wallet authentication required'
+          })
+        );
       }
       
       // Add user to request object
@@ -277,10 +243,12 @@ function withAuth(handler, options = {}) {
     // API key authentication (admin only)
     if (auth.type === 'apikey') {
       if (requireAdmin && auth.data.role !== 'admin') {
-        return res.status(403).json({
-          error: 'forbidden',
-          message: 'Admin privileges required'
-        });
+        return res.status(403).json(
+          authMessages.createAuthError(authMessages.AuthErrorCode.FORBIDDEN, {
+            requiredRole: 'admin',
+            currentRole: auth.data.role || 'unknown'
+          })
+        );
       }
       
       req.user = { role: 'admin' };
@@ -318,11 +286,39 @@ async function generateTokenPairForWallet(walletAddress, role = 'user') {
     timestamp: Date.now()
   };
 
-  // Generate token pair using the token manager
-  return await generateTokenPair(payload, {
+  // Get JWT secret securely
+  const jwtSecret = await getJwtSecret();
+
+  // Generate token pair using the token service
+  return await tokenService.generateTokenPair(payload, {
     accessExpiresIn: '15m',  // 15 minutes for access token
-    refreshExpiresIn: '7d'  // 7 days for refresh token
+    refreshExpiresIn: '7d',  // 7 days for refresh token
+    secret: jwtSecret
   });
+}
+
+/**
+ * Refresh tokens using a valid refresh token
+ * @param {string} refreshToken - The refresh token
+ * @returns {Promise<Object|null>} - New token pair or null if refresh failed
+ */
+async function refreshTokens(refreshToken) {
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    // Get JWT secret securely
+    const jwtSecret = await getJwtSecret();
+    
+    // Use the token service to refresh tokens
+    return await tokenService.refreshTokens(refreshToken, { 
+      secret: jwtSecret 
+    });
+  } catch (error) {
+    console.error('Token refresh failed:', error.message);
+    return null;
+  }
 }
 
 // Export the functions
@@ -331,6 +327,7 @@ module.exports = {
   generateTokenPairForWallet,
   verifySignature,
   verifyToken,
+  refreshTokens,
   getAuthFromRequest,
   withAuth,
   getJwtSecret,

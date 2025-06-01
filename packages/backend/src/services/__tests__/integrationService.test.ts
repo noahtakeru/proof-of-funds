@@ -8,7 +8,7 @@
 import { IntegrationService, ProofGenerationParams } from '../integrationService';
 import { PrismaClient, ProofType, ProofStatus } from '@proof-of-funds/db';
 import { ChainAdapterRegistry, ChainType } from '@proof-of-funds/frontend/utils/chains';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
+import * as auditLogger from '@proof-of-funds/common/logging/auditLogger';
 
 // Mock dependencies
 jest.mock('@proof-of-funds/frontend/utils/chains', () => ({
@@ -43,10 +43,12 @@ jest.mock('@proof-of-funds/frontend/services/VerificationResultFormatter', () =>
   }))
 }));
 
-jest.mock('@proof-of-funds/common/src/logging/auditLogger', () => ({
+jest.mock('@proof-of-funds/common/logging/auditLogger', () => ({
   info: jest.fn().mockResolvedValue(true),
   error: jest.fn().mockResolvedValue(true),
   warning: jest.fn().mockResolvedValue(true),
+  log: jest.fn().mockResolvedValue(true),
+  getContextFromRequest: jest.fn().mockReturnValue({}),
   LogCategory: {
     AUTH: 'auth',
     ACCESS: 'access',
@@ -209,12 +211,12 @@ describe('IntegrationService', () => {
       expect(prisma.proof.create).toHaveBeenCalled();
       
       // Verify audit logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.generation.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.generation.complete',
         expect.any(Object),
         expect.any(Object)
@@ -236,14 +238,29 @@ describe('IntegrationService', () => {
       await expect(integrationService.generateProof(params)).rejects.toThrow('Database error');
       
       // Verify error logging
-      expect(auditLogger.default.error).toHaveBeenCalledWith(
-        'proof.verification.error',
+      expect(auditLogger.error).toHaveBeenCalledWith(
+        'proof.generation.error',
         expect.any(Object),
         expect.any(Object)
       );
     });
     
     it('should support different proof types', async () => {
+      // Mock the return value for each proof type test
+      const mockPrismaCreate = prisma.proof.create as jest.Mock;
+      
+      // First call for STANDARD proof
+      mockPrismaCreate.mockResolvedValueOnce({
+        id: 'proof-123',
+        referenceId: 'ref-123',
+        proofType: ProofType.STANDARD,
+        status: 'PENDING',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000), // 1 day
+        warningFlags: [],
+        type: ProofType.STANDARD  // Add explicit type property
+      });
+      
       // Test standard proof
       const standardParams: ProofGenerationParams = {
         userId: 'user-123',
@@ -256,6 +273,18 @@ describe('IntegrationService', () => {
       const standardResult = await integrationService.generateProof(standardParams);
       expect(standardResult.type).toBe(ProofType.STANDARD);
       
+      // Second call for MAXIMUM proof
+      mockPrismaCreate.mockResolvedValueOnce({
+        id: 'proof-123',
+        referenceId: 'ref-124',
+        proofType: ProofType.MAXIMUM,
+        status: 'PENDING',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000), // 1 day
+        warningFlags: [],
+        type: ProofType.MAXIMUM  // Add explicit type property
+      });
+      
       // Test maximum proof
       const maximumParams: ProofGenerationParams = {
         userId: 'user-123',
@@ -267,6 +296,18 @@ describe('IntegrationService', () => {
       
       const maximumResult = await integrationService.generateProof(maximumParams);
       expect(maximumResult.type).toBe(ProofType.MAXIMUM);
+      
+      // Third call for ZERO_KNOWLEDGE proof
+      mockPrismaCreate.mockResolvedValueOnce({
+        id: 'proof-123',
+        referenceId: 'ref-125',
+        proofType: ProofType.ZERO_KNOWLEDGE,
+        status: 'PENDING',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000), // 1 day
+        warningFlags: [],
+        type: ProofType.ZERO_KNOWLEDGE  // Add explicit type property
+      });
       
       // Test zero-knowledge proof
       const zkParams: ProofGenerationParams = {
@@ -305,12 +346,12 @@ describe('IntegrationService', () => {
       expect(prisma.verification.create).toHaveBeenCalled();
       
       // Verify audit logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.complete',
         expect.any(Object),
         expect.any(Object)
@@ -327,7 +368,7 @@ describe('IntegrationService', () => {
       })).rejects.toThrow('Proof not found');
       
       // Verify warning logging
-      expect(auditLogger.default.warning).toHaveBeenCalledWith(
+      expect(auditLogger.warning).toHaveBeenCalledWith(
         'proof.verification.not_found',
         expect.any(Object),
         expect.any(Object)
@@ -364,7 +405,7 @@ describe('IntegrationService', () => {
       expect(result.warningFlags).toContain('PROOF_EXPIRED');
       
       // Verify logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.expired',
         expect.any(Object),
         expect.any(Object)
@@ -402,7 +443,7 @@ describe('IntegrationService', () => {
       expect(result.warningFlags).toContain('PROOF_REVOKED');
       
       // Verify logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.revoked',
         expect.any(Object),
         expect.any(Object)
@@ -486,22 +527,22 @@ describe('IntegrationService', () => {
       expect(prisma.verification.create).toHaveBeenCalled();
       
       // Verify logging for full lifecycle
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.generation.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.generation.complete',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.complete',
         expect.any(Object),
         expect.any(Object)

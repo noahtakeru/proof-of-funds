@@ -1,104 +1,95 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createTestServer = createTestServer;
+exports.authenticatedRequest = authenticatedRequest;
+exports.publicRequest = publicRequest;
+exports.expectSuccess = expectSuccess;
+exports.expectError = expectError;
+const supertest_1 = __importDefault(require("supertest"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const uuid_1 = require("uuid");
 /**
- * API Test Helpers
- * 
- * This module provides utilities for testing API endpoints.
+ * Create a test server for API testing
+ *
+ * @param options Configuration options
+ * @returns Express app
  */
-const supertest = require('supertest');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-
-/**
- * Create an authenticated API request
- * @param {Object} app Express application instance
- * @param {Object} user User object to use for authentication
- * @returns {Object} Supertest request with authentication headers
- */
-function authenticatedRequest(app, user = null) {
-  // Create a default test user if not provided
-  const testUser = user || {
-    id: uuidv4(),
-    address: `0x${uuidv4().replace(/-/g, '').substring(0, 40)}`,
-    permissions: ['USER']
-  };
-  
-  // Generate JWT token
-  const token = jwt.sign(
-    {
-      id: testUser.id,
-      address: testUser.address,
-      permissions: testUser.permissions
-    },
-    process.env.JWT_SECRET || 'test-jwt-secret',
-    { expiresIn: '1h' }
-  );
-  
-  // Return authenticated request
-  return supertest(app)
-    .set('Authorization', `Bearer ${token}`)
-    .set('Content-Type', 'application/json');
+function createTestServer(options = {}) {
+    // Dynamically import the app to prevent it from loading during Jest setup
+    const { app } = require('../src/app');
+    return app;
 }
-
 /**
- * Create an API key authenticated request
- * @param {Object} app Express application instance
- * @param {string} apiKey API key to use for authentication
- * @returns {Object} Supertest request with API key header
+ * Create an authenticated request
+ *
+ * @param app Express application
+ * @param userOrId User object or ID to use in token
+ * @param permissions User permissions
+ * @param address Wallet address
+ * @returns SuperTest instance with auth headers
  */
-function apiKeyRequest(app, apiKey = `api-${uuidv4()}`) {
-  return supertest(app)
-    .set('X-API-Key', apiKey)
-    .set('Content-Type', 'application/json');
+function authenticatedRequest(app, userOrId = (0, uuid_1.v4)(), permissions = ['USER'], address = `0x${(0, uuid_1.v4)().replace(/-/g, '')}`) {
+    // Handle user object or user ID
+    let userId;
+    let userPermissions = permissions;
+    let userAddress = address;
+    if (typeof userOrId === 'object') {
+        // User object provided
+        userId = userOrId.id || (0, uuid_1.v4)();
+        userPermissions = userOrId.permissions || permissions;
+        userAddress = userOrId.address || address;
+    }
+    else {
+        // User ID provided
+        userId = userOrId;
+    }
+    // Generate JWT token for testing
+    const token = jsonwebtoken_1.default.sign({
+        id: userId,
+        address: userAddress,
+        permissions: userPermissions
+    }, process.env.JWT_SECRET || 'test-secret', { expiresIn: '1h' });
+    return (0, supertest_1.default)(app).set('Authorization', `Bearer ${token}`);
 }
-
 /**
- * Create a regular unauthenticated request
- * @param {Object} app Express application instance
- * @returns {Object} Supertest request
+ * Create a public request (no authentication)
+ *
+ * @param app Express application
+ * @returns SuperTest instance
  */
 function publicRequest(app) {
-  return supertest(app)
-    .set('Content-Type', 'application/json');
+    return (0, supertest_1.default)(app);
 }
-
 /**
- * Expect success response with data
- * @param {Object} response Response from supertest
- * @param {number} status Expected status code (default: 200)
+ * Expect a successful response
+ *
+ * @param response API response
+ * @param statusCode Expected status code (default: 200)
+ * @returns The response body for chaining
  */
-function expectSuccess(response, status = 200) {
-  expect(response.status).toBe(status);
-  expect(response.body).toBeTruthy();
+function expectSuccess(response, statusCode = 200) {
+    expect(response.status).toBe(statusCode);
+    expect(response.body).toBeDefined();
+    expect(response.body.error).toBeUndefined();
+    return response.body;
 }
-
 /**
- * Expect error response
- * @param {Object} response Response from supertest
- * @param {number} status Expected status code
- * @param {string} errorCode Expected error code
+ * Expect an error response
+ *
+ * @param response API response
+ * @param status Expected status code
+ * @param errorCode Expected error code
+ * @returns The error object for chaining
  */
-function expectError(response, status, errorCode) {
-  expect(response.status).toBe(status);
-  expect(response.body.error).toBeDefined();
-  expect(response.body.error.code).toBe(errorCode);
+function expectError(response, status = 400, errorCode) {
+    expect(response.status).toBe(status);
+    expect(response.body).toBeDefined();
+    expect(response.body.error).toBeDefined();
+    if (errorCode) {
+        expect(response.body.error.code).toBe(errorCode);
+    }
+    return response.body.error;
 }
-
-/**
- * Create a test server instance
- * @returns {Promise<Object>} Express application instance
- */
-async function createTestServer() {
-  // Use dynamic import to load app
-  const app = require('../src/index').default;
-  
-  // Return Express app
-  return app;
-}
-
-module.exports = {
-  authenticatedRequest,
-  apiKeyRequest,
-  publicRequest,
-  expectSuccess,
-  expectError,
-  createTestServer
-};

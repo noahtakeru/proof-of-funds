@@ -8,9 +8,10 @@ import authRoutes from './auth/routes';
 import proofRoutes from './proofs/routes';
 import verifyRoutes from './verify/routes';
 import auditLogRoutes from './audit-logs/routes';
+import userRoutes from './user';
+import securityDashboardRoutes from '../routes/securityDashboardRoutes';
 
 // For future implementation
-// import userRoutes from './users/routes';
 // import walletRoutes from './wallets/routes';
 // import organizationRoutes from './organizations/routes';
 
@@ -22,9 +23,10 @@ router.use('/auth', authRoutes);
 router.use('/proofs', proofRoutes);
 router.use('/verify', verifyRoutes);
 router.use('/audit-logs', auditLogRoutes);
+router.use('/user', userRoutes);
+router.use('/security-dashboard', securityDashboardRoutes);
 
 // For future implementation
-// router.use('/users', userRoutes);
 // router.use('/wallets', walletRoutes);
 // router.use('/organizations', organizationRoutes);
 

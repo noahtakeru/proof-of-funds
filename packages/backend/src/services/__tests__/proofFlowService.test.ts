@@ -7,8 +7,9 @@
 import { ProofFlowService, ProofCreationParams } from '../proofFlowService';
 import { IntegrationService } from '../integrationService';
 import { ProofType, ProofStatus } from '@proof-of-funds/db';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
-import performanceBenchmark from '../../utils/performanceBenchmark';
+import * as auditLogger from '@proof-of-funds/common/logging/auditLogger';
+import * as performanceBenchmarkModule from '../../utils/performanceBenchmark';
+const performanceBenchmark = performanceBenchmarkModule.default;
 
 // Mock dependencies
 jest.mock('../integrationService', () => ({
@@ -36,20 +37,24 @@ jest.mock('../integrationService', () => ({
   }))
 }));
 
-jest.mock('@proof-of-funds/common/src/logging/auditLogger', () => ({
+jest.mock('@proof-of-funds/common/logging/auditLogger', () => ({
   info: jest.fn().mockResolvedValue(true),
   error: jest.fn().mockResolvedValue(true),
   warning: jest.fn().mockResolvedValue(true),
-  default: {
-    info: jest.fn().mockResolvedValue(true),
-    error: jest.fn().mockResolvedValue(true),
-    warning: jest.fn().mockResolvedValue(true)
+  log: jest.fn().mockResolvedValue(true),
+  getContextFromRequest: jest.fn().mockReturnValue({}),
+  LogCategory: {
+    SECURITY: 'SECURITY',
+    AUTHENTICATION: 'AUTHENTICATION',
+    PROOF: 'PROOF',
+    VERIFICATION: 'VERIFICATION',
+    SYSTEM: 'SYSTEM'
   }
 }));
 
-jest.mock('../../utils/performanceBenchmark', () => ({
-  measure: jest.fn().mockImplementation(async (name, fn) => fn()),
-  getReport: jest.fn().mockReturnValue({
+jest.mock('../../utils/performanceBenchmark', () => {
+  const mockMeasure = jest.fn().mockImplementation(async (name, fn) => fn());
+  const mockGetReport = jest.fn().mockReturnValue({
     'proof_generation.threshold': {
       count: 1,
       avgTime: 150.5,
@@ -62,25 +67,18 @@ jest.mock('../../utils/performanceBenchmark', () => ({
       minTime: 50.3,
       maxTime: 50.3
     }
-  }),
-  default: {
-    measure: jest.fn().mockImplementation(async (name, fn) => fn()),
-    getReport: jest.fn().mockReturnValue({
-      'proof_generation.threshold': {
-        count: 1,
-        avgTime: 150.5,
-        minTime: 150.5,
-        maxTime: 150.5
-      },
-      'proof_verification': {
-        count: 1,
-        avgTime: 50.3,
-        minTime: 50.3,
-        maxTime: 50.3
-      }
-    })
-  }
-}));
+  });
+  
+  return {
+    measure: mockMeasure,
+    getReport: mockGetReport,
+    __esModule: true,
+    default: {
+      measure: mockMeasure,
+      getReport: mockGetReport
+    }
+  };
+});
 
 jest.mock('@proof-of-funds/db', () => ({
   ProofType: {
@@ -137,19 +135,19 @@ describe('ProofFlowService', () => {
       });
       
       // Verify performance measurement
-      expect(performanceBenchmark.default.measure).toHaveBeenCalledWith(
+      expect(performanceBenchmark.measure).toHaveBeenCalledWith(
         'proof_generation.threshold',
         expect.any(Function),
         expect.any(Object)
       );
       
       // Verify audit logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.flow.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.flow.complete',
         expect.any(Object),
         expect.any(Object)
@@ -244,7 +242,7 @@ describe('ProofFlowService', () => {
       await expect(proofFlowService.createProof(params)).rejects.toThrow('Proof generation failed');
       
       // Verify error logging
-      expect(auditLogger.default.error).toHaveBeenCalledWith(
+      expect(auditLogger.error).toHaveBeenCalledWith(
         'proof.flow.error',
         expect.any(Object),
         expect.any(Object)
@@ -269,19 +267,19 @@ describe('ProofFlowService', () => {
       });
       
       // Verify performance measurement
-      expect(performanceBenchmark.default.measure).toHaveBeenCalledWith(
+      expect(performanceBenchmark.measure).toHaveBeenCalledWith(
         'proof_verification',
         expect.any(Function),
         expect.any(Object)
       );
       
       // Verify audit logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.flow.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.verification.flow.complete',
         expect.any(Object),
         expect.any(Object)
@@ -314,7 +312,7 @@ describe('ProofFlowService', () => {
       expect(result).toBe(false);
       
       // Verify error logging
-      expect(auditLogger.default.error).toHaveBeenCalledWith(
+      expect(auditLogger.error).toHaveBeenCalledWith(
         'proof.verification.flow.error',
         expect.any(Object),
         expect.any(Object)
@@ -354,12 +352,12 @@ describe('ProofFlowService', () => {
       expect(mockIntegrationService.generateProof).toHaveBeenCalledTimes(2);
       
       // Verify audit logging
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.batch.start',
         expect.any(Object),
         expect.any(Object)
       );
-      expect(auditLogger.default.info).toHaveBeenCalledWith(
+      expect(auditLogger.info).toHaveBeenCalledWith(
         'proof.batch.complete',
         expect.any(Object),
         expect.any(Object)
@@ -402,7 +400,7 @@ describe('ProofFlowService', () => {
       )).rejects.toThrow('Batch processing failed');
       
       // Verify error logging
-      expect(auditLogger.default.error).toHaveBeenCalledWith(
+      expect(auditLogger.error).toHaveBeenCalledWith(
         'proof.batch.error',
         expect.any(Object),
         expect.any(Object)
@@ -414,9 +412,10 @@ describe('ProofFlowService', () => {
     it('should return performance metrics from the benchmark utility', () => {
       const metrics = proofFlowService.getPerformanceMetrics();
       
-      // Verify metrics structure
-      expect(metrics).toHaveProperty('proof_generation.threshold');
-      expect(metrics).toHaveProperty('proof_verification');
+      // Verify metrics structure is an object with specific properties
+      expect(typeof metrics).toBe('object');
+      expect(Object.keys(metrics)).toContain('proof_generation.threshold');
+      expect(Object.keys(metrics)).toContain('proof_verification');
       expect(metrics['proof_generation.threshold']).toHaveProperty('avgTime');
       expect(metrics['proof_verification']).toHaveProperty('avgTime');
     });

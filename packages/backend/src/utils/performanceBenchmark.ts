@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
+import auditLogger from '@proof-of-funds/common/logging/auditLogger';
 
 // Interface for metric data
 export interface MetricData {

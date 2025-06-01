@@ -210,4 +210,25 @@ class AuditLogger {
 // Create singleton instance
 const auditLogger = new AuditLogger();
 
-module.exports = auditLogger;
+// Add direct method exports for compatibility with tests
+const info = (message, data = {}, context = {}) => auditLogger.log('INFO', data, { message, ...context });
+const error = (message, data = {}, context = {}) => auditLogger.log('ERROR', data, { message, ...context });
+const warning = (message, data = {}, context = {}) => auditLogger.log('WARNING', data, { message, ...context });
+const debug = (message, data = {}, context = {}) => auditLogger.log('DEBUG', data, { message, ...context });
+
+// Export both the instance and direct methods
+module.exports = {
+  ...auditLogger,
+  info,
+  error,
+  warning,
+  debug,
+  // Add LogCategory enum for compatibility with tests
+  LogCategory: {
+    SECURITY: 'SECURITY',
+    AUTHENTICATION: 'AUTHENTICATION',
+    PROOF: 'PROOF',
+    VERIFICATION: 'VERIFICATION',
+    SYSTEM: 'SYSTEM'
+  }
+};

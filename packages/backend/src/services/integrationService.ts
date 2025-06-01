@@ -14,7 +14,7 @@ import { ZKProofService } from './zkProofService';
 import { TransactionHistoryProcessor } from '@proof-of-funds/frontend/services/TransactionHistoryProcessor';
 import { BlacklistChecker } from '@proof-of-funds/frontend/services/BlacklistChecker';
 import { VerificationResultFormatter } from '@proof-of-funds/frontend/services/VerificationResultFormatter';
-import auditLogger, { LogCategory, LogSeverity } from '@proof-of-funds/common/src/logging/auditLogger';
+import auditLogger, { LogCategory, LogSeverity } from '@proof-of-funds/common/logging/auditLogger';
 import { PrismaClient, ProofType, ProofStatus, WalletType } from '@proof-of-funds/db';
 import { ethers } from 'ethers';
 import { randomBytes } from 'crypto';

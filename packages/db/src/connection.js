@@ -47,12 +47,13 @@ const directDbConfig = {
   port: 5432,
   user: NODE_ENV === 'test' ? 'zkp_test_user' : 'zkp_dev_user',
   password: NODE_ENV === 'test' ? '=+^4d;Q+SCa]{-ra' : 'Lt#VKfuATdJ*F/0Y',
-  database: NODE_ENV === 'test' ? 'zkp_test' : 'zkp_dev'
+  database: NODE_ENV === 'test' ? 'zkp_test' : 'zkp_dev',
+  ssl: false // Explicitly disable SSL for these test databases
 };
 
 // Create a properly formatted URL for Prisma
 const encodedPassword = encodeURIComponent(directDbConfig.password);
-const formattedUrl = `postgresql://${directDbConfig.user}:${encodedPassword}@${directDbConfig.host}:${directDbConfig.port}/${directDbConfig.database}`;
+const formattedUrl = `postgresql://${directDbConfig.user}:${encodedPassword}@${directDbConfig.host}:${directDbConfig.port}/${directDbConfig.database}?sslmode=disable`;
 
 // Update DATABASE_URL with properly encoded version
 DATABASE_URL = formattedUrl;

@@ -167,11 +167,10 @@ When running in development mode, the app will use the credentials specified in 
 
 ### Folder Structure
 
-- `/packages/backend/utils/zkeyManager.js` - GCP Secret Manager client
-- `/packages/backend/utils/zkeyStorageManager.js` - Cloud Storage client for zkeys
-- `/scripts/deploy-keys.js` - Deploys keys to GCP (consolidated script)
-- `/scripts/deploy-keys-to-gcp.js` - Legacy script (wrapper for deploy-keys.js)
-- `/scripts/deploy-keys-to-storage.js` - Legacy script (wrapper for deploy-keys.js)
+- `/packages/backend/utils/zkeyProvider.ts` - Unified ZKey provider interface
+- `/packages/backend/utils/zkeySecretManagerProvider.ts` - GCP Secret Manager implementation
+- `/packages/backend/utils/zkeyCloudStorageProvider.ts` - Cloud Storage implementation
+- `/scripts/deploy-keys.js` - Deploys keys to GCP (single consolidated script)
 - `/scripts/test-cloud-storage-util.js` - Tests GCP storage configuration
 - `/scripts/test-complete-setup.js` - Tests complete GCP integration
 - `/packages/frontend/pages/api/zk/generateProofCloudStorage.js` - Secure API endpoint

@@ -73,46 +73,22 @@ const MultiChainAssetDisplay = ({ assetSummary, showUSDValues, isLoading, error,
 
     // Helper to get the native symbol for a chain
     const getNativeSymbol = (chain) => {
-        const chainMap = {
-            ethereum: 'ETH',
-            polygon: 'MATIC',
-            'polygon-amoy': 'MATIC', // Add Polygon Amoy explicitly
-            amoy: 'MATIC',          // Alternative name that might be used
-            mumbai: 'MATIC',
-            bsc: 'BNB',
-            binance: 'BNB',
-            solana: 'SOL',
-            arbitrum: 'ETH',
-            optimism: 'ETH',
-            avalanche: 'AVAX',
-            fantom: 'FTM',
-            hardhat: 'ETH',
-            sepolia: 'ETH',
-            goerli: 'ETH'
-        };
+        // Import from centralized chain mappings
+        const { CHAIN_NATIVE_TOKENS } = require('@proof-of-funds/common/utils/chainMappings');
         
         // Ensure chain is a string for conversion to lowercase
         const chainStr = String(chain || '').toLowerCase();
-        return chainMap[chainStr] || chainStr.toUpperCase() || 'UNKNOWN';
+        return CHAIN_NATIVE_TOKENS[chainStr] || chainStr.toUpperCase() || 'UNKNOWN';
     };
 
     // Simple network mismatch detection - chain-agnostic
     // Check if there's a mismatch between detected chain and displayed assets
     // Map chain ID to chain name for comparing with asset data
-    const chainIdNameMap = {
-      1: 'ethereum',
-      5: 'goerli',
-      11155111: 'sepolia',
-      137: 'polygon',
-      80001: 'mumbai',
-      80002: 'polygon-amoy', // Add Polygon Amoy explicitly
-      42161: 'arbitrum',
-      10: 'optimism',
-      56: 'bsc'
-    };
+    // Use centralized chain mappings
+    const { CHAIN_IDS } = require('@proof-of-funds/common/utils/chainMappings');
     
     // Get expected chain name based on detected chain ID
-    const mappedChainName = chainIdNameMap[chainId] || '';
+    const mappedChainName = CHAIN_IDS[chainId] || '';
     
     // Network mismatch warning is no longer needed with multi-chain scanning
     // but we'll keep it for cases where a user might have assets on chains we're not scanning

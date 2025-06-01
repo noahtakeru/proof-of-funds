@@ -7,7 +7,7 @@
 
 import { IntegrationService, ProofGenerationParams, ProofVerificationParams } from './integrationService';
 import { ProofType, ProofStatus } from '@proof-of-funds/db';
-import auditLogger from '@proof-of-funds/common/src/logging/auditLogger';
+import auditLogger from '@proof-of-funds/common/logging/auditLogger';
 import performanceBenchmark from '../utils/performanceBenchmark';
 import { ethers } from 'ethers';
 

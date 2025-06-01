@@ -343,6 +343,20 @@ async function revokeTokens(accessToken, refreshToken) {
   }
 }
 
+/**
+ * Decode a token without verification
+ * @param {string} token - Token to decode
+ * @returns {Object|null} - Decoded payload or null if invalid
+ */
+function decodeToken(token) {
+  try {
+    return jwt.decode(token);
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return null;
+  }
+}
+
 module.exports = {
   generateToken,
   generateTokenPair,
@@ -351,6 +365,5 @@ module.exports = {
   revokeTokens,
   blacklistToken,
   isTokenBlacklisted,
-  // For backward compatibility
-  refreshAccessToken: refreshTokens
+  decodeToken
 };
