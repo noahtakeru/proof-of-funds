@@ -382,30 +382,99 @@ This phase is about enhancing what already exists, not adding entirely new model
 
 ## Phase 2: Authentication System
 
-**Duration: 2 weeks**
+**Duration: 1 week**
 
 ### 2.1 Consumer Authentication
 
-- Enhance existing wallet-based authentication
-- Add email verification layer
-- Implement session management with proper JWT handling
-- Create account preferences and settings storage
+#### Wallet Authentication Enhancements
+- Maintain existing wallet signature verification flow
+- Add database logging for successful wallet authentications:
+  - Create `wallet_auth_logs` table with fields:
+    ```
+    id: UUID
+    user_id: UUID
+    wallet_address: STRING
+    chain_id: INTEGER
+    signed_message: STRING
+    signature: STRING
+    timestamp: TIMESTAMP
+    ip_address: STRING (optional)
+    user_agent: STRING (optional)
+    ```
+  - Implement logging middleware in `packages/backend/src/middleware/walletAuthLogger.ts`
+  - Add successful authentication tracking to audit logs
 
-### 2.2 Business Authentication
+#### Email Authentication Implementation
+- Create email authentication endpoints in `packages/backend/src/api/auth/`:
+  ```
+  POST /api/auth/email/register - Register with email and password
+  POST /api/auth/email/login - Login with email and password
+  POST /api/auth/email/verify/:token - Verify email with token
+  POST /api/auth/email/resend-verification - Resend verification email
+  POST /api/auth/email/forgot-password - Send password reset email
+  POST /api/auth/email/reset-password/:token - Reset password with token
+  ```
+- Implement secure password handling with bcrypt:
+  - Add password hashing utilities in `packages/backend/src/utils/passwordUtils.ts`
+  - Implement proper salt generation and hash comparison
+- Create email verification service in `packages/backend/src/services/emailVerificationService.ts`:
+  - Generate verification tokens with crypto-secure randomness
+  - Store tokens with expiration timestamps (24-hour validity)
+  - Send verification emails with properly formatted links
+  - Create email templates in `packages/backend/src/templates/emails/`
 
-- Build organization account system
-- Implement role-based access control
-- Create team member invitation workflow
-- Add two-factor authentication for business accounts
+#### JWT Session Management
+- Implement unified JWT service in `packages/backend/src/services/jwtService.ts`:
+  - Generate tokens with proper claims and expiration (15-30 min access tokens)
+  - Support both wallet and email authentication contexts
+  - Create token blacklisting mechanism for logout and security
+  - Implement refresh tokens with longer expiration (7 days)
+- Create authentication middleware in `packages/backend/src/middleware/authMiddleware.ts`:
+  - Add JWT verification and validation
+  - Extract user context from tokens
+  - Handle expired tokens with refresh flow
+  - Support multiple auth strategies (wallet and email)
+- Implement token refresh endpoints:
+  ```
+  POST /api/auth/refresh-token - Refresh expired access token
+  POST /api/auth/logout - Invalidate tokens on logout
+  ```
 
-### 2.3 Shared Authentication Infrastructure
+#### User Preferences Storage
+- Extend User model in database with preferences fields:
+  ```
+  notification_preferences: JSONB
+  ui_preferences: JSONB
+  default_network: INTEGER
+  ```
+- Create user preferences endpoints:
+  ```
+  GET /api/user/preferences - Get user preferences
+  PUT /api/user/preferences - Update user preferences
+  ```
+- Implement preferences service in `packages/backend/src/services/userPreferencesService.ts`:
+  - Handle preferences validation and sanitization
+  - Implement preference change logging
+  - Add default preferences for new users
 
-- Develop unified auth service
-- Implement token rotation and refresh
-- Create rate limiting and security monitoring
-- Build auth-related API endpoints
+#### Frontend Implementation
+- Create authentication context provider in `packages/frontend/contexts/AuthContext.tsx`
+- Implement authentication hooks in `packages/frontend/hooks/useAuth.ts`
+- Build login forms for both wallet and email auth in `packages/frontend/components/auth/`
+- Add profile and preferences UI components in `packages/frontend/components/user/`
+- Implement secure token storage using HttpOnly cookies or localStorage with proper security measures
 
-### 2.4 Security Monitoring & Rate Limiting
+#### Security Considerations
+- Implement rate limiting for authentication endpoints:
+  - Add rate limit by IP address (10 attempts per minute)
+  - Add account-specific rate limits (5 failed attempts before temporary lockout)
+- Add security headers for authentication endpoints:
+  - SameSite=Strict for cookies
+  - CSRF protection tokens
+  - Content-Security-Policy headers
+- Implement proper error handling that doesn't leak sensitive information
+
+### 2.2 Security Monitoring & Rate Limiting
 
 - Implement comprehensive rate limiting across all sensitive endpoints:
   - Authentication attempts (per IP, per user)
@@ -468,6 +537,84 @@ This phase is about enhancing what already exists, not adding entirely new model
     vkeyHash: string;
     finalizedAt: string;
     isActive: boolean;
+  }
+  ```
+
+### 3.4 ZKVerifier Contract Implementation
+
+> **IMPORTANT**: This task addresses the placeholder verification logic in ZKVerifier.sol that was identified during code review.
+
+- Replace placeholder verification logic in ZKVerifier.sol with actual zk-SNARK verification:
+  - Implement proper cryptographic verification using Groth16 verifier
+  - Create specialized verifier contracts for each proof type (Standard, Threshold, Maximum)
+  - Replace basic length validation (`_proof.length >= 160`) with real proof validation
+  - Update the verifyProofData function to use actual verification logic
+  - Ensure all placeholder comments are addressed and implemented correctly
+  - Add comprehensive test suite for verifier contracts
+
+- Implementation approach:
+  ```solidity
+  // Example implementation for verifyProofData (to replace current placeholder)
+  function verifyProofData(
+      bytes memory _proof,
+      bytes memory _publicSignals,
+      ZKProofType _proofType
+  ) private view returns (bool) {
+      // Decode proof and public signals
+      (uint256[2] memory a, uint256[2][2] memory b, uint256[2] memory c) = abi.decode(_proof, (uint256[2], uint256[2][2], uint256[2]));
+      uint256[] memory input = abi.decode(_publicSignals, (uint256[]));
+      
+      // Route to appropriate verifier contract based on proof type
+      if (_proofType == ZKProofType.Standard) {
+          return StandardProofVerifier.verifyProof(a, b, c, input);
+      } else if (_proofType == ZKProofType.Threshold) {
+          return ThresholdProofVerifier.verifyProof(a, b, c, input);
+      } else if (_proofType == ZKProofType.Maximum) {
+          return MaximumProofVerifier.verifyProof(a, b, c, input);
+      }
+      
+      return false;
+  }
+  ```
+
+### 3.5 Smart Contract Integration Enhancement
+
+> **IMPORTANT**: This task addresses the basic verification logic in smart contract integration code that was identified during code review.
+
+- Enhance contract interaction code with comprehensive verification capabilities:
+  - Update frontend contract integration in `packages/frontend/utils/zkProofHandler.js`
+  - Improve backend integration in `packages/backend/src/services/zkProofService.ts`
+  - Implement full Groth16 proof verification instead of basic validation
+  - Add support for verifying all proof types with specialized logic
+  - Create proper error handling and validation messaging
+  - Add proof verification metrics and telemetry
+
+- Implementation approach:
+  ```typescript
+  // Example improved verification code
+  async function verifyZKProof(proof, publicSignals, proofType) {
+    // Decode and format the proof for contract verification
+    const formattedProof = formatProofForContract(proof);
+    
+    // Connect to appropriate verifier contract based on proof type
+    const verifierContract = await getVerifierContract(proofType);
+    
+    // Perform verification with full cryptographic checks
+    const isValid = await verifierContract.verifyProof(
+      formattedProof.a,
+      formattedProof.b,
+      formattedProof.c,
+      publicSignals
+    );
+    
+    // Log verification metrics
+    await auditLogger.log('zk.proof.verification', {
+      proofType,
+      isValid,
+      executionTime: performance.now() - startTime
+    });
+    
+    return isValid;
   }
   ```
 
@@ -572,6 +719,8 @@ This phase is about enhancing what already exists, not adding entirely new model
 - Enhanced balance verification circuits
 - Basic blacklist verification
 - Updated circuit compilation and key generation scripts
+- **Complete ZKVerifier contract implementation replacing placeholder code**
+- **Enhanced smart contract integration with full verification capabilities**
 - Circuit testing framework
 - Circuit schema manifest system
 - Initial verification key management
@@ -587,30 +736,97 @@ This phase is about enhancing what already exists, not adding entirely new model
 
 ## Phase 4: Institutional Interface
 
-**Duration: 2 weeks**
+**Duration: 3 weeks**
 
-### 4.1 Heuristic Configuration UI
+### 4.1 Business Authentication
+
+#### Organization Account System
+- Create organization account database schema extensions:
+  ```
+  organizations: Add business-specific fields (tax ID, business type, verification status)
+  organization_memberships: Track users, roles, and permissions
+  organization_invitations: Store pending invitations
+  ```
+- Implement organization registration endpoints in `packages/backend/src/api/organizations/`:
+  ```
+  POST /api/organizations - Create new organization
+  GET /api/organizations/:id - Get organization details
+  PUT /api/organizations/:id - Update organization details
+  GET /api/organizations/:id/memberships - List organization members
+  ```
+- Build organization account service in `packages/backend/src/services/organizationService.ts`:
+  - Organization creation with validation
+  - Organization update with permission checks
+  - Organization status management
+  - Business verification process handling
+
+#### Role-Based Access Control (RBAC)
+- Implement role management system in `packages/backend/src/services/rbacService.ts`:
+  - Define standard roles (Owner, Admin, Member, Viewer)
+  - Implement permission sets for each role
+  - Create permission checking middleware
+  - Add role assignment and management functions
+- Create role management endpoints:
+  ```
+  GET /api/organizations/:id/roles - List available roles
+  PUT /api/organizations/:id/memberships/:userId/role - Update member role
+  ```
+- Add role-based UI rendering in frontend components
+
+#### Team Member Invitation Workflow
+- Implement invitation system in `packages/backend/src/services/invitationService.ts`:
+  - Generate secure invitation tokens
+  - Store invitations with expiration (7 days)
+  - Handle invitation acceptance and rejection
+  - Implement email notification for invitations
+- Create invitation endpoints:
+  ```
+  POST /api/organizations/:id/invitations - Send new invitation
+  GET /api/organizations/:id/invitations - List pending invitations
+  PUT /api/invitations/:token/accept - Accept invitation
+  PUT /api/invitations/:token/decline - Decline invitation
+  DELETE /api/organizations/:id/invitations/:id - Cancel invitation
+  ```
+- Add invitation management UI in `packages/frontend/components/organizations/`
+
+#### Two-Factor Authentication (2FA)
+- Implement 2FA service in `packages/backend/src/services/twoFactorService.ts`:
+  - TOTP (Time-based One-Time Password) implementation
+  - QR code generation for setup
+  - Backup code generation and management
+  - 2FA verification workflow
+- Create 2FA endpoints:
+  ```
+  POST /api/user/2fa/setup - Initialize 2FA setup
+  POST /api/user/2fa/verify - Verify and activate 2FA
+  POST /api/user/2fa/disable - Disable 2FA
+  POST /api/user/2fa/backup-codes - Generate new backup codes
+  ```
+- Build 2FA setup and verification UI components
+- Add 2FA enforcement for business-critical operations
+
+### 4.2 Heuristic Configuration UI
 
 - Build template creation interface
 - Implement rule builder with UI components
 - Create template management dashboard
 - Add template versioning and archiving
 
-### 4.2 Form Generation System
+### 4.3 Form Generation System
 
 - Create dynamic form generation based on templates
 - Implement customizable branding options
 - Build form preview functionality
 - Add form analytics and tracking
 
-### 4.3 Team Management
+### 4.4 Team Management
 
 - Implement organization settings interface
 - Build user role and permission management
 - Create audit logging for administrative actions
 - Implement invitation and user management
 
-### 4.4 Basic Consent Management
+### 4.5 Basic Consent Management
 
 > **IMPORTANT**: This feature should only be implemented during Phase 4. Do not create user consent models, database tables, or related functionality prematurely during earlier phases.
 
@@ -1957,7 +2173,69 @@ Please update this section with progress as implementation proceeds, following r
     - Set up secure API endpoint using GCP storage in `packages/frontend/pages/api/zk/generateProofCloudStorage.js`
 
 ### Phase 2 Progress
-*Not started*
+**Phase 2: Authentication System - 🔄 IN PROGRESS**
+
+- **2.1 Consumer Authentication - ✅ COMPLETED**
+  - ✅ Wallet Authentication Enhancements
+    - Implemented wallet authentication logging in `packages/backend/src/middleware/walletAuthLogger.ts`
+    - Added comprehensive audit log integration for wallet authentication
+    - Implemented secure nonce generation and verification
+  - ✅ Email Authentication Implementation
+    - Created email authentication service in `packages/backend/src/services/emailAuthService.ts`
+    - Implemented password handling utilities in `packages/backend/src/utils/passwordUtils.ts`
+    - Created email verification service in `packages/backend/src/services/emailVerificationService.ts`
+    - Implemented email sending utility in `packages/backend/src/utils/emailSender.ts`
+    - Created comprehensive auth endpoints in `packages/backend/src/api/user/auth.ts`
+  - ✅ JWT Session Management
+    - Implemented unified JWT service in `packages/backend/src/services/jwtService.ts`
+    - Added token refresh and blacklisting for secure logout
+    - Implemented proper token expiration handling with refresh flow
+  - ✅ User Preferences Storage
+    - Created user preferences service in `packages/backend/src/services/userPreferencesService.ts`
+    - Implemented preferences API endpoints in `packages/backend/src/api/user/preferences.ts`
+  - ✅ Frontend Implementation
+    - Created authentication context provider in `packages/frontend/contexts/AuthContext.tsx`
+    - Implemented authentication hooks in `packages/frontend/hooks/useAuthentication.ts` and `packages/frontend/hooks/useWallet.ts`
+    - Built login and registration components in `packages/frontend/components/auth/`
+    - Added profile and preferences components
+  - ✅ Security Considerations
+    - Implemented rate limiting for authentication endpoints in `packages/backend/src/middleware/rateLimit.ts`
+    - Added CSRF protection in `packages/backend/src/middleware/csrf.ts`
+    - Implemented secure HTTP headers in `packages/backend/src/middleware/secureHeaders.ts`
+    - Added proper error handling for authentication flows
+  - ✅ Testing
+    - Created comprehensive test suite for email authentication in `packages/backend/src/__tests__/services/emailAuthService.test.ts`
+    - Implemented test utilities and mocks for authentication testing
+
+- **2.2 Security Monitoring & Rate Limiting - ✅ COMPLETED**
+    - ✅ Enhanced Rate Limiting Implementation
+      - Implemented IP reputation-based rate limiting in `packages/common/src/security/ipReputationTracker.ts`
+      - Created comprehensive middleware in `packages/backend/src/middleware/enhancedRateLimit.ts`
+      - Implemented adaptive rate limiting based on reputation score and endpoint sensitivity
+      - Configured different rate limits for various resource types (auth, proof, verification, API)
+      - Integrated with Redis for distributed rate limiting with fallback to in-memory
+    - ✅ Security Monitoring Dashboard
+      - Created security monitoring service in `packages/backend/src/services/securityMonitoringService.ts`
+      - Implemented security alert system with severity levels and categorization
+      - Added security metrics collection and aggregation
+      - Created security dashboard controller in `packages/backend/src/controllers/securityDashboardController.ts`
+      - Implemented security dashboard routes in `packages/backend/src/routes/securityDashboardRoutes.ts`
+    - ✅ Suspicious Activity Detection
+      - Implemented pattern detection for authentication failures, rate limit breaches, and abnormal access patterns
+      - Created alert system for suspicious activity with categorization and severity levels
+      - Added automated blocking for highly suspicious IPs
+    - ✅ IP Reputation System
+      - Implemented comprehensive IP reputation tracking system with scoring
+      - Created reputation event tracking with impact-based scoring model
+      - Added country, ASN, and ISP tracking for enhanced security context
+      - Implemented secure storage of reputation data with privacy protection
+    - ✅ Integration with Existing Systems
+      - Integrated with audit logging system for comprehensive security event tracking
+      - Updated main API configuration to use enhanced rate limiting in `packages/backend/src/index.ts`
+      - Added security dashboard routes to API in `packages/backend/src/api/index.ts`
+    - ✅ Testing
+      - Created comprehensive test suite for IP reputation system in `packages/backend/test/security/ipReputationTracker.test.ts`
+      - Implemented test cases for enhanced rate limiting in `packages/backend/test/security/enhancedRateLimit.test.ts`
 
 ### Phase 3 Progress
 *Not started*

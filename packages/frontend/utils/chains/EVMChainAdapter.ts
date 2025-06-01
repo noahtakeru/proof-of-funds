@@ -14,64 +14,74 @@ import {
   ChainAccount
 } from './ChainAdapter';
 
+// Import centralized chain mappings
+import { 
+  CHAIN_IDS, 
+  CHAIN_NAMES, 
+  CHAIN_NATIVE_TOKENS,
+  CHAIN_EXPLORER_URLS,
+  CHAIN_RPC_URLS
+} from '@proof-of-funds/common/utils/chainMappings';
+
 // Network configurations for supported EVM chains
+// Enhanced with data from centralized chain mappings
 export const EVM_NETWORKS = {
   1: {
     name: 'Ethereum Mainnet',
-    rpcUrl: 'https://mainnet.infura.io/v3/${INFURA_ID}',
-    blockExplorer: 'https://etherscan.io',
-    symbol: 'ETH',
+    rpcUrl: CHAIN_RPC_URLS['ethereum'] || 'https://mainnet.infura.io/v3/${INFURA_ID}',
+    blockExplorer: CHAIN_EXPLORER_URLS['ethereum'] || 'https://etherscan.io',
+    symbol: CHAIN_NATIVE_TOKENS['ethereum'] || 'ETH',
     decimals: 18,
     logo: '/assets/networks/ethereum.svg'
   },
   137: {
     name: 'Polygon',
-    rpcUrl: 'https://polygon-rpc.com',
-    blockExplorer: 'https://polygonscan.com',
-    symbol: 'MATIC',
+    rpcUrl: CHAIN_RPC_URLS['polygon'] || 'https://polygon-rpc.com',
+    blockExplorer: CHAIN_EXPLORER_URLS['polygon'] || 'https://polygonscan.com',
+    symbol: CHAIN_NATIVE_TOKENS['polygon'] || 'MATIC',
     decimals: 18,
     logo: '/assets/networks/polygon.svg'
   },
   42161: {
     name: 'Arbitrum',
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
-    blockExplorer: 'https://arbiscan.io',
-    symbol: 'ETH',
+    rpcUrl: CHAIN_RPC_URLS['arbitrum'] || 'https://arb1.arbitrum.io/rpc',
+    blockExplorer: CHAIN_EXPLORER_URLS['arbitrum'] || 'https://arbiscan.io',
+    symbol: CHAIN_NATIVE_TOKENS['arbitrum'] || 'ETH',
     decimals: 18,
     logo: '/assets/networks/arbitrum.svg'
   },
   10: {
     name: 'Optimism',
-    rpcUrl: 'https://mainnet.optimism.io',
-    blockExplorer: 'https://optimistic.etherscan.io',
-    symbol: 'ETH',
+    rpcUrl: CHAIN_RPC_URLS['optimism'] || 'https://mainnet.optimism.io',
+    blockExplorer: CHAIN_EXPLORER_URLS['optimism'] || 'https://optimistic.etherscan.io',
+    symbol: CHAIN_NATIVE_TOKENS['optimism'] || 'ETH',
     decimals: 18,
     logo: '/assets/networks/optimism.svg'
   },
   // Testnet support
   11155111: {
     name: 'Sepolia',
-    rpcUrl: 'https://sepolia.infura.io/v3/${INFURA_ID}',
-    blockExplorer: 'https://sepolia.etherscan.io',
-    symbol: 'ETH',
+    rpcUrl: CHAIN_RPC_URLS['sepolia'] || 'https://sepolia.infura.io/v3/${INFURA_ID}',
+    blockExplorer: CHAIN_EXPLORER_URLS['sepolia'] || 'https://sepolia.etherscan.io',
+    symbol: CHAIN_NATIVE_TOKENS['sepolia'] || 'ETH',
     decimals: 18,
     logo: '/assets/networks/ethereum.svg',
     testnet: true
   },
   80001: {
     name: 'Polygon Mumbai',
-    rpcUrl: 'https://rpc-mumbai.maticvigil.com',
-    blockExplorer: 'https://mumbai.polygonscan.com',
-    symbol: 'MATIC',
+    rpcUrl: CHAIN_RPC_URLS['mumbai'] || 'https://rpc-mumbai.maticvigil.com',
+    blockExplorer: CHAIN_EXPLORER_URLS['mumbai'] || 'https://mumbai.polygonscan.com',
+    symbol: CHAIN_NATIVE_TOKENS['mumbai'] || 'MATIC',
     decimals: 18,
     logo: '/assets/networks/polygon.svg',
     testnet: true
   },
   421613: {
     name: 'Arbitrum Goerli',
-    rpcUrl: 'https://goerli-rollup.arbitrum.io/rpc',
-    blockExplorer: 'https://goerli.arbiscan.io',
-    symbol: 'ETH',
+    rpcUrl: CHAIN_RPC_URLS['arbitrum-goerli'] || 'https://goerli-rollup.arbitrum.io/rpc',
+    blockExplorer: CHAIN_EXPLORER_URLS['arbitrum-goerli'] || 'https://goerli.arbiscan.io',
+    symbol: CHAIN_NATIVE_TOKENS['arbitrum-goerli'] || 'ETH',
     decimals: 18,
     logo: '/assets/networks/arbitrum.svg',
     testnet: true

@@ -315,49 +315,20 @@ export async function connectMetaMask() {
     }
   }
   
-  // DETAILED PROVIDER DEBUGGING
-  console.log("=== PROVIDER DETECTION DEBUG ===");
-  console.log("window.ethereum exists:", !!window.ethereum);
-  console.log("window.ethereum.isMetaMask:", window.ethereum?.isMetaMask);
-  console.log("window.ethereum.isPhantom:", window.ethereum?.isPhantom);
-  console.log("window.ethereum.providers:", window.ethereum?.providers);
-  
-  if (window.ethereum?.providers) {
-    console.log("Multiple providers found:");
-    window.ethereum.providers.forEach((p, i) => {
-      console.log(`Provider ${i}:`, {
-        isMetaMask: p.isMetaMask,
-        isPhantom: p.isPhantom,
-        isCoinbaseWallet: p.isCoinbaseWallet,
-        selectedAddress: p.selectedAddress
-      });
-    });
-  }
+  // Find the appropriate provider
 
   // If we have multiple providers (common with multiple wallets installed)
   // explicitly try to find MetaMask (NOT Phantom!)
   let provider = window.ethereum;
   if (window.ethereum.providers) {
-    console.log("Searching for MetaMask provider among multiple providers...");
     const metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
     if (metaMaskProvider) {
-      console.log("✅ Found MetaMask provider");
       provider = metaMaskProvider;
     } else {
-      console.error("❌ MetaMask provider not found in providers array");
       throw new Error('MetaMask not found among installed wallet providers. Please make sure MetaMask is installed.');
     }
-  } else if (window.ethereum.isMetaMask) {
-    console.log("✅ Using default MetaMask provider");
-    provider = window.ethereum;
-  } else {
-    console.error("❌ Default provider is not MetaMask");
-    console.log("Default provider details:", {
-      isMetaMask: window.ethereum.isMetaMask,
-      isPhantom: window.ethereum.isPhantom,
-      isCoinbaseWallet: window.ethereum.isCoinbaseWallet
-    });
-    throw new Error('MetaMask not found. Please make sure MetaMask is installed.');
+  } else if (!window.ethereum.isMetaMask) {
+    throw new Error('Default provider is not MetaMask. Please make sure MetaMask is installed.');
   }
   
   try {

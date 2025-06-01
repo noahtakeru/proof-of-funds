@@ -9,7 +9,7 @@ import config from './config';
 import logger from './utils/logger';
 import { corsMiddleware, helmetMiddleware, requireHttps, requestMetrics } from './middleware/security';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { defaultRateLimit } from './middleware/rateLimit';
+import { defaultRateLimit } from './middleware/enhancedRateLimit';
 import apiRoutes from './api';
 
 // Create Express application

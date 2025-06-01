@@ -3,6 +3,21 @@
  * 
  * This module provides a placeholder implementation of the ChainAdapter interface
  * for Solana blockchain. It will be expanded in a future phase of development.
+ * 
+ * NOTE: This is an intentional placeholder adapter that will be fully implemented 
+ * in Phase 3.4 (Multi-Chain Extension) as described in the ZKP-PLATFORM-IMPLEMENTATION-PLAN.md.
+ * 
+ * Current Status:
+ * - Basic address validation is implemented
+ * - All other methods throw "not implemented" errors
+ * - This adapter should not be used in production until fully implemented
+ * 
+ * Implementation Plan:
+ * - Phase 3.4 will implement full Solana SPL token and SOL balance verification
+ * - Will leverage Solana Web3.js for blockchain data retrieval
+ * - Will support both mainnet and testnet (devnet) environments
+ * - Will include proper SPL token metadata retrieval
+ * - Will implement proper signature verification using Solana standards
  */
 import { BigNumber } from 'ethers';
 import {

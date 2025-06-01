@@ -94,6 +94,19 @@ const zkProofConfig = {
   maxProofSize: 1024 * 1024 * 5 // 5MB
 };
 
+// Email configuration
+const emailConfig = {
+  host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
+  port: parseInt(process.env.EMAIL_PORT || '587', 10),
+  secure: process.env.EMAIL_SECURE === 'true',
+  user: process.env.EMAIL_USER || '',
+  password: process.env.EMAIL_PASSWORD || '',
+  defaultFrom: process.env.EMAIL_FROM || 'noreply@proofoffunds.com',
+  defaultReplyTo: process.env.EMAIL_REPLY_TO || 'support@proofoffunds.com',
+  testUser: process.env.EMAIL_TEST_USER || '',
+  testPassword: process.env.EMAIL_TEST_PASSWORD || ''
+};
+
 // Export configuration
 export const config = {
   env: NODE_ENV,
@@ -107,7 +120,8 @@ export const config = {
   logging: loggingConfig,
   gcp: gcpConfig,
   zkProof: zkProofConfig,
-  auditLog: auditLogConfig
+  auditLog: auditLogConfig,
+  email: emailConfig
 };
 
 export default config;

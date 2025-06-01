@@ -48,6 +48,7 @@
     "@google-cloud/secret-manager": "^6.0.1",
     "@google-cloud/storage": "^7.16.0",
     "ajv": "^8.17.1",
+    "cookie-parser": "^1.4.7",
     "snarkjs": "^0.7.0"
   }
 }

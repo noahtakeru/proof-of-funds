@@ -21,10 +21,21 @@ import {
 } from './apiHelpers.js';
 
 // Import centralized chain mappings utility
-import { getMoralisChainId } from './chainMappings.js';
+import { 
+  getMoralisChainId, 
+  CHAIN_MORALIS_MAPPING, 
+  getChainName, 
+  CHAIN_NATIVE_TOKENS, 
+  CHAIN_IDS 
+} from './chainMappings.js';
 
-// Moralis API key for token data
-const MORALIS_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImI3NTZhNjkxLTRiN2YtNGFiZS04MzI5LWFlNTJkMGY5MTljOSIsIm9yZ0lkIjoiNDM4NjMwIiwidXNlcklkIjoiNDUxMjU4IiwidHlwZUlkIjoiMTc1YjllYzktYmQ3Ni00NWNhLTk1NWItZTBlOTAzNzM1YTlkIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NDMyMzMyNjYsImV4cCI6NDg5ODk5MzI2Nn0.bLFdmNSmPM51zuRhxDmQ-YN1V-II9Mtd-FxdvZHkmys';
+// Moralis API key from environment variable with fallback for development
+const MORALIS_API_KEY = process.env.MORALIS_API_KEY || (process.env.NEXT_PUBLIC_MORALIS_API_KEY || '');
+
+// Check if API key is missing
+if (!MORALIS_API_KEY) {
+  console.warn('MORALIS_API_KEY is not set in environment variables. API calls will fail.');
+}
 
 /**
  * Maps a chain name or chain ID to the corresponding Moralis API chain identifier
@@ -60,58 +71,34 @@ const getMoralisChain = (chain) => {
  * @returns {Object} - Object with symbol and name properties
  */
 const getNativeTokenInfo = (chain) => {
+  // Use centralized chain mappings imported at the top
+  
   // Handle numeric chain IDs
   if (typeof chain === 'number' || (typeof chain === 'string' && chain.startsWith('0x'))) {
     const chainId = typeof chain === 'string' ? parseInt(chain, 16) : chain;
-
-    // Chain ID to native token mapping
-    const chainIdNativeTokens = {
-      1: { symbol: 'ETH', name: 'Ethereum' },
-      5: { symbol: 'ETH', name: 'Goerli ETH' },
-      11155111: { symbol: 'ETH', name: 'Sepolia ETH' },
-      137: { symbol: 'MATIC', name: 'Polygon' },
-      80001: { symbol: 'MATIC', name: 'Polygon Mumbai' },
-      80002: { symbol: 'MATIC', name: 'Polygon Amoy' },
-      42161: { symbol: 'ETH', name: 'Arbitrum ETH' },
-      56: { symbol: 'BNB', name: 'BNB Chain' },
-      43114: { symbol: 'AVAX', name: 'Avalanche' },
-      250: { symbol: 'FTM', name: 'Fantom' },
-      10: { symbol: 'ETH', name: 'Optimism ETH' },
-      8453: { symbol: 'ETH', name: 'Base ETH' },
-      25: { symbol: 'CRO', name: 'Cronos' },
-      31337: { symbol: 'ETH', name: 'Local ETH' },
-      1337: { symbol: 'ETH', name: 'Local ETH' }
-    };
-
-    if (chainIdNativeTokens[chainId]) {
-      return chainIdNativeTokens[chainId];
+    const chainName = getChainName(chainId);
+    
+    if (chainName && CHAIN_NATIVE_TOKENS[chainName]) {
+      return {
+        symbol: CHAIN_NATIVE_TOKENS[chainName],
+        name: chainName.charAt(0).toUpperCase() + chainName.slice(1) + ' ' + CHAIN_NATIVE_TOKENS[chainName]
+      };
     }
   }
 
   // Handle string chain names
-  const nativeTokens = {
-    'ethereum': { symbol: 'ETH', name: 'Ethereum' },
-    'polygon': { symbol: 'MATIC', name: 'Polygon' },
-    'polygon-amoy': { symbol: 'MATIC', name: 'Polygon Amoy' },
-    'amoy': { symbol: 'MATIC', name: 'Polygon Amoy' },
-    'mumbai': { symbol: 'MATIC', name: 'Polygon Mumbai' },
-    'bsc': { symbol: 'BNB', name: 'BNB Chain' },
-    'arbitrum': { symbol: 'ETH', name: 'Arbitrum ETH' },
-    'optimism': { symbol: 'ETH', name: 'Optimism ETH' },
-    'avalanche': { symbol: 'AVAX', name: 'Avalanche' },
-    'fantom': { symbol: 'FTM', name: 'Fantom' },
-    'cronos': { symbol: 'CRO', name: 'Cronos' },
-    'base': { symbol: 'ETH', name: 'Base ETH' },
-    'hardhat': { symbol: 'ETH', name: 'Local ETH' },
-    'localhost': { symbol: 'ETH', name: 'Local ETH' },
-    'sepolia': { symbol: 'ETH', name: 'Sepolia ETH' },
-    'goerli': { symbol: 'ETH', name: 'Goerli ETH' },
-    'polygon_amoy': { symbol: 'MATIC', name: 'Polygon Amoy' }
-  };
+  if (typeof chain === 'string') {
+    const chainName = chain.toLowerCase();
+    
+    if (CHAIN_NATIVE_TOKENS[chainName]) {
+      return {
+        symbol: CHAIN_NATIVE_TOKENS[chainName],
+        name: chainName.charAt(0).toUpperCase() + chainName.slice(1) + ' ' + CHAIN_NATIVE_TOKENS[chainName]
+      };
+    }
+  }
 
-  const chainName = typeof chain === 'string' ? chain.toLowerCase() : '';
-
-  return nativeTokens[chainName] || { symbol: 'UNKNOWN', name: 'Unknown Chain' };
+  return { symbol: 'UNKNOWN', name: 'Unknown Chain' };
 };
 
 /**

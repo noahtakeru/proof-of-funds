@@ -42,6 +42,22 @@
       "import": "./dist/auth/tokenManager.js",
       "require": "./dist/auth/tokenManager.cjs"
     },
+    "./auth": {
+      "import": "./dist/auth/index.js",
+      "require": "./dist/auth/index.cjs"
+    },
+    "./auth/messages": {
+      "import": "./dist/auth/messages.js",
+      "require": "./dist/auth/messages.cjs"
+    },
+    "./auth/tokenService": {
+      "import": "./dist/auth/tokenService.js",
+      "require": "./dist/auth/tokenService.cjs"
+    },
+    "./auth/passwordValidation": {
+      "import": "./dist/auth/passwordValidation.js",
+      "require": "./dist/auth/passwordValidation.cjs"
+    },
     "./logging/auditLogger": {
       "import": "./dist/logging/auditLogger.js",
       "require": "./dist/logging/auditLogger.cjs"
@@ -118,6 +134,14 @@
       "import": "./dist/utils/moralisApi.js", 
       "require": "./dist/utils/moralisApi.cjs"
     },
+    "./src/utils/chainMappings.js": {
+      "import": "./dist/utils/chainMappings.js",
+      "require": "./dist/utils/chainMappings.cjs"
+    },
+    "./utils/chainMappings": {
+      "import": "./dist/utils/chainMappings.js",
+      "require": "./dist/utils/chainMappings.cjs"
+    },
     "./PhantomMultiWalletContext": {
       "import": "./dist/PhantomMultiWalletContext.js",
       "require": "./dist/PhantomMultiWalletContext.cjs"
@@ -133,6 +157,10 @@
     "./context/NetworkContext": {
       "import": "./dist/context/NetworkContext.js",
       "require": "./dist/context/NetworkContext.cjs"
+    },
+    "./security/ipReputationTracker": {
+      "import": "./dist/security/ipReputationTracker.js",
+      "require": "./dist/security/ipReputationTracker.cjs"
     }
   },
   "scripts": {

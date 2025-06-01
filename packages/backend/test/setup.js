@@ -11,7 +11,13 @@ process.env.NODE_ENV = 'test';
 // Use test database URL
 if (!process.env.DATABASE_URL_TEST) {
   // Use value from .env if present, or fall back to default
-  process.env.DATABASE_URL_TEST = 'postgresql://zkp_test_user:=+^4d;Q+SCa]{-ra@35.193.170.68:5432/zkp_test';
+  // Properly encode special characters in the password
+  const testUser = 'zkp_test_user';
+  const testPassword = encodeURIComponent('=+^4d;Q+SCa]{-ra');
+  const testHost = '35.193.170.68';
+  const testPort = '5432';
+  const testDb = 'zkp_test';
+  process.env.DATABASE_URL_TEST = `postgresql://${testUser}:${testPassword}@${testHost}:${testPort}/${testDb}?sslmode=disable`;
 }
 
 // Set database URL to test URL for Prisma
