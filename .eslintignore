@@ -1,0 +1,44 @@
+# Build outputs
+dist
+build
+out
+.next
+node_modules
+
+# Circuit files
+circuits/**/*.wasm
+circuits/**/*.zkey
+circuits/**/*.r1cs
+circuits/**/*.ptau
+circuits/**/*.json
+**/circuits/**/*.wasm
+**/circuits/**/*.zkey
+**/circuits/**/*.r1cs
+**/circuits/**/*.ptau
+**/circuits/**/*.json
+
+# Generated files
+**/generated
+**/*.generated.*
+
+# Test coverage
+coverage
+
+# Config files
+*.config.js
+!.eslintrc.js
+
+# Docker files
+docker
+
+# WASM files
+*.wasm
+**/maximumProof_js
+**/standardProof_js
+**/thresholdProof_js
+
+# Other files to ignore
+.git
+.github
+*.lock
+*.log
