@@ -20,7 +20,8 @@ const CIRCUIT_TYPES = ['standard', 'threshold', 'maximum'];
 // Source and destination paths
 const SOURCE_BASE_PATH = path.resolve(__dirname, '../circuits');
 const DEST_BASE_PATH = path.resolve(__dirname, '../packages/frontend/public/lib/zk/circuits');
-const BUILD_DIR = path.resolve(DEST_BASE_PATH, 'build');
+// BUILD_DIR is used in other functions when needed
+const _BUILD_DIR = path.resolve(DEST_BASE_PATH, 'build');
 
 /**
  * Ensure a directory exists, creating it if necessary
@@ -29,7 +30,7 @@ const BUILD_DIR = path.resolve(DEST_BASE_PATH, 'build');
 async function ensureDir(dirPath) {
   try {
     await access(dirPath);
-  } catch (error) {
+  } catch (_error) {
     // Directory doesn't exist, create it
     await mkdir(dirPath, { recursive: true });
   }
@@ -312,7 +313,7 @@ async function testZkEnvironment() {
   console.log('\nTesting snarkjs wrapper...');
   const wrapperResult = await testWrapper();
   console.log(wrapperResult.success 
-    ? `Success! Wrapper functions available` 
+    ? 'Success! Wrapper functions available' 
     : `Failed: ${wrapperResult.error}`);
   
   console.log('\n=== Summary ===');

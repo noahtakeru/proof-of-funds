@@ -111,7 +111,7 @@ async function verifyGcpServiceIdentity(req) {
   try {
     // Check for GCP-specific identity header
     const identityToken = req.headers['x-gcp-identity-token'];
-    if (!identityToken) return false;
+    if (!identityToken) {return false;}
     
     // Use Google's identity verification
     // This is a simplified implementation - in production would use proper token verification

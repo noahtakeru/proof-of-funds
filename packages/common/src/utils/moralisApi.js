@@ -54,11 +54,11 @@ const getMoralisChain = (chain) => {
     const chainName = chain.toLowerCase();
     
     // Simple pattern matching for common chains (fallback logic)
-    if (chainName.includes('eth')) return 'eth';
-    if (chainName.includes('polygon') || chainName.includes('matic')) return 'polygon';
-    if (chainName.includes('bsc') || chainName.includes('binance')) return 'bsc';
-    if (chainName.includes('arb')) return 'arbitrum';
-    if (chainName.includes('opt')) return 'optimism';
+    if (chainName.includes('eth')) {return 'eth';}
+    if (chainName.includes('polygon') || chainName.includes('matic')) {return 'polygon';}
+    if (chainName.includes('bsc') || chainName.includes('binance')) {return 'bsc';}
+    if (chainName.includes('arb')) {return 'arbitrum';}
+    if (chainName.includes('opt')) {return 'optimism';}
   }
   
   // Default fallback
@@ -184,7 +184,7 @@ const getTokenPrices = async (symbols, chain = '') => {
     }
 
     // Prepare result object
-    let prices = {};
+    const prices = {};
 
     // Try local API endpoint (proxied CoinGecko) first
     if (typeof window !== 'undefined') {
@@ -732,7 +732,7 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
         await Promise.all(batch.map(async (token) => {
           try {
             // Skip invalid addresses
-            if (!token.address || token.address === '0xNative') return;
+            if (!token.address || token.address === '0xNative') {return;}
 
             // Get Moralis chain identifier
             const moralisChain = getMoralisChain(token.chain || chain);
@@ -837,7 +837,7 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
         await Promise.all(batch.map(async (token) => {
           try {
             // Skip already processed tokens
-            if (processedTokens.has(token.symbol)) return;
+            if (processedTokens.has(token.symbol)) {return;}
 
             // Get Moralis chain identifier
             const moralisChain = getMoralisChain(token.chain || chain);
@@ -856,11 +856,11 @@ export const getTokenPricesWithMoralis = async (tokens, chain = '', options = {}
             };
 
             // Get contract address for major chains
-            if (moralisChain === 'eth') wrappedAddress = wrappedTokenMap['eth'];
-            else if (moralisChain === 'polygon') wrappedAddress = wrappedTokenMap['matic'];
-            else if (moralisChain === 'bsc') wrappedAddress = wrappedTokenMap['bnb'];
-            else if (moralisChain === 'fantom') wrappedAddress = wrappedTokenMap['ftm'];
-            else if (moralisChain === 'avalanche') wrappedAddress = wrappedTokenMap['avax'];
+            if (moralisChain === 'eth') {wrappedAddress = wrappedTokenMap['eth'];}
+            else if (moralisChain === 'polygon') {wrappedAddress = wrappedTokenMap['matic'];}
+            else if (moralisChain === 'bsc') {wrappedAddress = wrappedTokenMap['bnb'];}
+            else if (moralisChain === 'fantom') {wrappedAddress = wrappedTokenMap['ftm'];}
+            else if (moralisChain === 'avalanche') {wrappedAddress = wrappedTokenMap['avax'];}
 
             if (wrappedAddress) {
               // Call Moralis price API with wrapped token address
@@ -1193,7 +1193,7 @@ export const getWalletAssetsWithValue = async (address, chain = 'ethereum', opti
 
     // Populate chain data
     for (const token of tokensWithValues) {
-      if (token.type === 'error') continue;
+      if (token.type === 'error') {continue;}
 
       if (token.type === 'native') {
         // Update native token balance and value

@@ -109,7 +109,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
   
   // Initialize the appropriate troubleshooting flow based on issue category
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {return;}
     
     const flow = getTroubleshootingFlow(issueCategory);
     setCurrentFlow(flow);
@@ -120,7 +120,7 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
   
   // Get current step
   const getCurrentStep = (): TroubleshootingStep | null => {
-    if (!currentFlow || !currentStepId) return null;
+    if (!currentFlow || !currentStepId) {return null;}
     return currentFlow.steps[currentStepId];
   };
   
@@ -620,11 +620,11 @@ const TroubleshootingWizard: React.FC<TroubleshootingWizardProps> = ({
   };
   
   // If not open, don't render
-  if (!isOpen) return null;
+  if (!isOpen) {return null;}
   
   // Get the current step
   const currentStep = getCurrentStep();
-  if (!currentStep || !currentFlow) return null;
+  if (!currentStep || !currentFlow) {return null;}
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

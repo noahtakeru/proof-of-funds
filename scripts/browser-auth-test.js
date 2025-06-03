@@ -67,7 +67,7 @@ async function main() {
       parent: `projects/${projectId}`,
     });
 
-    console.log(`✓ Successfully connected to Secret Manager API`);
+    console.log('✓ Successfully connected to Secret Manager API');
     console.log(`✓ Found ${secrets.length} secrets in project ${projectId}`);
 
     // Try to create a test secret
@@ -99,14 +99,14 @@ async function main() {
       name: version.name,
     });
 
-    console.log(`✓ Successfully accessed secret version`);
+    console.log('✓ Successfully accessed secret version');
 
     // Clean up the test secret
     await client.deleteSecret({
       name: secret.name,
     });
 
-    console.log(`✓ Successfully cleaned up test secret`);
+    console.log('✓ Successfully cleaned up test secret');
     console.log('');
     console.log('🎉 Authentication test passed! Your browser setup is working correctly.');
     console.log('You can now proceed with the next step in the setup process.');

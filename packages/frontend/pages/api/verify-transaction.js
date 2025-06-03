@@ -10,10 +10,10 @@ import { CONTRACT_ABI, CONTRACT_ADDRESS } from '../../config/constants';
 
 // Array of server-side RPC URLs for Polygon Amoy to try
 const SERVER_RPC_URLS = [
-    "https://polygon-amoy.g.alchemy.com/v2/demo",
-    "https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
-    "https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42",
-    "https://rpc-amoy.polygon.technology"
+    'https://polygon-amoy.g.alchemy.com/v2/demo',
+    'https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+    'https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42',
+    'https://rpc-amoy.polygon.technology'
 ];
 
 export default async function handler(req, res) {
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Transaction hash is required' });
     }
 
-    console.log("API: Verifying transaction:", txHash);
+    console.log('API: Verifying transaction:', txHash);
 
     // Try each RPC endpoint until one works
     let lastError = null;
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
             if (contractLogs.length === 0) {
                 // Get all unique addresses in the logs
                 const uniqueAddresses = [...new Set(receipt.logs.map(log => log.address.toLowerCase()))];
-                console.log("API: Unique addresses in logs:", uniqueAddresses);
+                console.log('API: Unique addresses in logs:', uniqueAddresses);
 
                 if (uniqueAddresses.length > 0) {
                     // Try with first contract address found in logs
@@ -98,20 +98,20 @@ export default async function handler(req, res) {
                         try {
                             // Try to parse one of the logs with our ABI
                             const testLog = contractInterface.parseLog(possibleContractLogs[0]);
-                            console.log("API: Successfully parsed log with alternate address:", testLog.name);
+                            console.log('API: Successfully parsed log with alternate address:', testLog.name);
 
                             // If we can parse it, use these logs instead
                             actualContractAddress = uniqueAddresses[0];
                             actualContract = new ethers.Contract(actualContractAddress, CONTRACT_ABI, provider);
                             contractLogs.push(...possibleContractLogs);
                         } catch (e) {
-                            console.log("API: Could not parse logs from alternate contract:", e.message);
+                            console.log('API: Could not parse logs from alternate contract:', e.message);
                         }
                     }
                 }
 
                 if (contractLogs.length === 0) {
-                    console.log("API: No logs could be parsed with our ABI");
+                    console.log('API: No logs could be parsed with our ABI');
                     // Dump all events to see what's happening
                     receipt.logs.forEach((log, i) => {
                         console.log(`API: Log ${i} from ${log.address}: Topics: ${JSON.stringify(log.topics)}`);
@@ -127,10 +127,10 @@ export default async function handler(req, res) {
             contractLogs.forEach((log) => {
                 try {
                     const parsedLog = contractInterface.parseLog(log);
-                    console.log("API: Found event:", parsedLog.name);
+                    console.log('API: Found event:', parsedLog.name);
                     parsedLogs.push({ log, parsedLog });
                 } catch (e) {
-                    console.log("API: Couldn't parse log:", e.message);
+                    console.log('API: Couldn\'t parse log:', e.message);
                 }
             });
 
@@ -141,17 +141,17 @@ export default async function handler(req, res) {
             );
 
             if (!proofSubmittedLog) {
-                console.log("API: No ProofSubmitted event found");
+                console.log('API: No ProofSubmitted event found');
                 lastError = 'No proof submission found in this transaction';
                 continue; // Try next RPC URL
             }
 
             // Extract data from the event
             const parsedLog = proofSubmittedLog.parsedLog;
-            console.log("API: Found proof event:", parsedLog.name);
+            console.log('API: Found proof event:', parsedLog.name);
 
             // Log all the event arguments to debug
-            console.log("API: Event arguments:");
+            console.log('API: Event arguments:');
             for (const key in parsedLog.args) {
                 if (isNaN(parseInt(key))) { // Skip numeric keys, which are duplicates
                     const value = parsedLog.args[key];
@@ -175,14 +175,14 @@ export default async function handler(req, res) {
             }
 
             // Parse the transaction input
-            let amountFromTx = "0";
-            let tokenSymbol = "ETH"; // Default to ETH
+            let amountFromTx = '0';
+            let tokenSymbol = 'ETH'; // Default to ETH
 
             if (txData && txData.data) {
                 try {
                     // Try to decode the function call
                     const decodedInput = contractInterface.parseTransaction({ data: txData.data });
-                    console.log("API: Decoded function call:", decodedInput.name);
+                    console.log('API: Decoded function call:', decodedInput.name);
 
                     // Try to find threshold amount which is usually the verified amount
                     if (decodedInput.args && decodedInput.args.thresholdAmount) {
@@ -198,7 +198,7 @@ export default async function handler(req, res) {
                         tokenSymbol = decodedInput.args.tokenSymbol;
                     }
                 } catch (e) {
-                    console.log("API: Could not decode transaction input:", e.message);
+                    console.log('API: Could not decode transaction input:', e.message);
                 }
             }
 
@@ -207,9 +207,9 @@ export default async function handler(req, res) {
             try {
                 // Using the contract's getProof method directly
                 proofData = await actualContract.getProof(userAddress);
-                console.log("API: Proof data from contract:", proofData);
+                console.log('API: Proof data from contract:', proofData);
             } catch (e) {
-                console.error("API: Error getting proof data from contract:", e);
+                console.error('API: Error getting proof data from contract:', e);
                 // Continue with event data only
                 proofData = {
                     thresholdAmount: ethers.BigNumber.from(0),
@@ -231,7 +231,7 @@ export default async function handler(req, res) {
             }
 
             // Use threshold amount from contract data if available
-            let thresholdAmount = "0";
+            let thresholdAmount = '0';
             if (proofData.thresholdAmount && proofData.thresholdAmount._isBigNumber) {
                 thresholdAmount = ethers.utils.formatEther(proofData.thresholdAmount);
             }
@@ -241,8 +241,8 @@ export default async function handler(req, res) {
                 user: userAddress,
                 proofType: proofTypeValue,
                 proofHash: proofHash,
-                thresholdAmount: thresholdAmount !== "0" ? thresholdAmount : "0",
-                amount: amountFromTx !== "0" ? amountFromTx : thresholdAmount,
+                thresholdAmount: thresholdAmount !== '0' ? thresholdAmount : '0',
+                amount: amountFromTx !== '0' ? amountFromTx : thresholdAmount,
                 tokenSymbol: tokenSymbol,
                 timestamp: timestamp,
                 expiryTime: expiryTime,

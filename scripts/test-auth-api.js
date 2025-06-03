@@ -16,7 +16,7 @@ const TEST_PASSWORD = 'Test123!@#';
 let accessToken = null;
 let refreshToken = null;
 let userId = null;
-let verificationToken = null;
+const verificationToken = null;
 
 /**
  * Main test function

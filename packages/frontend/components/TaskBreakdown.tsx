@@ -76,10 +76,10 @@ const TaskBreakdown: React.FC<TaskBreakdownProps> = ({
 
   // Format execution time in a human-readable way
   const formatExecutionTime = (timeMs?: number): string => {
-    if (timeMs === undefined) return 'N/A';
+    if (timeMs === undefined) {return 'N/A';}
     
-    if (timeMs < 1000) return `${timeMs}ms`;
-    if (timeMs < 60000) return `${(timeMs / 1000).toFixed(2)}s`;
+    if (timeMs < 1000) {return `${timeMs}ms`;}
+    if (timeMs < 60000) {return `${(timeMs / 1000).toFixed(2)}s`;}
     
     const minutes = Math.floor(timeMs / 60000);
     const seconds = ((timeMs % 60000) / 1000).toFixed(1);

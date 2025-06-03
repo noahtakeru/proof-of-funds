@@ -60,19 +60,19 @@ export default function Home() {
      */
     const testimonials = [
         {
-            quote: "Arbitr has completely transformed how we verify clients' financial capacity. Fast, secure, and private.",
-            author: "Emma Chen",
-            title: "Finance Director, BlockTech Ventures"
+            quote: 'Arbitr has completely transformed how we verify clients\' financial capacity. Fast, secure, and private.',
+            author: 'Emma Chen',
+            title: 'Finance Director, BlockTech Ventures'
         },
         {
-            quote: "The zero-knowledge proof system is revolutionary. Our clients love the privacy it provides.",
-            author: "James Wilson",
-            title: "Crypto Investment Advisor"
+            quote: 'The zero-knowledge proof system is revolutionary. Our clients love the privacy it provides.',
+            author: 'James Wilson',
+            title: 'Crypto Investment Advisor'
         },
         {
-            quote: "Setting up Proof of Funds used to take days. With Arbitr, it takes minutes.",
-            author: "Sarah Johnson",
-            title: "DeFi Platform Founder"
+            quote: 'Setting up Proof of Funds used to take days. With Arbitr, it takes minutes.',
+            author: 'Sarah Johnson',
+            title: 'DeFi Platform Founder'
         }
     ];
 

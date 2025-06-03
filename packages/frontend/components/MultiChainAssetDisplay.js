@@ -67,7 +67,7 @@ const MultiChainAssetDisplay = ({ assetSummary, showUSDValues, isLoading, error,
     
     // Helper to format currency values
     const formatValue = (value, decimals = 6) => {
-        if (value === undefined || value === null) return '0.00';
+        if (value === undefined || value === null) {return '0.00';}
         return Number(value).toFixed(decimals);
     };
 

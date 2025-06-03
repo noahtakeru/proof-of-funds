@@ -61,27 +61,27 @@ function createMinimalValidWasm(name) {
   // Generate minimal vkey.json file
   const vkeyPath = path.join(CIRCUIT_DIR, `${name}.vkey.json`);
   const vkeyContent = {
-    protocol: "groth16",
-    curve: "bn128",
+    protocol: 'groth16',
+    curve: 'bn128',
     nPublic: 2,
-    vk_alpha_1: ["0", "0", "0"],
-    vk_beta_2: [["0", "0"], ["0", "0"], ["0", "0"]],
-    vk_gamma_2: [["0", "0"], ["0", "0"], ["0", "0"]],
-    vk_delta_2: [["0", "0"], ["0", "0"], ["0", "0"]],
+    vk_alpha_1: ['0', '0', '0'],
+    vk_beta_2: [['0', '0'], ['0', '0'], ['0', '0']],
+    vk_gamma_2: [['0', '0'], ['0', '0'], ['0', '0']],
+    vk_delta_2: [['0', '0'], ['0', '0'], ['0', '0']],
     vk_alphabeta_12: [
-      [["0", "0"], ["0", "0"], ["0", "0"]],
-      [["0", "0"], ["0", "0"], ["0", "0"]]
+      [['0', '0'], ['0', '0'], ['0', '0']],
+      [['0', '0'], ['0', '0'], ['0', '0']]
     ],
     IC: [
-      ["0", "0", "0"],
-      ["0", "0", "0"]
+      ['0', '0', '0'],
+      ['0', '0', '0']
     ]
   };
   
   fs.writeFileSync(vkeyPath, JSON.stringify(vkeyContent, null, 2));
   
   console.log(`Created minimal vkey.json: ${vkeyPath}`);
-  console.log(`NOTE: These files expose real errors but don't hide them behind fallbacks.`);
+  console.log('NOTE: These files expose real errors but don\'t hide them behind fallbacks.');
 }
 
 // Generate minimal valid WebAssembly files for all circuits

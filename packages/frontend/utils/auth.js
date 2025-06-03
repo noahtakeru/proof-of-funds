@@ -156,7 +156,7 @@ async function getAuthFromRequest(req) {
   // Handle JWT token
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    if (!token) return null;
+    if (!token) {return null;}
     
     const decodedToken = await verifyToken(token);
     return { 

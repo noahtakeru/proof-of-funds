@@ -36,7 +36,7 @@ export default function TechPage() {
             let particles = [];
 
             const initCanvas = () => {
-                if (!canvasRef.current) return; // Safety check
+                if (!canvasRef.current) {return;} // Safety check
                 canvasRef.current.width = canvasRef.current.offsetWidth;
                 canvasRef.current.height = canvasRef.current.offsetHeight;
                 particles = [];
@@ -75,8 +75,8 @@ export default function TechPage() {
                     particle.y += particle.vy;
 
                     // Bounce off edges
-                    if (particle.x <= 0 || particle.x >= canvasRef.current.width) particle.vx *= -1;
-                    if (particle.y <= 0 || particle.y >= canvasRef.current.height) particle.vy *= -1;
+                    if (particle.x <= 0 || particle.x >= canvasRef.current.width) {particle.vx *= -1;}
+                    if (particle.y <= 0 || particle.y >= canvasRef.current.height) {particle.vy *= -1;}
                 });
 
                 animationFrameId = window.requestAnimationFrame(drawParticles);
@@ -100,7 +100,7 @@ export default function TechPage() {
 
     const techData = {
         blockchain: {
-            title: "Blockchain Technology",
+            title: 'Blockchain Technology',
             content: (
                 <div>
                     <p className="mb-4">
@@ -131,7 +131,7 @@ export default function TechPage() {
             )
         },
         zkproofs: {
-            title: "Zero-Knowledge Proofs",
+            title: 'Zero-Knowledge Proofs',
             content: (
                 <div>
                     <p className="mb-4">
@@ -161,7 +161,7 @@ export default function TechPage() {
             )
         },
         cryptography: {
-            title: "Modern Cryptography",
+            title: 'Modern Cryptography',
             content: (
                 <div>
                     <p className="mb-4">
@@ -201,7 +201,7 @@ export default function TechPage() {
             )
         },
         proofoffunds: {
-            title: "Proof of Funds Technology",
+            title: 'Proof of Funds Technology',
             content: (
                 <div>
                     <p className="mb-4">

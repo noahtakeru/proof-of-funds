@@ -50,7 +50,7 @@ const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
       if (success) {
         setSuccessMessage('If your email is registered, you will receive a password reset link shortly.');
         setEmail('');
-        if (onSuccess) onSuccess();
+        if (onSuccess) {onSuccess();}
       } else {
         setError('Failed to request password reset');
       }

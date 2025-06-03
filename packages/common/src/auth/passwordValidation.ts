@@ -71,13 +71,13 @@ const COMMON_PASSWORDS = [
  * @returns Strength score (0-3)
  */
 export function scorePasswordStrength(password: string): number {
-  if (!password) return 0;
+  if (!password) {return 0;}
   
   let score = 0;
   
   // Length-based scoring
-  if (password.length >= 8) score += 1;
-  if (password.length >= 12) score += 1;
+  if (password.length >= 8) {score += 1;}
+  if (password.length >= 12) {score += 1;}
   
   // Complexity scoring
   const hasUppercase = /[A-Z]/.test(password);
@@ -87,10 +87,10 @@ export function scorePasswordStrength(password: string): number {
   
   // Add 0.25 for each complexity criteria met
   let complexityScore = 0;
-  if (hasUppercase) complexityScore += 0.25;
-  if (hasLowercase) complexityScore += 0.25;
-  if (hasNumber) complexityScore += 0.25;
-  if (hasSpecial) complexityScore += 0.25;
+  if (hasUppercase) {complexityScore += 0.25;}
+  if (hasLowercase) {complexityScore += 0.25;}
+  if (hasNumber) {complexityScore += 0.25;}
+  if (hasSpecial) {complexityScore += 0.25;}
   
   // Add complexity score (rounded to nearest integer)
   score += Math.round(complexityScore);

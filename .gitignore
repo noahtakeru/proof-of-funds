@@ -68,3 +68,5 @@ proof-of-funds-*.json
 *.json
 
 **/.claude/settings.local.json
+
+**/CLAUDE.local.md

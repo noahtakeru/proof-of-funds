@@ -215,8 +215,8 @@ class SecureKeyManager {
           32, // 256 bits
           'sha256',
           (err, derivedKey) => {
-            if (err) reject(err);
-            else resolve(derivedKey);
+            if (err) {reject(err);}
+            else {resolve(derivedKey);}
           }
         );
       });
@@ -875,7 +875,7 @@ class SecureKeyManager {
    */
   secureWipe(data) {
     try {
-      if (!data) return true;
+      if (!data) {return true;}
 
       if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
         try {

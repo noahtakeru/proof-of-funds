@@ -56,7 +56,7 @@ async function generateTemporaryWallet(chain) {
       address: solanaAddress,
       privateKey: '0x' + randomBytes.toString('hex'),
       chain: normalizedChain,
-      balance: "0.0",
+      balance: '0.0',
       created: new Date().toISOString(),
       expiry: new Date(Date.now() + 86400000).toISOString(), // 24 hours from now
       isTemporary: true
@@ -70,7 +70,7 @@ async function generateTemporaryWallet(chain) {
       address: wallet.address,
       privateKey: wallet.privateKey,
       chain: normalizedChain,
-      balance: "0.0",
+      balance: '0.0',
       created: new Date().toISOString(),
       expiry: new Date(Date.now() + 86400000).toISOString(), // 24 hours from now
       isTemporary: true
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log("generateTempWallet received request:", req.body);
+  console.log('generateTempWallet received request:', req.body);
 
   // Define validation specification
   const validationSpec = {
@@ -119,7 +119,7 @@ export default async function handler(req, res) {
   const validation = validateApiRequest(req.body, validationSpec);
   
   if (!validation.isValid) {
-    console.log("Validation errors:", validation.errors);
+    console.log('Validation errors:', validation.errors);
     return res.status(400).json({
       error: 'Invalid input parameters',
       details: validation.errors

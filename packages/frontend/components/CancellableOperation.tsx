@@ -46,7 +46,7 @@ const CancellableOperation: React.FC<CancellableOperationProps> = ({
 
   // Handle initial cancel button click
   const handleCancelClick = () => {
-    if (!cancellable || isCancelling) return;
+    if (!cancellable || isCancelling) {return;}
     setShowConfirmation(true);
   };
 
@@ -63,7 +63,7 @@ const CancellableOperation: React.FC<CancellableOperationProps> = ({
 
   // Get button style classes
   const getButtonClasses = (): string => {
-    let baseClasses = 'font-medium focus:outline-none transition-colors duration-150 ease-in-out';
+    const baseClasses = 'font-medium focus:outline-none transition-colors duration-150 ease-in-out';
     let sizeClasses = '';
     let styleClasses = '';
     

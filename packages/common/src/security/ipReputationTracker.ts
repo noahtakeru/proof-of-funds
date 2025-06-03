@@ -429,9 +429,9 @@ export class IPReputationTracker {
    * @returns A status label
    */
   public getReputationStatus(score: number): 'good' | 'neutral' | 'suspicious' | 'blocked' {
-    if (score >= REPUTATION_THRESHOLD.GOOD) return 'good';
-    if (score >= REPUTATION_THRESHOLD.NEUTRAL) return 'neutral';
-    if (score >= REPUTATION_THRESHOLD.SUSPICIOUS) return 'suspicious';
+    if (score >= REPUTATION_THRESHOLD.GOOD) {return 'good';}
+    if (score >= REPUTATION_THRESHOLD.NEUTRAL) {return 'neutral';}
+    if (score >= REPUTATION_THRESHOLD.SUSPICIOUS) {return 'suspicious';}
     return 'blocked';
   }
   

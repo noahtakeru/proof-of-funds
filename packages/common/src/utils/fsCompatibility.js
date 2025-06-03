@@ -56,7 +56,7 @@ function getFS() {
  * @returns {boolean} - Whether the file exists
  */
 function fileExists(path) {
-  if (isBrowser()) return false;
+  if (isBrowser()) {return false;}
   return getFS().existsSync(path);
 }
 
@@ -66,7 +66,7 @@ function fileExists(path) {
  * @returns {number} - File size in bytes, or 0 in browser
  */
 function getFileSize(path) {
-  if (isBrowser()) return 0;
+  if (isBrowser()) {return 0;}
   try {
     const stats = getFS().statSync(path);
     return stats.size;
@@ -81,7 +81,7 @@ function getFileSize(path) {
  * @returns {Buffer|null} - File content or null in browser
  */
 function readFileSafe(path) {
-  if (isBrowser()) return null;
+  if (isBrowser()) {return null;}
   try {
     return getFS().readFileSync(path);
   } catch (error) {

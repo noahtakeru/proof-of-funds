@@ -46,7 +46,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
       
       if (success && address) {
         setSuccessMessage(`Successfully connected wallet ${address.substring(0, 6)}...${address.substring(address.length - 4)}`);
-        if (onSuccess) onSuccess();
+        if (onSuccess) {onSuccess();}
       } else {
         setError('Failed to connect wallet');
       }
@@ -78,7 +78,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
         setSuccessMessage('Login successful');
         setEmail('');
         setPassword('');
-        if (onSuccess) onSuccess();
+        if (onSuccess) {onSuccess();}
       } else {
         setError('Invalid email or password');
       }

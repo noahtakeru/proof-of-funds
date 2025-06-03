@@ -48,7 +48,7 @@ const ZKErrorDisplay: React.FC<ZKErrorProps> = ({
   // Get user-friendly error message based on error code or message
   const getUserFriendlyMessage = (error: ZKErrorProps['error']): string => {
     // If there's a custom message, use it
-    if (error.message) return error.message;
+    if (error.message) {return error.message;}
     
     // Otherwise map error codes to user-friendly messages
     switch(error.code) {

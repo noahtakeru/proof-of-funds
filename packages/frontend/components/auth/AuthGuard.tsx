@@ -25,7 +25,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({
   
   useEffect(() => {
     // Skip during loading state to avoid flash of redirect
-    if (isLoading) return;
+    if (isLoading) {return;}
     
     // If not authenticated, redirect to login
     if (!isAuthenticated) {

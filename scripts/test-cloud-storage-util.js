@@ -69,7 +69,7 @@ async function testPermissions() {
       const bucket = storage.bucket(bucketName);
       const [exists] = await bucket.exists();
       if (exists) {
-        console.log(`✅ Bucket exists and is accessible`);
+        console.log('✅ Bucket exists and is accessible');
       } else {
         console.log(`❌ Bucket does not exist: ${bucketName}`);
         return false;

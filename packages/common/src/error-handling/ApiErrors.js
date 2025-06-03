@@ -400,13 +400,13 @@ export const validators = {
   isBlockchainAddress(value, fieldName) {
     // Try each address validator
     const ethResult = this.isEthAddress(value, fieldName);
-    if (ethResult.isValid) return ethResult;
+    if (ethResult.isValid) {return ethResult;}
     
     const solanaResult = this.isSolanaAddress(value, fieldName);
-    if (solanaResult.isValid) return solanaResult;
+    if (solanaResult.isValid) {return solanaResult;}
     
     const bitcoinResult = this.isBitcoinAddress(value, fieldName);
-    if (bitcoinResult.isValid) return bitcoinResult;
+    if (bitcoinResult.isValid) {return bitcoinResult;}
     
     // If none match, return error
     return {

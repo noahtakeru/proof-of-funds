@@ -163,7 +163,7 @@ export function getChainName(chainId) {
  * @returns {number} Chain ID or null if not found
  */
 export function getChainId(chainName) {
-  if (!chainName) return null;
+  if (!chainName) {return null;}
   
   const normalizedName = chainName.toLowerCase();
   return CHAIN_NAMES[normalizedName] || null;

@@ -215,7 +215,7 @@ export function createError(message, options = {}) {
  * @returns {string} - User-friendly message
  */
 export function getUserFriendlyMessage(error, includeDetails = false) {
-  if (!error) return 'An unknown error occurred';
+  if (!error) {return 'An unknown error occurred';}
   
   let message = '';
   

@@ -265,10 +265,10 @@ export function sanitizeTokenMetadata(token, chain) {
   }
   
   // Transfer known fields
-  if (token.logo) sanitized.logo = token.logo;
-  if (token.possible_spam) sanitized.possible_spam = !!token.possible_spam;
-  if (token.verified_contract) sanitized.verified_contract = !!token.verified_contract;
-  if (token.error) sanitized.error = token.error;
+  if (token.logo) {sanitized.logo = token.logo;}
+  if (token.possible_spam) {sanitized.possible_spam = !!token.possible_spam;}
+  if (token.verified_contract) {sanitized.verified_contract = !!token.verified_contract;}
+  if (token.error) {sanitized.error = token.error;}
   
   return sanitized;
 }
@@ -333,7 +333,7 @@ export const cache = {
   
   getPrice(key) {
     const entry = this.priceCache[key];
-    if (!entry) return null;
+    if (!entry) {return null;}
     
     if (Date.now() > entry.expires) {
       delete this.priceCache[key];
@@ -356,7 +356,7 @@ export const cache = {
   getTokenMetadata(address, chain) {
     const key = `${chain}:${address}`;
     const entry = this.tokenMetadataCache[key];
-    if (!entry) return null;
+    if (!entry) {return null;}
     
     if (Date.now() > entry.expires) {
       delete this.tokenMetadataCache[key];
@@ -382,7 +382,7 @@ export const cache = {
   
   _getAverageAge(cacheObj) {
     const entries = Object.values(cacheObj);
-    if (entries.length === 0) return 0;
+    if (entries.length === 0) {return 0;}
     
     const totalAge = entries.reduce((sum, entry) => 
       sum + (Date.now() - entry.timestamp), 0);
@@ -482,8 +482,8 @@ export function optimizeChainOrder(chains) {
     const aIndex = chainScanningOrder.indexOf(a.toLowerCase());
     const bIndex = chainScanningOrder.indexOf(b.toLowerCase());
     
-    if (aIndex === -1) return 1;  // Unknown chains go last
-    if (bIndex === -1) return -1;
+    if (aIndex === -1) {return 1;}  // Unknown chains go last
+    if (bIndex === -1) {return -1;}
     
     return aIndex - bIndex;
   });
@@ -500,7 +500,7 @@ export function organizeAssetsByCrossChain(assets) {
   
   assets.forEach(asset => {
     // Skip error tokens
-    if (asset.type === 'error') return;
+    if (asset.type === 'error') {return;}
     
     const normalizedSymbol = asset.symbol.toUpperCase();
     if (!groupedBySymbol[normalizedSymbol]) {

@@ -58,19 +58,19 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
    * @param password Password to check
    */
   const calculatePasswordStrength = (password: string): number => {
-    if (!password) return 0;
+    if (!password) {return 0;}
     
     let score = 0;
     
     // Length check
-    if (password.length >= 8) score += 1;
-    if (password.length >= 12) score += 1;
+    if (password.length >= 8) {score += 1;}
+    if (password.length >= 12) {score += 1;}
     
     // Complexity checks
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[a-z]/.test(password)) score += 1;
-    if (/[0-9]/.test(password)) score += 1;
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    if (/[A-Z]/.test(password)) {score += 1;}
+    if (/[a-z]/.test(password)) {score += 1;}
+    if (/[0-9]/.test(password)) {score += 1;}
+    if (/[^A-Za-z0-9]/.test(password)) {score += 1;}
     
     // Normalize score to 0-3 range
     return Math.min(3, Math.floor(score / 2));
@@ -118,7 +118,7 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
         setSuccessMessage('Password reset successful! You can now login with your new password.');
         setPassword('');
         setConfirmPassword('');
-        if (onSuccess) onSuccess();
+        if (onSuccess) {onSuccess();}
       } else {
         setError('Password reset failed');
       }

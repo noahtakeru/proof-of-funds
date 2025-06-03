@@ -104,7 +104,7 @@ export function useWallet() {
   
   // Setup event listeners for wallet changes
   useEffect(() => {
-    if (!window.ethereum) return;
+    if (!window.ethereum) {return;}
     
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {

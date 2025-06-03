@@ -40,7 +40,7 @@ export interface WalletConnectionOptions {
  * @returns Formatted address
  */
 export function formatAddress(address: string): string {
-  if (!address) return '';
+  if (!address) {return '';}
   
   if (address.length > 20) {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
@@ -82,7 +82,7 @@ export function getProviderName(type: ChainType): string {
  * @param wallets Wallets to store
  */
 export function storeWallets(wallets: ConnectedWallet[]): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') {return;}
   
   try {
     // Only store non-sensitive information
@@ -106,11 +106,11 @@ export function storeWallets(wallets: ConnectedWallet[]): void {
  * @returns Stored wallets
  */
 export function loadWallets(): Partial<ConnectedWallet>[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') {return [];}
   
   try {
     const storedWallets = localStorage.getItem('connectedWallets');
-    if (!storedWallets) return [];
+    if (!storedWallets) {return [];}
     
     return JSON.parse(storedWallets);
   } catch (error) {

@@ -104,23 +104,23 @@ const HardwareCapabilityMonitor: React.FC<{
         const recommendations: string[] = [];
         
         if (!hasWasm) {
-          recommendations.push("Your browser doesn't support WebAssembly, which is required for ZK operations. Try updating your browser.");
+          recommendations.push('Your browser doesn\'t support WebAssembly, which is required for ZK operations. Try updating your browser.');
         }
         
         if (!hasWebCrypto) {
-          recommendations.push("Your browser doesn't support the Web Cryptography API. Consider using a modern browser.");
+          recommendations.push('Your browser doesn\'t support the Web Cryptography API. Consider using a modern browser.');
         }
         
         if (memoryScore < 5) {
-          recommendations.push("Your device may have limited memory. Consider using server-side processing for complex operations.");
+          recommendations.push('Your device may have limited memory. Consider using server-side processing for complex operations.');
         }
         
         if (cpuScore < 5) {
-          recommendations.push("Your device has limited processing power for ZK operations. Proofs may take longer to generate.");
+          recommendations.push('Your device has limited processing power for ZK operations. Proofs may take longer to generate.');
         }
         
         if (isMobile && overallScore < 7) {
-          recommendations.push("Mobile devices may struggle with ZK proofs. Consider using a desktop for better performance.");
+          recommendations.push('Mobile devices may struggle with ZK proofs. Consider using a desktop for better performance.');
         }
         
         if (isLegacyBrowser(browserName, browserVersion)) {
@@ -129,7 +129,7 @@ const HardwareCapabilityMonitor: React.FC<{
         
         // If compatible but with limitations, suggest optimizations
         if (isCompatible && overallScore < 8) {
-          recommendations.push("Close other tabs and applications for better performance during ZK operations.");
+          recommendations.push('Close other tabs and applications for better performance during ZK operations.');
         }
         
         // Set capabilities state
@@ -216,16 +216,16 @@ const HardwareCapabilityMonitor: React.FC<{
 
   // Get color class based on score
   const getScoreColorClass = (score: number): string => {
-    if (score >= 8) return 'text-green-600';
-    if (score >= 5) return 'text-yellow-600';
+    if (score >= 8) {return 'text-green-600';}
+    if (score >= 5) {return 'text-yellow-600';}
     return 'text-red-600';
   };
 
   // Get score label based on score
   const getScoreLabel = (score: number): string => {
-    if (score >= 8) return 'Excellent';
-    if (score >= 6) return 'Good';
-    if (score >= 4) return 'Moderate';
+    if (score >= 8) {return 'Excellent';}
+    if (score >= 6) {return 'Good';}
+    if (score >= 4) {return 'Moderate';}
     return 'Limited';
   };
 
@@ -256,7 +256,7 @@ const HardwareCapabilityMonitor: React.FC<{
         <button 
           className="text-gray-500 hover:text-gray-700" 
           aria-expanded={isExpanded}
-          aria-label={isExpanded ? "Collapse" : "Expand"}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 

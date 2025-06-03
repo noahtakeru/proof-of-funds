@@ -55,8 +55,8 @@ const ZKVerificationResult: React.FC<{
 
   // Format verification time for display
   const formatVerificationTime = (ms?: number): string => {
-    if (!ms) return 'Unknown';
-    if (ms < 1000) return `${ms.toFixed(0)}ms`;
+    if (!ms) {return 'Unknown';}
+    if (ms < 1000) {return `${ms.toFixed(0)}ms`;}
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
@@ -102,7 +102,7 @@ const ZKVerificationResult: React.FC<{
             <div>
               <p className="text-sm font-medium text-gray-700">Proof Type:</p>
               <p className="text-sm text-gray-600">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zk-light text-zk-accent mr-2`}>
+                <span className={'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zk-light text-zk-accent mr-2'}>
                   ZK
                 </span>
                 {getProofTypeName(proofType)}

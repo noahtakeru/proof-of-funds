@@ -62,8 +62,8 @@ const BackgroundProcessor: React.FC<BackgroundProcessorProps> = ({
 
   // Format time in a human-readable way
   const formatTime = (seconds?: number): string => {
-    if (seconds === undefined || seconds < 0) return '';
-    if (seconds < 60) return `${Math.round(seconds)}s remaining`;
+    if (seconds === undefined || seconds < 0) {return '';}
+    if (seconds < 60) {return `${Math.round(seconds)}s remaining`;}
     
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.round(seconds % 60);
@@ -75,8 +75,8 @@ const BackgroundProcessor: React.FC<BackgroundProcessorProps> = ({
     const end = endTime || new Date();
     const durationMs = end.getTime() - startTime.getTime();
     
-    if (durationMs < 1000) return `${durationMs}ms`;
-    if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`;
+    if (durationMs < 1000) {return `${durationMs}ms`;}
+    if (durationMs < 60000) {return `${Math.round(durationMs / 1000)}s`;}
     
     const minutes = Math.floor(durationMs / 60000);
     const seconds = Math.round((durationMs % 60000) / 1000);

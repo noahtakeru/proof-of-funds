@@ -94,7 +94,7 @@ async function testSimpleDemo() {
   const input = {
     balance: 1000,
     threshold: 500,
-    userAddress: "0x1234567890123456789012345678901234567890"
+    userAddress: '0x1234567890123456789012345678901234567890'
   };
   
   return await generateAndVerifyProof(input);
@@ -105,9 +105,9 @@ async function testSimpleValues() {
   console.log('\n=== Test 2: Testing with Simple Values ===');
   
   const testCases = [
-    { balance: "100", threshold: "50", userAddress: "123" },
-    { balance: "1000", threshold: "500", userAddress: "456" },
-    { balance: "10000", threshold: "5000", userAddress: "789" }
+    { balance: '100', threshold: '50', userAddress: '123' },
+    { balance: '1000', threshold: '500', userAddress: '456' },
+    { balance: '10000', threshold: '5000', userAddress: '789' }
   ];
   
   let allPassed = true;
@@ -129,9 +129,9 @@ async function testFieldElements() {
   
   // Use field elements (numbers that fit in the ZK-SNARK field)
   const input = {
-    balance: "1000",  // These are already field elements
-    threshold: "500",
-    userAddress: "1234567890123456789012345678901234567890"
+    balance: '1000',  // These are already field elements
+    threshold: '500',
+    userAddress: '1234567890123456789012345678901234567890'
   };
   
   return await generateAndVerifyProof(input);
@@ -143,9 +143,9 @@ async function testProductionValues() {
   
   // Use realistic values that fit within circuit constraints
   const input = {
-    balance: "1000000000000000000", // 1 ETH in wei (fits in field)
-    threshold: "500000000000000000", // 0.5 ETH in wei
-    userAddress: "123456789012345678901234567890123456789012" // 42 chars (Ethereum address without 0x)
+    balance: '1000000000000000000', // 1 ETH in wei (fits in field)
+    threshold: '500000000000000000', // 0.5 ETH in wei
+    userAddress: '123456789012345678901234567890123456789012' // 42 chars (Ethereum address without 0x)
   };
   
   return await generateAndVerifyProof(input);

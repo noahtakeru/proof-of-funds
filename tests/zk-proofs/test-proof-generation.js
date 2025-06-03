@@ -21,7 +21,7 @@ async function testStandardProof() {
   const input = {
     balance: 1000,
     threshold: 1000,  // Standard proof needs exact match
-    userAddress: "0x1234567890123456789012345678901234567890"
+    userAddress: '0x1234567890123456789012345678901234567890'
   };
   
   try {
@@ -53,7 +53,7 @@ async function testThresholdProof() {
   const input = {
     totalBalance: 5000,
     threshold: 1000,
-    userAddress: "0x1234567890123456789012345678901234567890",
+    userAddress: '0x1234567890123456789012345678901234567890',
     networkId: 1
   };
   
@@ -86,7 +86,7 @@ async function testMaximumProof() {
   const input = {
     maxBalance: 1000,
     threshold: 2000,  // Maximum proof needs balance < threshold
-    userAddress: "0x1234567890123456789012345678901234567890",
+    userAddress: '0x1234567890123456789012345678901234567890',
     networks: [1, 2, 3, 4]
   };
   

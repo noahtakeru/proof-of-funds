@@ -98,7 +98,7 @@ async function runTests() {
         console.log(chalk.red(`  ❌ Missing required patterns: ${missingPatterns.join(', ')}`));
         failCount++;
       } else {
-        console.log(chalk.green(`  ✅ All required patterns found!`));
+        console.log(chalk.green('  ✅ All required patterns found!'));
         passCount++;
       }
     } catch (error) {

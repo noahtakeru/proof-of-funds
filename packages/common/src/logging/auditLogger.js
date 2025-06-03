@@ -145,7 +145,7 @@ class AuditLogger {
    * @returns {Object|Array} - Sanitized data
    */
   sanitizeData(data) {
-    if (!data) return {};
+    if (!data) {return {};}
     
     // List of sensitive fields to redact
     const sensitiveFields = [
@@ -157,10 +157,10 @@ class AuditLogger {
     
     // Function to deeply sanitize objects and arrays
     const sanitizeDeep = (obj) => {
-      if (obj === null || obj === undefined) return obj;
+      if (obj === null || obj === undefined) {return obj;}
       
       // Handle different data types
-      if (typeof obj !== 'object') return obj;
+      if (typeof obj !== 'object') {return obj;}
       
       // Handle arrays
       if (Array.isArray(obj)) {

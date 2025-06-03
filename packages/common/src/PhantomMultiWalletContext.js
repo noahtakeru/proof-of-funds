@@ -142,7 +142,7 @@ export function PhantomMultiWalletProvider({ children }) {
         // Update central wallet storage
         try {
           const walletData = localStorage.getItem('walletData');
-          let parsedData = walletData ? JSON.parse(walletData) : { wallets: {} };
+          const parsedData = walletData ? JSON.parse(walletData) : { wallets: {} };
           
           // Ensure wallets object exists
           if (!parsedData.wallets) {

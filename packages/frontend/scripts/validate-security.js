@@ -68,8 +68,8 @@ async function validateEnvironmentConfig() {
     'AUDIT_LOG_BUCKET'
   ];
   
-  let missingRequired = [];
-  let missingRecommended = [];
+  const missingRequired = [];
+  const missingRecommended = [];
   
   // Check required variables
   for (const varName of requiredVars) {
@@ -367,7 +367,7 @@ async function validateSecurityImplementation() {
       
       // Check for CSP implementation
       if (middlewareContent.includes('Content-Security-Policy') && 
-          middlewareContent.includes("default-src 'self'")) {
+          middlewareContent.includes('default-src \'self\'')) {
         results.securityImplementation.details.push('CSP implementation found in middleware');
       } else {
         results.securityImplementation.details.push('CSP implementation not found in middleware');

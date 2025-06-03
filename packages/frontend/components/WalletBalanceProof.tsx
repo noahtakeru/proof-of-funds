@@ -56,7 +56,7 @@ const WalletBalanceProof: React.FC<WalletBalanceProofProps> = ({
 
   // Calculate time remaining until expiry
   useEffect(() => {
-    if (!proofData.expiryTime) return;
+    if (!proofData.expiryTime) {return;}
 
     const updateTimeRemaining = () => {
       const now = new Date();
@@ -89,7 +89,7 @@ const WalletBalanceProof: React.FC<WalletBalanceProofProps> = ({
 
   // Handle copy to clipboard
   const copyToClipboard = (text: string | undefined, field: string) => {
-    if (!text) return;
+    if (!text) {return;}
     
     navigator.clipboard.writeText(text).then(() => {
       setCopied(field);

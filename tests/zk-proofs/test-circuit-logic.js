@@ -51,7 +51,7 @@ async function testCircuitLogic() {
             console.log(`   Expected: ${testCase.expected}, Got: ${result}`);
             
             if (!passed) {
-                console.log(`   ERROR: Circuit logic does not match expected behavior!`);
+                console.log('   ERROR: Circuit logic does not match expected behavior!');
             }
         }
     }

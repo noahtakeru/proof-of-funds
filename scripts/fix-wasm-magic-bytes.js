@@ -69,7 +69,7 @@ function fixWasmMagicBytes(circuitName) {
       // Write back to file
       fs.writeFileSync(wasmPath, newContent);
       console.log(`Fixed magic bytes for ${circuitName}.wasm`);
-      console.log(`NOTE: This is NOT a fully valid WebAssembly file. You need to compile the circuit properly.`);
+      console.log('NOTE: This is NOT a fully valid WebAssembly file. You need to compile the circuit properly.');
     } catch (error) {
       console.error(`Error fixing WASM file ${wasmPath}:`, error);
     }
@@ -89,7 +89,7 @@ function ensureZkeyExists(circuitName) {
     fs.writeFileSync(zkeyPath, Buffer.alloc(4));
     
     console.log(`Created minimal .zkey file for ${circuitName}`);
-    console.log(`NOTE: This is NOT a valid .zkey file. You need to compile the circuit properly.`);
+    console.log('NOTE: This is NOT a valid .zkey file. You need to compile the circuit properly.');
   }
 }
 
@@ -102,13 +102,13 @@ function ensureVkeyExists(circuitName) {
     
     // Create a minimal .vkey.json file (just a placeholder for now)
     const minimalVkey = {
-      error: "This is not a valid verification key. Please compile the circuit properly."
+      error: 'This is not a valid verification key. Please compile the circuit properly.'
     };
     
     fs.writeFileSync(vkeyPath, JSON.stringify(minimalVkey, null, 2));
     
     console.log(`Created minimal .vkey.json file for ${circuitName}`);
-    console.log(`NOTE: This is NOT a valid verification key. You need to compile the circuit properly.`);
+    console.log('NOTE: This is NOT a valid verification key. You need to compile the circuit properly.');
   }
 }
 

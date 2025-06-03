@@ -55,10 +55,10 @@ export async function generateZKProof(inputObj, providedProofType, options = {})
         const proofTypeNum = typeof proofType === 'number' ? proofType : Number(proofType);
         
         // Map numeric type to string type
-        if (proofTypeNum === ZK_PROOF_TYPES.STANDARD || proofTypeNum === 0) proofTypeStr = 'standard';
-        else if (proofTypeNum === ZK_PROOF_TYPES.THRESHOLD || proofTypeNum === 1) proofTypeStr = 'threshold';
-        else if (proofTypeNum === ZK_PROOF_TYPES.MAXIMUM || proofTypeNum === 2) proofTypeStr = 'maximum';
-        else proofTypeStr = 'standard'; // Default fallback
+        if (proofTypeNum === ZK_PROOF_TYPES.STANDARD || proofTypeNum === 0) {proofTypeStr = 'standard';}
+        else if (proofTypeNum === ZK_PROOF_TYPES.THRESHOLD || proofTypeNum === 1) {proofTypeStr = 'threshold';}
+        else if (proofTypeNum === ZK_PROOF_TYPES.MAXIMUM || proofTypeNum === 2) {proofTypeStr = 'maximum';}
+        else {proofTypeStr = 'standard';} // Default fallback
         
         logger.debug(`Converted numeric proof type ${proofType} to string: ${proofTypeStr}`);
       } else if (typeof proofType === 'string') {

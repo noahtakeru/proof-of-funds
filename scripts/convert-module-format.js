@@ -44,7 +44,7 @@ const CJS_TO_ESM = {
     function(match, exports) {
       // Handle object exports
       const parsed = exports.split(',').map(e => e.trim());
-      let namedExports = parsed.map(p => {
+      const namedExports = parsed.map(p => {
         const parts = p.split(':').map(part => part.trim());
         if (parts.length > 1) {
           return `${parts[0]} as ${parts[1]}`;

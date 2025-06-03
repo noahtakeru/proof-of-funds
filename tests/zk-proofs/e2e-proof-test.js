@@ -107,14 +107,14 @@ async function runE2ETests() {
     const standardResult = await testProofGeneration('standard', {
       balance: 1000,
       threshold: 500,
-      userAddress: "0x1234567890123456789012345678901234567890"
+      userAddress: '0x1234567890123456789012345678901234567890'
     });
     
     // Test threshold proof
     const thresholdResult = await testProofGeneration('threshold', {
       totalBalance: 5000,
       threshold: 1000,
-      userAddress: "0x1234567890123456789012345678901234567890",
+      userAddress: '0x1234567890123456789012345678901234567890',
       networkId: 1
     });
     
@@ -122,7 +122,7 @@ async function runE2ETests() {
     const maximumResult = await testProofGeneration('maximum', {
       maxBalance: 10000,
       threshold: 5000,
-      userAddress: "0x1234567890123456789012345678901234567890",
+      userAddress: '0x1234567890123456789012345678901234567890',
       networks: [1, 2, 3, 4]
     });
     

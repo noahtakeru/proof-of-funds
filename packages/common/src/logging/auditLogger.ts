@@ -163,7 +163,7 @@ export class AuditLogger {
    * Initialize GCP Storage client
    */
   async initializeStorage(): Promise<boolean> {
-    if (this.initialized) return true;
+    if (this.initialized) {return true;}
     
     try {
       this.storage = new Storage({
@@ -254,7 +254,7 @@ export class AuditLogger {
    * Recursively sanitizes nested objects and arrays
    */
   sanitizeData(data: any): any {
-    if (!data) return {};
+    if (!data) {return {};}
     
     // List of sensitive fields to redact
     const sensitiveFields = [
@@ -268,10 +268,10 @@ export class AuditLogger {
     
     // Function to deeply sanitize objects and arrays
     const sanitizeDeep = (obj: any): any => {
-      if (obj === null || obj === undefined) return obj;
+      if (obj === null || obj === undefined) {return obj;}
       
       // Handle different data types
-      if (typeof obj !== 'object') return obj;
+      if (typeof obj !== 'object') {return obj;}
       
       // Handle arrays
       if (Array.isArray(obj)) {
@@ -335,7 +335,7 @@ export class AuditLogger {
    * Save log to local backup
    */
   private async saveToLocalBackup(logEntry: LogEntry, filename: string): Promise<boolean> {
-    if (!this.options.localBackupPath) return false;
+    if (!this.options.localBackupPath) {return false;}
     
     try {
       // Ensure directory structure exists
@@ -366,7 +366,7 @@ export class AuditLogger {
    * Flush queued logs to local backup
    */
   private async flushLocalLogs(): Promise<void> {
-    if (this.localLogQueue.length === 0) return;
+    if (this.localLogQueue.length === 0) {return;}
     
     const logsToProcess = [...this.localLogQueue];
     this.localLogQueue = [];
@@ -451,7 +451,7 @@ export class AuditLogger {
           
           // Encrypt sensitive data if enabled
           let fileContent: string;
-          let metadata: Record<string, string> = {
+          const metadata: Record<string, string> = {
             eventType,
             timestamp,
             severity,
@@ -606,7 +606,7 @@ export class AuditLogger {
       
       for (const file of files) {
         // Skip if we've reached the limit
-        if (results.length >= limit) break;
+        if (results.length >= limit) {break;}
         
         // Check if file matches date range for multi-day searches
         if (startDateStr !== endDateStr) {

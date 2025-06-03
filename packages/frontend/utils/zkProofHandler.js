@@ -207,9 +207,9 @@ export function createZkProofHandler(options = {}) {
       const snarkjs = require('snarkjs');
 
       // Generate the proof
-      console.log("Generating proof with input:", JSON.stringify(circuitInput));
-      console.log("WASM path:", wasmPath);
-      console.log("Using zkeyData:", typeof zkeyData === 'string' ? zkeyData : 'Buffer or data object');
+      console.log('Generating proof with input:', JSON.stringify(circuitInput));
+      console.log('WASM path:', wasmPath);
+      console.log('Using zkeyData:', typeof zkeyData === 'string' ? zkeyData : 'Buffer or data object');
 
       const proofResult = await snarkjs.groth16.fullProve(
         circuitInput,
@@ -217,9 +217,9 @@ export function createZkProofHandler(options = {}) {
         zkeyData
       );
 
-      console.log("Proof generated successfully");
-      console.log("Proof structure:", JSON.stringify(proofResult.proof));
-      console.log("Public signals:", JSON.stringify(proofResult.publicSignals));
+      console.log('Proof generated successfully');
+      console.log('Proof structure:', JSON.stringify(proofResult.proof));
+      console.log('Public signals:', JSON.stringify(proofResult.publicSignals));
 
       const { proof, publicSignals } = proofResult;
 

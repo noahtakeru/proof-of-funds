@@ -253,7 +253,7 @@ export default async function handler(req, res) {
     if (!rateLimit.allowed) {
       return res.status(429).json({
         error: 'Too many requests',
-        message: `Rate limit exceeded. Please try again later.`,
+        message: 'Rate limit exceeded. Please try again later.',
         retryAfter: Math.ceil((rateLimit.minuteLimit.reset - Date.now()) / 1000),
         limits: rateLimit
       });

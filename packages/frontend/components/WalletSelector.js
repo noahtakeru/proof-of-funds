@@ -131,7 +131,7 @@ export default function WalletSelector({ onClose }) {
                                 ...wallet, 
                                 isInstalled: isMetaMaskWorking,
                                 statusMessage: isMetaMaskPresent && !isMetaMaskWorking ? 
-                                    "MetaMask detected but not responding. Try unlocking it." : 
+                                    'MetaMask detected but not responding. Try unlocking it.' : 
                                     undefined
                             };
                         } else if (wallet.id === 'phantomMulti') {
@@ -370,7 +370,7 @@ export default function WalletSelector({ onClose }) {
                         onClick={() => wallet.isInstalled && !connecting && handleConnect(wallet.id)}
                     >
                         <div className="flex items-center flex-1">
-                            <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-white`}>
+                            <div className={'w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-white'}>
                                 {wallet.icon}
                             </div>
                             <div className="ml-3 flex-1">

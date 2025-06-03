@@ -69,7 +69,7 @@ export async function checkServiceWalletBalance(network = 'amoy') {
       console.error(`[ALERT] Service wallet balance low: ${formattedBalance} MATIC on ${actualNetwork}`);
       console.error(`[ALERT] Service wallet address: ${walletAddress}`);
       console.error(`[ALERT] Minimum required: ${ethers.utils.formatEther(minSafeBalance)} MATIC`);
-      console.error(`[ALERT] Please fund the service wallet to continue operations`);
+      console.error('[ALERT] Please fund the service wallet to continue operations');
       
       // Update last alert timestamp
       lastAlertTimestamp = Date.now();
@@ -108,7 +108,7 @@ export async function verifyWalletBalanceForTransaction(serviceWallet, network, 
     const isSufficient = balance.gte(totalRequired);
     
     if (!isSufficient) {
-      console.error(`[CRITICAL] Service wallet has insufficient balance for transaction`);
+      console.error('[CRITICAL] Service wallet has insufficient balance for transaction');
       console.error(`[CRITICAL] Service wallet address: ${serviceWallet.address}`);
       console.error(`[CRITICAL] Current balance: ${ethers.utils.formatEther(balance)} MATIC`);
       console.error(`[CRITICAL] Required for transaction: ${ethers.utils.formatEther(requiredAmount)} MATIC`);

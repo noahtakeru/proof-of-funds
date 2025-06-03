@@ -53,8 +53,8 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
 }) => {
   // Format time in a human-readable way (e.g., "2m 30s")
   const formatTime = (seconds?: number): string => {
-    if (seconds === undefined || seconds < 0) return 'Unknown';
-    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds === undefined || seconds < 0) {return 'Unknown';}
+    if (seconds < 60) {return `${Math.round(seconds)}s`;}
     
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.round(seconds % 60);

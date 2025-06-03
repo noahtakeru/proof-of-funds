@@ -171,16 +171,16 @@ export class TransactionHistoryProcessor {
     return transactions
       .filter(tx => {
         // Apply filtering based on options
-        if (options?.startDate && tx.timestamp < options.startDate) return false;
-        if (options?.endDate && tx.timestamp > options.endDate) return false;
-        if (options?.status && !options.status.includes(tx.status)) return false;
+        if (options?.startDate && tx.timestamp < options.startDate) {return false;}
+        if (options?.endDate && tx.timestamp > options.endDate) {return false;}
+        if (options?.status && !options.status.includes(tx.status)) {return false;}
 
         // Filter by direction (incoming/outgoing)
         const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
         const isOutgoing = tx.from.toLowerCase() === address.toLowerCase();
         
-        if (options?.includeIncoming === false && isIncoming) return false;
-        if (options?.includeOutgoing === false && isOutgoing) return false;
+        if (options?.includeIncoming === false && isIncoming) {return false;}
+        if (options?.includeOutgoing === false && isOutgoing) {return false;}
         
         // Filter by counterparties
         if (options?.counterparties?.length) {

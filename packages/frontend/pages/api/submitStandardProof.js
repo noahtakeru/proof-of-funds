@@ -235,7 +235,7 @@ async function handler(req, res) {
       
       console.log(`✓ Signature verified for address: ${walletAddress}`);
     } catch (sigError) {
-      console.error(`Error verifying signature:`, sigError);
+      console.error('Error verifying signature:', sigError);
       return res.status(400).json({
         error: 'Signature verification failed',
         message: 'Could not verify signature',
@@ -246,23 +246,23 @@ async function handler(req, res) {
     // Use the correct contract ABI from the deployed contract
     const contractABI = [
       {
-        "inputs": [
-          { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
-          { "internalType": "bytes32", "name": "_proofHash", "type": "bytes32" },
-          { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-          { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
-          { "internalType": "string", "name": "_signatureMessage", "type": "string" },
-          { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+        'inputs': [
+          { 'internalType': 'enum ProofOfFunds.ProofType', 'name': '_proofType', 'type': 'uint8' },
+          { 'internalType': 'bytes32', 'name': '_proofHash', 'type': 'bytes32' },
+          { 'internalType': 'uint256', 'name': '_expiryTime', 'type': 'uint256' },
+          { 'internalType': 'uint256', 'name': '_thresholdAmount', 'type': 'uint256' },
+          { 'internalType': 'string', 'name': '_signatureMessage', 'type': 'string' },
+          { 'internalType': 'bytes', 'name': '_signature', 'type': 'bytes' }
         ],
-        "name": "submitProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'name': 'submitProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
       }
     ];
 
     // Verify contract exists and get basic info
-    let contractInfo = {};
+    const contractInfo = {};
     try {
       const contractCode = await provider.getCode(contractAddress);
       if (contractCode === '0x') {

@@ -102,7 +102,7 @@ async function uploadCircuitFiles(storage, bucketName, circuitType) {
     const zkeySource = path.join(SOURCE_DIR, circuitType, `${circuitType}Proof_js`, `${circuitType}Proof_final.zkey`);
     const zkeyDest = `${circuitType}.zkey`;
     const zkeyUploaded = await uploadFile(storage, bucketName, zkeySource, zkeyDest);
-    if (!zkeyUploaded) return false;
+    if (!zkeyUploaded) {return false;}
     
     // wasm file - verify it exists locally
     const wasmSource = path.join(SOURCE_DIR, circuitType, `${circuitType}Proof_js`, `${circuitType}Proof.wasm`);

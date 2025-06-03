@@ -368,7 +368,7 @@ export default function ConnectWallet() {
 
     // Render the WalletSelector modal - separate from conditional rendering
     const renderWalletSelector = () => {
-        if (!showWalletSelector) return null;
+        if (!showWalletSelector) {return null;}
 
         return (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 wallet-modal-container">

@@ -117,7 +117,7 @@ const ErrorRecoveryFlow: React.FC<ErrorRecoveryFlowProps> = ({
         title: 'Free Up Resources',
         description: 'Your device is running low on memory. Please close other applications and browser tabs to free up resources.',
         action: 'free_memory',
-        actionLabel: "I've Freed Up Resources"
+        actionLabel: 'I\'ve Freed Up Resources'
       });
       
       plan.push({

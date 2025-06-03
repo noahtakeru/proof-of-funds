@@ -26,7 +26,7 @@ export function getConnectedWallets() {
       return [];
     }
     
-    let connectedWallets = [];
+    const connectedWallets = [];
     
     // Add MetaMask wallets with better logging
     if (parsedData.wallets.metamask && Array.isArray(parsedData.wallets.metamask)) {
@@ -34,7 +34,7 @@ export function getConnectedWallets() {
       
       // Add addresses for better debugging
       if (parsedData.wallets.metamask.length > 0) {
-        console.log("MetaMask wallet addresses:", parsedData.wallets.metamask.map(w => 
+        console.log('MetaMask wallet addresses:', parsedData.wallets.metamask.map(w => 
           w.address || w.fullAddress || 'unknown'
         ));
       }
@@ -48,7 +48,7 @@ export function getConnectedWallets() {
       
       // Add addresses for better debugging
       if (parsedData.wallets.phantom.length > 0) {
-        console.log("Phantom wallet addresses:", parsedData.wallets.phantom.map(w => 
+        console.log('Phantom wallet addresses:', parsedData.wallets.phantom.map(w => 
           w.address || w.fullAddress || 'unknown'
         ));
       }
@@ -58,7 +58,7 @@ export function getConnectedWallets() {
     
     // Check for ethereum provider (MetaMask) to verify which wallets are actually available
     if (typeof window !== 'undefined' && window.ethereum && connectedWallets.length > 0) {
-      console.log("Ethereum provider detected, checking for available accounts...");
+      console.log('Ethereum provider detected, checking for available accounts...');
       
       // We don't want to make this function async, so we'll just log information
       // for now and let the actual checks happen in other functions
@@ -345,18 +345,18 @@ export async function connectMetaMask() {
         // localStorage.removeItem('walletData'); // Keep this for now
         // localStorage.removeItem('userInitiatedConnection'); // Keep this for now
         
-        console.log("Cleared wagmi connection cache to force fresh wallet selection");
+        console.log('Cleared wagmi connection cache to force fresh wallet selection');
       } catch (e) {
-        console.warn("Could not clear connection cache:", e);
+        console.warn('Could not clear connection cache:', e);
       }
     }
     
     // We're now forcing fresh wallet selection every time
 
-    console.log("=== FORCING METAMASK ACCOUNT SELECTION ===");
+    console.log('=== FORCING METAMASK ACCOUNT SELECTION ===');
     
     // Method 1: Try the simple approach first
-    console.log("Attempting direct eth_requestAccounts (should show selection dialog)...");
+    console.log('Attempting direct eth_requestAccounts (should show selection dialog)...');
     let accounts;
     
     try {
@@ -366,14 +366,14 @@ export async function connectMetaMask() {
         method: 'eth_requestAccounts'
       });
       
-      console.log("eth_requestAccounts returned:", accounts);
+      console.log('eth_requestAccounts returned:', accounts);
       
       if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts returned from MetaMask");
+        throw new Error('No accounts returned from MetaMask');
       }
       
     } catch (requestError) {
-      console.log("Direct request failed, trying permission-based approach:", requestError.message);
+      console.log('Direct request failed, trying permission-based approach:', requestError.message);
       
       // Method 2: Force permissions dialog
       try {
@@ -388,10 +388,10 @@ export async function connectMetaMask() {
           method: 'eth_accounts'
         });
         
-        console.log("Permission-based approach returned:", accounts);
+        console.log('Permission-based approach returned:', accounts);
         
       } catch (permissionError) {
-        console.error("Both connection methods failed:", permissionError);
+        console.error('Both connection methods failed:', permissionError);
         throw new Error(`Failed to connect to MetaMask: ${permissionError.message}`);
       }
     }
@@ -582,12 +582,12 @@ export async function scanMultiChainAssets(wallets, options = {}) {
         walletCount: wallets.length,
         includeZeroBalances,
         includePotentialSpam,
-        specificChains: specificChains || "auto-detect"
+        specificChains: specificChains || 'auto-detect'
       }
     };
     
     // Track any errors during scanning
-    let scanErrors = [];
+    const scanErrors = [];
     
     // Check for browser environment
     if (typeof window === 'undefined' || !window.ethereum) {
@@ -652,7 +652,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
     }
     
     // Add a debug log to help with troubleshooting
-    console.log(`Environment check: isTestEnvironment=${isTestEnvironment} (from localStorage)`)
+    console.log(`Environment check: isTestEnvironment=${isTestEnvironment} (from localStorage)`);
     
     // Process each chain sequentially to avoid rate limits
     
@@ -712,7 +712,7 @@ export async function scanMultiChainAssets(wallets, options = {}) {
             // Add assets to the summary
             for (const asset of walletAssets.totalAssets) {
               // Skip error tokens
-              if (asset.type === 'error') continue;
+              if (asset.type === 'error') {continue;}
               
               // Add to total assets array
               assetSummary.totalAssets.push({
@@ -1300,32 +1300,32 @@ async function scanErc20Tokens(walletAddress, provider, chain) {
     // Basic ERC20 ABI for balanceOf, decimals, symbol and name functions
     const minABI = [
       {
-        "constant": true,
-        "inputs": [{ "name": "_owner", "type": "address" }],
-        "name": "balanceOf",
-        "outputs": [{ "name": "balance", "type": "uint256" }],
-        "type": "function"
+        'constant': true,
+        'inputs': [{ 'name': '_owner', 'type': 'address' }],
+        'name': 'balanceOf',
+        'outputs': [{ 'name': 'balance', 'type': 'uint256' }],
+        'type': 'function'
       },
       {
-        "constant": true,
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [{ "name": "", "type": "uint8" }],
-        "type": "function"
+        'constant': true,
+        'inputs': [],
+        'name': 'decimals',
+        'outputs': [{ 'name': '', 'type': 'uint8' }],
+        'type': 'function'
       },
       {
-        "constant": true,
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [{ "name": "", "type": "string" }],
-        "type": "function"
+        'constant': true,
+        'inputs': [],
+        'name': 'symbol',
+        'outputs': [{ 'name': '', 'type': 'string' }],
+        'type': 'function'
       },
       {
-        "constant": true,
-        "inputs": [],
-        "name": "name",
-        "outputs": [{ "name": "", "type": "string" }],
-        "type": "function"
+        'constant': true,
+        'inputs': [],
+        'name': 'name',
+        'outputs': [{ 'name': '', 'type': 'string' }],
+        'type': 'function'
       }
     ];
     
@@ -1365,7 +1365,7 @@ async function scanErc20Tokens(walletAddress, provider, chain) {
     // Use on-chain data to find token transfers
     try {
       // ERC20 Transfer event signature
-      const ERC20_TRANSFER_EVENT = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+      const ERC20_TRANSFER_EVENT = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
       
       // Get recent blocks for scanning
       let fromBlock;
@@ -1373,7 +1373,7 @@ async function scanErc20Tokens(walletAddress, provider, chain) {
         const currentBlock = await provider.getBlockNumber();
         fromBlock = Math.max(0, currentBlock - 5000);
       } catch (blockError) {
-        fromBlock = "latest";
+        fromBlock = 'latest';
       }
       
       // Format address for topics
@@ -1384,7 +1384,7 @@ async function scanErc20Tokens(walletAddress, provider, chain) {
       // Get transfer logs
       const filter = {
         fromBlock,
-        toBlock: "latest",
+        toBlock: 'latest',
         topics: [ERC20_TRANSFER_EVENT, null, addressHex]
       };
       
@@ -1491,7 +1491,7 @@ export async function syncMetaMaskWallets() {
     // Find the actual MetaMask provider (not Phantom!)
     let metaMaskProvider = window.ethereum;
     if (window.ethereum.providers) {
-      console.log("Multiple providers detected in sync, finding MetaMask...");
+      console.log('Multiple providers detected in sync, finding MetaMask...');
       metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask && !p.isPhantom);
       if (!metaMaskProvider) {
         throw new Error('MetaMask provider not found among multiple providers');

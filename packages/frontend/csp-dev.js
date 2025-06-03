@@ -10,7 +10,7 @@ module.exports = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.polygon.technology https://*.infura.io https://*.walletconnect.org wss://*.walletconnect.org ws://localhost:* localhost:*;"
+            value: 'default-src \'self\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data:; font-src \'self\'; connect-src \'self\' https://*.polygon.technology https://*.infura.io https://*.walletconnect.org wss://*.walletconnect.org ws://localhost:* localhost:*;'
           },
           {
             key: 'X-Content-Type-Options',
@@ -18,6 +18,6 @@ module.exports = {
           },
         ],
       },
-    ]
+    ];
   }
 };

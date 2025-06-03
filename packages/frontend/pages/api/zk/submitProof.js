@@ -118,18 +118,18 @@ async function handler(req, res) {
     // Prepare contract interface for gas estimation
     const contractABI = [
       {
-        "inputs": [
-          { "internalType": "bytes", "name": "_proof", "type": "bytes" },
-          { "internalType": "bytes", "name": "_publicSignals", "type": "bytes" },
-          { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-          { "internalType": "enum ZKVerifier.ZKProofType", "name": "_proofType", "type": "uint8" },
-          { "internalType": "string", "name": "_signatureMessage", "type": "string" },
-          { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+        'inputs': [
+          { 'internalType': 'bytes', 'name': '_proof', 'type': 'bytes' },
+          { 'internalType': 'bytes', 'name': '_publicSignals', 'type': 'bytes' },
+          { 'internalType': 'uint256', 'name': '_expiryTime', 'type': 'uint256' },
+          { 'internalType': 'enum ZKVerifier.ZKProofType', 'name': '_proofType', 'type': 'uint8' },
+          { 'internalType': 'string', 'name': '_signatureMessage', 'type': 'string' },
+          { 'internalType': 'bytes', 'name': '_signature', 'type': 'bytes' }
         ],
-        "name": "submitZKProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'name': 'submitZKProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
       }
     ];
 

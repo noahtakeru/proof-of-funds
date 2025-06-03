@@ -42,8 +42,8 @@ const ZKProgressIndicator: React.FC<{
 }) => {
   // Format remaining time in a human-readable format
   const formatTimeRemaining = (seconds: number): string => {
-    if (seconds < 60) return `${Math.round(seconds)}s remaining`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s remaining`;
+    if (seconds < 60) {return `${Math.round(seconds)}s remaining`;}
+    if (seconds < 3600) {return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s remaining`;}
     return `${Math.floor(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m remaining`;
   };
 
@@ -55,8 +55,8 @@ const ZKProgressIndicator: React.FC<{
 
   // Get appropriate color based on progress
   const getProgressColor = (percent: number): string => {
-    if (percent < 30) return 'bg-blue-500';
-    if (percent < 70) return 'bg-primary-500';
+    if (percent < 30) {return 'bg-blue-500';}
+    if (percent < 70) {return 'bg-primary-500';}
     return 'bg-green-500';
   };
 

@@ -18,19 +18,19 @@ const distDir = path.resolve(__dirname, '../packages/common/dist');
 function convertToCommonJS(content) {
   // Replace export * from statements with require + Object.assign
   content = content.replace(/export \* from ['"](.+)['"]/g, 
-    "Object.assign(exports, require('$1'))");
+    'Object.assign(exports, require(\'$1\'))');
   
   // Replace export const/let/var with exports.name = 
   content = content.replace(/export (const|let|var) (\w+)/g, 
-    "$1 $2; exports.$2");
+    '$1 $2; exports.$2');
   
   // Replace export function with exports.function =
   content = content.replace(/export function (\w+)/g, 
-    "function $1; exports.$1 = $1\nfunction $1");
+    'function $1; exports.$1 = $1\nfunction $1');
   
   // Replace export default with module.exports =
   content = content.replace(/export default (\w+)/g, 
-    "module.exports = $1");
+    'module.exports = $1');
   
   // Replace import statements with requires
   content = content.replace(/import (.+) from ['"](.+)['"]/g, (match, imports, path) => {
@@ -59,7 +59,7 @@ function convertToCommonJS(content) {
   });
   
   // Add proper file extension for local requires
-  content = content.replace(/require\(['"](\.[^'")]+)['"]\)/g, "require('$1.cjs')");
+  content = content.replace(/require\(['"](\.[^'")]+)['"]\)/g, 'require(\'$1.cjs\')');
   
   return content;
 }

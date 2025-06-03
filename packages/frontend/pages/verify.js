@@ -32,15 +32,15 @@ import { useNetwork } from '@proof-of-funds/common';
 // Browser-friendly RPC URLs that support CORS
 // These will be dynamically updated based on selected network (testnet or mainnet)
 const getAmoyRPCOptions = () => [
-    "https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Public Infura endpoint
-    "https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42", // Gateway.fm
-    "https://rpc-amoy.polygon.technology", // Official Polygon endpoint
+    'https://polygon-amoy.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', // Public Infura endpoint
+    'https://polygon-amoy-api.gateway.fm/v4/2ce4fdf25cca5a5b8c59756d98fe6b42', // Gateway.fm
+    'https://rpc-amoy.polygon.technology', // Official Polygon endpoint
 ];
 
 const getMainnetRPCOptions = () => [
-    "https://polygon-rpc.com", // Official Polygon endpoint
-    "https://polygon-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Public Infura endpoint
-    "https://polygon-mainnet.g.alchemy.com/v2/demo", // Alchemy demo endpoint
+    'https://polygon-rpc.com', // Official Polygon endpoint
+    'https://polygon-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', // Public Infura endpoint
+    'https://polygon-mainnet.g.alchemy.com/v2/demo', // Alchemy demo endpoint
 ];
 
 // Function to try multiple providers until one works
@@ -52,13 +52,13 @@ const getWorkingProvider = async (isTestnet = true) => {
 
             return new ethers.providers.Web3Provider(window.ethereum);
         } catch (e) {
-            console.warn("Error using injected provider:", e);
+            console.warn('Error using injected provider:', e);
         }
     }
 
     // Get appropriate RPC URLs based on network selection
     const rpcOptions = isTestnet ? getAmoyRPCOptions() : getMainnetRPCOptions();
-    const networkName = isTestnet ? "Polygon Amoy" : "Polygon Mainnet";
+    const networkName = isTestnet ? 'Polygon Amoy' : 'Polygon Mainnet';
 
     // Try each RPC URL until one works
     for (const rpcUrl of rpcOptions) {
@@ -147,13 +147,13 @@ export default function VerifyPage() {
         address: ZK_VERIFIER_ADDRESS,
         abi: [
             {
-                "inputs": [
-                    { "internalType": "address", "name": "_user", "type": "address" }
+                'inputs': [
+                    { 'internalType': 'address', 'name': '_user', 'type': 'address' }
                 ],
-                "name": "verifyZKProof",
-                "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-                "stateMutability": "view",
-                "type": "function"
+                'name': 'verifyZKProof',
+                'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+                'stateMutability': 'view',
+                'type': 'function'
             }
         ],
         functionName: 'verifyZKProof',
@@ -311,8 +311,8 @@ export default function VerifyPage() {
                 }
 
                 // Parse the transaction input using ethers
-                let amountFromTx = "0";
-                let tokenSymbol = "ETH"; // Default to ETH
+                let amountFromTx = '0';
+                let tokenSymbol = 'ETH'; // Default to ETH
 
                 if (txData && txData.data) {
                     try {
@@ -345,7 +345,7 @@ export default function VerifyPage() {
                     proofData = await actualContract.getProof(userAddress);
 
                 } catch (e) {
-                    console.error("Error getting proof data from contract:", e);
+                    console.error('Error getting proof data from contract:', e);
                     // Continue with event data only
                     proofData = {
                         thresholdAmount: ethers.BigNumber.from(0),
@@ -367,7 +367,7 @@ export default function VerifyPage() {
                 }
 
                 // Use threshold amount from contract data if available
-                let thresholdAmount = "0";
+                let thresholdAmount = '0';
                 if (proofData.thresholdAmount && proofData.thresholdAmount._isBigNumber) {
                     thresholdAmount = ethers.utils.formatEther(proofData.thresholdAmount);
                 }
@@ -377,8 +377,8 @@ export default function VerifyPage() {
                     user: userAddress,
                     proofType: proofTypeValue,
                     proofHash: proofHash,
-                    thresholdAmount: thresholdAmount !== "0" ? thresholdAmount : "0",
-                    amount: amountFromTx !== "0" ? amountFromTx : thresholdAmount,
+                    thresholdAmount: thresholdAmount !== '0' ? thresholdAmount : '0',
+                    amount: amountFromTx !== '0' ? amountFromTx : thresholdAmount,
                     tokenSymbol: tokenSymbol,
                     timestamp: timestamp,
                     expiryTime: expiryTime,
@@ -387,7 +387,7 @@ export default function VerifyPage() {
                 };
 
                 // Set amount and coin type automatically
-                setAmount(details.thresholdAmount !== "0" ? details.thresholdAmount : details.amount);
+                setAmount(details.thresholdAmount !== '0' ? details.thresholdAmount : details.amount);
                 setCoinType(details.tokenSymbol);
 
                 // Set proof details for display
@@ -398,7 +398,7 @@ export default function VerifyPage() {
             } catch (browserError) {
                 // If client-side verification fails due to CORS or provider issues,
                 // fall back to the server-side API
-                console.warn("Browser-based verification failed:", browserError.message);
+                console.warn('Browser-based verification failed:', browserError.message);
 
                 // Try the server-side API
                 try {
@@ -423,7 +423,7 @@ export default function VerifyPage() {
 
                     return data.proofDetails;
                 } catch (apiError) {
-                    console.error("API verification also failed:", apiError);
+                    console.error('API verification also failed:', apiError);
                     throw new Error(`Verification failed: ${browserError.message}. Server fallback also failed: ${apiError.message}`);
                 }
             }
@@ -439,7 +439,7 @@ export default function VerifyPage() {
 
     // Add example transaction hashes that are known to work
     const EXAMPLE_TX_HASHES = [
-        "0xff7fc1cf90fbab2222f2c6bd6f3046a7e057930ba17645ce6d1f863edc30b2d3", // Example from logs
+        '0xff7fc1cf90fbab2222f2c6bd6f3046a7e057930ba17645ce6d1f863edc30b2d3', // Example from logs
     ];
 
     // Handle clicking on example transaction hash
@@ -449,13 +449,13 @@ export default function VerifyPage() {
 
     // Add more detailed validation feedback
     const getTransactionHashStatus = (hash) => {
-        if (!hash) return null;
+        if (!hash) {return null;}
 
         // Check if it's a contract address (42 chars with 0x)
         if (hash.length === 42 && /^0x[0-9a-fA-F]{40}$/.test(hash)) {
             return {
                 valid: false,
-                message: "This looks like a contract address, not a transaction hash. Transaction hashes are 66 characters long."
+                message: 'This looks like a contract address, not a transaction hash. Transaction hashes are 66 characters long.'
             };
         }
 
@@ -463,14 +463,14 @@ export default function VerifyPage() {
         if (/^0x[0-9a-fA-F]{64}$/.test(hash)) {
             return {
                 valid: true,
-                message: "Valid transaction hash format"
+                message: 'Valid transaction hash format'
             };
         }
 
         // Other invalid format
         return {
             valid: false,
-            message: "Invalid transaction hash format. It should be 66 characters long (including 0x) and contain only hexadecimal characters."
+            message: 'Invalid transaction hash format. It should be 66 characters long (including 0x) and contain only hexadecimal characters.'
         };
     };
 
@@ -487,7 +487,7 @@ export default function VerifyPage() {
         try {
             // Only transaction-based verification now
             if (!transactionHash) {
-                setError("Please enter a transaction hash");
+                setError('Please enter a transaction hash');
                 return;
             }
 
@@ -743,7 +743,7 @@ export default function VerifyPage() {
                                         </div>
                                         <div>
                                             <p className="font-medium">Amount:</p>
-                                            <p className="text-gray-700">{proofDetails.thresholdAmount !== "0" ? proofDetails.thresholdAmount : proofDetails.amount} {proofDetails.tokenSymbol}</p>
+                                            <p className="text-gray-700">{proofDetails.thresholdAmount !== '0' ? proofDetails.thresholdAmount : proofDetails.amount} {proofDetails.tokenSymbol}</p>
                                         </div>
                                         <div>
                                             <p className="font-medium">Proof Type:</p>

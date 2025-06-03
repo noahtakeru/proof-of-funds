@@ -68,7 +68,7 @@ export default function ManagePage() {
                                 proofType: Math.floor(Math.random() * 3), // 0: standard, 1: threshold, 2: maximum
                                 thresholdAmount: Math.floor(Math.random() * 1000),
                                 isRevoked: false,
-                                signatureMessage: "Sample signature message for proof " + id
+                                signatureMessage: 'Sample signature message for proof ' + id
                             };
                         })
                 );
@@ -76,7 +76,7 @@ export default function ManagePage() {
                 const proofs = await Promise.all(proofPromises);
                 setActiveProofs(proofs.filter(p => !p.isRevoked && p.expiryTime > Date.now()));
             } catch (error) {
-                console.error("Error fetching proof details:", error);
+                console.error('Error fetching proof details:', error);
             } finally {
                 setIsLoading(false);
             }
@@ -87,7 +87,7 @@ export default function ManagePage() {
 
     // Handle proof revocation
     const handleRevokeProof = async (proofId) => {
-        if (!isConnected) return;
+        if (!isConnected) {return;}
 
         try {
             revokeProof({

@@ -63,13 +63,13 @@ describe('TransactionHistoryProcessor', () => {
     // Create mock registry
     mockRegistry = {
       getAdapterById: jest.fn(chainId => {
-        if (chainId === 1) return mockEthAdapter;
-        if (chainId === 111) return mockSolAdapter;
+        if (chainId === 1) {return mockEthAdapter;}
+        if (chainId === 111) {return mockSolAdapter;}
         return null;
       }),
       getChainTypeById: jest.fn(chainId => {
-        if (chainId === 1) return ChainType.EVM;
-        if (chainId === 111) return ChainType.SOLANA;
+        if (chainId === 1) {return ChainType.EVM;}
+        if (chainId === 111) {return ChainType.SOLANA;}
         return null;
       }),
       getAllChainIds: jest.fn().mockReturnValue([1, 111])

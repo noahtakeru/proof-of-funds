@@ -44,7 +44,7 @@ async function main() {
         // Generate a signed URL
         console.log(`Generating signed URL for ${circuitType}.zkey...`);
         const signedUrl = await storageManager.getSignedUrl(circuitType, 5);
-        console.log(`✅ Signed URL generated (expires in 5 minutes)`);
+        console.log('✅ Signed URL generated (expires in 5 minutes)');
         console.log(`URL: ${signedUrl.substring(0, 80)}...`);
         
       } catch (error) {

@@ -94,7 +94,7 @@ class ZKeyStorageManager {
       return data;
     } catch (error) {
       if (error.code === 403) {
-        throw new Error(`Permission denied accessing Cloud Storage. Check service account permissions.`);
+        throw new Error('Permission denied accessing Cloud Storage. Check service account permissions.');
       } else if (error.code === 404) {
         throw new Error(`Bucket "${this.bucketName}" not found. Ensure bucket exists and is accessible.`);
       }

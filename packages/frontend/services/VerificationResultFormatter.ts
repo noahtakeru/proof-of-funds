@@ -219,8 +219,8 @@ export class VerificationResultFormatter {
     
     // Format verification time
     const formatVerificationTime = (ms?: number): string => {
-      if (!ms) return 'Unknown';
-      if (ms < 1000) return `${ms.toFixed(0)}ms`;
+      if (!ms) {return 'Unknown';}
+      if (ms < 1000) {return `${ms.toFixed(0)}ms`;}
       return `${(ms / 1000).toFixed(2)}s`;
     };
     

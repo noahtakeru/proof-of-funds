@@ -14,30 +14,30 @@ const ZK_VERIFIER_ADDRESS = process.env.ZK_VERIFIER_ADDRESS || '0x9E98DdFD14e472
 // Simplified ABI for the ZK Verifier contract (just the methods we need)
 const ZK_VERIFIER_ABI = [
   {
-    "inputs": [
-      { "internalType": "address", "name": "_user", "type": "address" }
+    'inputs': [
+      { 'internalType': 'address', 'name': '_user', 'type': 'address' }
     ],
-    "name": "getZKProof",
-    "outputs": [
+    'name': 'getZKProof',
+    'outputs': [
       {
-        "components": [
-          { "internalType": "address", "name": "user", "type": "address" },
-          { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
-          { "internalType": "uint256", "name": "expiryTime", "type": "uint256" },
-          { "internalType": "bytes", "name": "publicSignals", "type": "bytes" },
-          { "internalType": "bytes", "name": "proof", "type": "bytes" },
-          { "internalType": "enum ZKVerifier.ZKProofType", "name": "proofType", "type": "uint8" },
-          { "internalType": "bool", "name": "isRevoked", "type": "bool" },
-          { "internalType": "string", "name": "signatureMessage", "type": "string" },
-          { "internalType": "bytes", "name": "signature", "type": "bytes" }
+        'components': [
+          { 'internalType': 'address', 'name': 'user', 'type': 'address' },
+          { 'internalType': 'uint256', 'name': 'timestamp', 'type': 'uint256' },
+          { 'internalType': 'uint256', 'name': 'expiryTime', 'type': 'uint256' },
+          { 'internalType': 'bytes', 'name': 'publicSignals', 'type': 'bytes' },
+          { 'internalType': 'bytes', 'name': 'proof', 'type': 'bytes' },
+          { 'internalType': 'enum ZKVerifier.ZKProofType', 'name': 'proofType', 'type': 'uint8' },
+          { 'internalType': 'bool', 'name': 'isRevoked', 'type': 'bool' },
+          { 'internalType': 'string', 'name': 'signatureMessage', 'type': 'string' },
+          { 'internalType': 'bytes', 'name': 'signature', 'type': 'bytes' }
         ],
-        "internalType": "struct ZKVerifier.ZKProof",
-        "name": "",
-        "type": "tuple"
+        'internalType': 'struct ZKVerifier.ZKProof',
+        'name': '',
+        'type': 'tuple'
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    'stateMutability': 'view',
+    'type': 'function'
   }
 ];
 

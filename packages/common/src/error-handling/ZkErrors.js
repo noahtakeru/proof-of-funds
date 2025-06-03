@@ -139,10 +139,10 @@ export async function safeZkOperation(zkOperation, params, setError, onSuccess) 
  * @returns {boolean} Whether it's a ZK error
  */
 export function isZkError(error) {
-  if (!error) return false;
+  if (!error) {return false;}
   
   // Check if it's our own ZK error type
-  if (error instanceof ZkError) return true;
+  if (error instanceof ZkError) {return true;}
   
   // Check error code
   if (error.code) {
@@ -155,7 +155,7 @@ export function isZkError(error) {
   }
   
   // Check error category
-  if (error.category === ErrorCategory.ZK) return true;
+  if (error.category === ErrorCategory.ZK) {return true;}
   
   // Check error message patterns
   if (error.message) {

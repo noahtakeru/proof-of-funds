@@ -286,7 +286,7 @@ if (require.main === module) {
   if (!jwt.decode) {
     jwt.decode = (token) => {
       const parts = token.split('.');
-      if (parts.length !== 3) return null;
+      if (parts.length !== 3) {return null;}
       
       try {
         return JSON.parse(Buffer.from(parts[1], 'base64').toString());
