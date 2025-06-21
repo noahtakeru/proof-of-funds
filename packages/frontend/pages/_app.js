@@ -18,6 +18,8 @@ import { WagmiConfig, createConfig, configureChains } from 'wagmi';
 import { mainnet, polygon, polygonMumbai } from 'wagmi/chains';
 import { publicProvider } from 'wagmi/providers/public';
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+import { AuthProvider } from '../contexts/AuthContext';
+import { UserPreferencesProvider } from '../contexts/UserPreferencesContext';
 
 /**
  * Polygon Amoy Testnet Configuration
@@ -205,9 +207,13 @@ function MyApp({ Component, pageProps }) {
             <WagmiConfig config={config}>
                 <NetworkProvider>
                     <PhantomMultiWalletProvider>
-                        <Layout>
-                            <Component {...pageProps} />
-                        </Layout>
+                        <AuthProvider>
+                            <UserPreferencesProvider>
+                                <Layout>
+                                    <Component {...pageProps} />
+                                </Layout>
+                            </UserPreferencesProvider>
+                        </AuthProvider>
                     </PhantomMultiWalletProvider>
                 </NetworkProvider>
             </WagmiConfig>

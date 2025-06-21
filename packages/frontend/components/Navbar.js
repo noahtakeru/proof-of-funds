@@ -20,6 +20,11 @@ import Link from 'next/link';
 import ConnectWallet from './ConnectWallet';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
+
+// Dynamically import these components to avoid hydration errors
+const UserProfileDropdown = dynamic(() => import('./user/UserProfileDropdown'), { ssr: false });
+const AdminNavLinks = dynamic(() => import('./AdminNavLinks'), { ssr: false });
 
 export default function Navbar() {
     const [refreshing, setRefreshing] = useState(false);
@@ -95,11 +100,14 @@ export default function Navbar() {
                             >
                                 Tech
                             </Link>
+                            
+                            <AdminNavLinks />
                         </div>
                     </div>
 
-                    <div className="flex items-center">
+                    <div className="flex items-center space-x-4">
                         <ConnectWallet />
+                        <UserProfileDropdown />
                     </div>
                 </div>
             </div>

@@ -1,44 +1,68 @@
+"use strict";
 /**
- * SnarkJS Browser-Compatible Wrapper
- * 
+ * SnarkJS Browser-Compatible Wrapper (CommonJS version)
+ *
  * This module provides a wrapper around snarkjs that works in both browser
  * and Node.js environments, handling the differences in module imports and
  * file system access.
- * 
- * This file supports both ESM and CommonJS import patterns.
  */
-
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 // Constants for file system operations - needed for browser compatibility
 const FILE_CONSTANTS = {
-  O_TRUNC: 512,  // Value from fs.constants.O_TRUNC
-  O_CREAT: 64,   // Value from fs.constants.O_CREAT
-  O_RDWR: 2,     // Value from fs.constants.O_RDWR
-  O_EXCL: 128,   // Value from fs.constants.O_EXCL
-  O_RDONLY: 0    // Value from fs.constants.O_RDONLY
+    O_TRUNC: 512, // Value from fs.constants.O_TRUNC
+    O_CREAT: 64, // Value from fs.constants.O_CREAT
+    O_RDWR: 2, // Value from fs.constants.O_RDWR
+    O_EXCL: 128, // Value from fs.constants.O_EXCL
+    O_RDONLY: 0 // Value from fs.constants.O_RDONLY
 };
-
-// Safely load snarkjs with browser compatibility
+// In CommonJS, we need to handle the dynamic import differently
 async function loadSnarkJS() {
-  try {
-    // Check if we're in a CommonJS environment first
-    if (typeof require !== 'undefined') {
-      try {
-        return require('snarkjs');
-      } catch (requireError) {
-        // If require fails, fall back to dynamic import
-
-      }
+    try {
+        // For CommonJS environments
+        if (typeof require !== 'undefined') {
+            return require('snarkjs');
+        }
+        // For ES Module environments (browser or Node.js ESM)
+        const snarkjs = await Promise.resolve().then(() => __importStar(require('snarkjs')));
+        return snarkjs;
     }
-    
-    // For ESM environments (browser or Node.js ESM)
-    const snarkjs = await import('snarkjs');
-    return snarkjs;
-  } catch (error) {
-    console.error('Error loading snarkjs:', error);
-    throw new Error(`Failed to load snarkjs: ${error.message}`);
-  }
+    catch (error) {
+        console.error('Error loading snarkjs:', error);
+        throw new Error(`Failed to load snarkjs: ${error.message}`);
+    }
 }
-
 /**
  * Wrapper for snarkjs.groth16.fullProve that works in both browser and Node.js
  * @param {Object} input - The input to the circuit
@@ -47,22 +71,21 @@ async function loadSnarkJS() {
  * @returns {Promise<Object>} - The proof and public signals
  */
 async function fullProve(input, wasmPath, zkeyPath) {
-  const snarkjs = await loadSnarkJS();
-  
-  try {
-    // Call the actual snarkjs function
-    return await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
-  } catch (error) {
-    // Enhance error with detailed information
-    const enhancedError = new Error(`ZK proof generation failed: ${error.message}`);
-    enhancedError.originalError = error;
-    enhancedError.input = input;
-    enhancedError.wasmPath = wasmPath;
-    enhancedError.zkeyPath = zkeyPath;
-    throw enhancedError;
-  }
+    const snarkjs = await loadSnarkJS();
+    try {
+        // Call the actual snarkjs function
+        return await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
+    }
+    catch (error) {
+        // Enhance error with detailed information
+        const enhancedError = new Error(`ZK proof generation failed: ${error.message}`);
+        enhancedError.originalError = error;
+        enhancedError.input = input;
+        enhancedError.wasmPath = wasmPath;
+        enhancedError.zkeyPath = zkeyPath;
+        throw enhancedError;
+    }
 }
-
 /**
  * Wrapper for snarkjs.groth16.verify that works in both browser and Node.js
  * @param {Object} vkeyJson - The verification key
@@ -71,49 +94,33 @@ async function fullProve(input, wasmPath, zkeyPath) {
  * @returns {Promise<boolean>} - Whether the proof is valid
  */
 async function verify(vkeyJson, publicSignals, proof) {
-  const snarkjs = await loadSnarkJS();
-  
-  try {
-    // Call the actual snarkjs function
-    return await snarkjs.groth16.verify(vkeyJson, publicSignals, proof);
-  } catch (error) {
-    // Enhance error with detailed information
-    const enhancedError = new Error(`ZK proof verification failed: ${error.message}`);
-    enhancedError.originalError = error;
-    throw enhancedError;
-  }
+    const snarkjs = await loadSnarkJS();
+    try {
+        // Call the actual snarkjs function
+        return await snarkjs.groth16.verify(vkeyJson, publicSignals, proof);
+    }
+    catch (error) {
+        // Enhance error with detailed information
+        const enhancedError = new Error(`ZK proof verification failed: ${error.message}`);
+        enhancedError.originalError = error;
+        throw enhancedError;
+    }
 }
-
 /**
  * Get file system constants needed for browser compatibility
  * @returns {Object} - File system constants
  */
 function getFileConstants() {
-  return FILE_CONSTANTS;
+    return FILE_CONSTANTS;
 }
-
-// Prepare exports object that works in both ESM and CommonJS
-const exportsObj = {
-  groth16: {
-    fullProve,
-    verify
-  },
-  getFileConstants,
-  fullProve,
-  verify,
-  FILE_CONSTANTS
-};
-
-// ESM exports
-module.exports = exportsObj;
+// Export using CommonJS module.exports
 module.exports = {
-  fullProve,
-  verify,
-  getFileConstants,
-  FILE_CONSTANTS
+    groth16: {
+        fullProve,
+        verify
+    },
+    getFileConstants,
+    fullProve,
+    verify,
+    FILE_CONSTANTS
 };
-
-// Support for CommonJS environments
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = exportsObj;
-}

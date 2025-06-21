@@ -1,9 +1,9 @@
+"use strict";
 /**
  * BigQuery Analytics Client
- * 
+ *
  * This module provides utilities for logging analytics data to BigQuery.
  */
-
 /**
  * Log a proof generation event to BigQuery
  * @param {Object} proofData - The proof generation data to log
@@ -15,17 +15,17 @@
  * @param {string} proofData.clientType - The type of client that generated the proof
  */
 function logProofGeneration(proofData) {
-  try {
-    // In a real implementation, this would send the data to BigQuery
-    console.log('[Analytics] Proof generation logged:', {
-      timestamp: new Date().toISOString(),
-      ...proofData
-    });
-  } catch (error) {
-    console.error('[Analytics] Failed to log proof generation:', error);
-  }
+    try {
+        // In a real implementation, this would send the data to BigQuery
+        console.log('[Analytics] Proof generation logged:', {
+            timestamp: new Date().toISOString(),
+            ...proofData
+        });
+    }
+    catch (error) {
+        console.error('[Analytics] Failed to log proof generation:', error);
+    }
 }
-
 /**
  * Log a proof verification event to BigQuery
  * @param {Object} verificationData - The proof verification data to log
@@ -35,17 +35,17 @@ function logProofGeneration(proofData) {
  * @param {number} verificationData.executionTimeMs - The execution time in milliseconds
  */
 function logProofVerification(verificationData) {
-  try {
-    // In a real implementation, this would send the data to BigQuery
-    console.log('[Analytics] Proof verification logged:', {
-      timestamp: new Date().toISOString(),
-      ...verificationData
-    });
-  } catch (error) {
-    console.error('[Analytics] Failed to log proof verification:', error);
-  }
+    try {
+        // In a real implementation, this would send the data to BigQuery
+        console.log('[Analytics] Proof verification logged:', {
+            timestamp: new Date().toISOString(),
+            ...verificationData
+        });
+    }
+    catch (error) {
+        console.error('[Analytics] Failed to log proof verification:', error);
+    }
 }
-
 /**
  * Log an error event to BigQuery
  * @param {Object} errorData - The error data to log
@@ -55,17 +55,17 @@ function logProofVerification(verificationData) {
  * @param {string} errorData.component - The component that generated the error
  */
 function logError(errorData) {
-  try {
-    // In a real implementation, this would send the data to BigQuery
-    console.error('[Analytics] Error logged:', {
-      timestamp: new Date().toISOString(),
-      ...errorData
-    });
-  } catch (error) {
-    console.error('[Analytics] Failed to log error:', error);
-  }
+    try {
+        // In a real implementation, this would send the data to BigQuery
+        console.error('[Analytics] Error logged:', {
+            timestamp: new Date().toISOString(),
+            ...errorData
+        });
+    }
+    catch (error) {
+        console.error('[Analytics] Failed to log error:', error);
+    }
 }
-
 /**
  * Log a user event to BigQuery
  * @param {Object} userData - The user data to log
@@ -74,21 +74,21 @@ function logError(errorData) {
  * @param {Object} userData.eventData - Additional data about the event
  */
 function logUserEvent(userData) {
-  try {
-    // In a real implementation, this would send the data to BigQuery
-    console.log('[Analytics] User event logged:', {
-      timestamp: new Date().toISOString(),
-      ...userData
-    });
-  } catch (error) {
-    console.error('[Analytics] Failed to log user event:', error);
-  }
+    try {
+        // In a real implementation, this would send the data to BigQuery
+        console.log('[Analytics] User event logged:', {
+            timestamp: new Date().toISOString(),
+            ...userData
+        });
+    }
+    catch (error) {
+        console.error('[Analytics] Failed to log user event:', error);
+    }
 }
-
 // Export the analytics client functions
 module.exports = {
-  logProofGeneration,
-  logProofVerification,
-  logError,
-  logUserEvent
+    logProofGeneration,
+    logProofVerification,
+    logError,
+    logUserEvent
 };

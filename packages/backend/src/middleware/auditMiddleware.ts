@@ -118,6 +118,14 @@ export const createAuditMiddleware = (params: {
  * Authentication audit middleware
  */
 export const authAuditMiddleware = {
+  register: createAuditMiddleware({
+    eventType: AuditEventType.USER_REGISTRATION,
+    action: AuditAction.CREATE,
+    getDetails: (req) => ({
+      email: req.body.email
+    })
+  }),
+  
   login: createAuditMiddleware({
     eventType: AuditEventType.AUTH_LOGIN,
     action: AuditAction.LOGIN,

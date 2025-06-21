@@ -29,7 +29,8 @@ export const getNonce = async (req: Request, res: Response, next: NextFunction) 
     // Generate a nonce
     const nonce = generateNonce(address);
     
-    // Log nonce generation
+    // Log nonce generation in both systems for transition period
+    // 1. General audit log (existing)
     await auditLogService.log({
       eventType: AuditEventType.AUTH_LOGIN,
       actorType: ActorType.ANONYMOUS,
@@ -42,6 +43,21 @@ export const getNonce = async (req: Request, res: Response, next: NextFunction) 
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       severity: AuditSeverity.INFO
+    });
+    
+    // 2. New dedicated wallet auth log
+    const { walletAuthLogService } = require('../../services/walletAuthLogService');
+    const { AuthResult } = require('../../services/walletAuthLogService');
+    
+    await walletAuthLogService.logAuthAttempt({
+      walletAddress: address,
+      nonce: nonce,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      authResult: AuthResult.PENDING,
+      metadata: {
+        action: 'nonce_generation'
+      }
     });
     
     // Return the nonce
@@ -65,12 +81,16 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       throw new ApiError(400, 'Address, signature, and nonce are required', 'MISSING_PARAMS');
     }
 
+    // Import wallet auth logging service
+    const { walletAuthLogService, AuthResult, AuthFailureReason } = require('../../services/walletAuthLogService');
+
     // Verify the signature
     const message = `Sign this message to authenticate: ${nonce}`;
     const isValid = await verifySignature(message, signature, address);
     
     if (!isValid) {
-      // Log failed authentication attempt
+      // Log failed authentication attempt in both systems
+      // 1. General audit log (existing)
       await auditLogService.log({
         eventType: AuditEventType.AUTH_LOGIN,
         actorType: ActorType.ANONYMOUS,
@@ -83,6 +103,20 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
         severity: AuditSeverity.WARNING
+      });
+      
+      // 2. New dedicated wallet auth log
+      await walletAuthLogService.logAuthAttempt({
+        walletAddress: address,
+        nonce: nonce,
+        signature: signature,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        authResult: AuthResult.FAILURE,
+        failureReason: AuthFailureReason.INVALID_SIGNATURE,
+        metadata: {
+          message: message
+        }
       });
       
       throw new ApiError(401, 'Invalid signature', 'INVALID_SIGNATURE');
@@ -136,7 +170,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     // Check if user is active
     if (!user.isActive) {
-      // Log inactive account access attempt
+      // Log inactive account access attempt in both systems
+      // 1. General audit log (existing)
       await auditLogService.log({
         eventType: AuditEventType.AUTH_LOGIN,
         actorType: ActorType.USER,
@@ -150,6 +185,21 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
         severity: AuditSeverity.WARNING
+      });
+      
+      // 2. New dedicated wallet auth log
+      await walletAuthLogService.logAuthAttempt({
+        userId: user.id,
+        walletAddress: address,
+        nonce: nonce,
+        signature: signature,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        authResult: AuthResult.FAILURE,
+        failureReason: AuthFailureReason.INACTIVE_USER,
+        metadata: {
+          userId: user.id
+        }
       });
       
       throw new ApiError(403, 'User account is inactive', 'INACTIVE_ACCOUNT');
@@ -176,7 +226,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       { expiresIn: config.jwt.refreshTokenExpiry }
     );
     
-    // Log successful authentication
+    // Log successful authentication in both systems
+    // 1. General audit log (existing)
     await auditLogService.log({
       eventType: AuditEventType.AUTH_LOGIN,
       actorType: ActorType.USER,
@@ -190,6 +241,21 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       severity: AuditSeverity.INFO
+    });
+    
+    // 2. New dedicated wallet auth log
+    await walletAuthLogService.logAuthAttempt({
+      userId: user.id,
+      walletAddress: address,
+      nonce: nonce,
+      signature: signature,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      authResult: AuthResult.SUCCESS,
+      metadata: {
+        isNewUser: user.lastLoginAt === null,
+        permissions: user.permissions
+      }
     });
 
     res.status(200).json({
