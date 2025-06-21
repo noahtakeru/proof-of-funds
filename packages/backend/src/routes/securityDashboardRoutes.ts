@@ -10,6 +10,7 @@ import { Router } from 'express';
 import securityDashboardController from '../controllers/securityDashboardController';
 import { authenticateJWT, isAdmin } from '../middleware/auth';
 import { apiRateLimit } from '../middleware/enhancedRateLimit';
+import { getWalletAuthStats, getWalletAuthHistory, getAuthSuccessRate } from '../api/dashboard/walletAuthStats';
 
 const router = Router();
 
@@ -30,5 +31,10 @@ router.get('/ips/suspicious', securityDashboardController.getSuspiciousIPs);
 router.get('/ips/:ip', securityDashboardController.getIPDetails);
 router.post('/ips/:ip/block', securityDashboardController.blockIP);
 router.post('/ips/:ip/allow', securityDashboardController.allowIP);
+
+// Wallet authentication routes
+router.get('/wallet-auth/stats', getWalletAuthStats);
+router.get('/wallet-auth/history/:address', getWalletAuthHistory);
+router.get('/wallet-auth/success-rate', getAuthSuccessRate);
 
 export default router;

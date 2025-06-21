@@ -97,168 +97,168 @@ const SIGNATURE_MESSAGE_TEMPLATES = exports.SIGNATURE_MESSAGE_TEMPLATES = [
 
 const CONTRACT_ABI = exports.CONTRACT_ABI = [
     {
-        "inputs": [
-            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" },
-            { "internalType": "bytes32", "name": "_proofHash", "type": "bytes32" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "uint256", "name": "_thresholdAmount", "type": "uint256" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" },
-            { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+        'inputs': [
+            { 'internalType': 'enum ProofOfFunds.ProofType', 'name': '_proofType', 'type': 'uint8' },
+            { 'internalType': 'bytes32', 'name': '_proofHash', 'type': 'bytes32' },
+            { 'internalType': 'uint256', 'name': '_expiryTime', 'type': 'uint256' },
+            { 'internalType': 'uint256', 'name': '_thresholdAmount', 'type': 'uint256' },
+            { 'internalType': 'string', 'name': '_signatureMessage', 'type': 'string' },
+            { 'internalType': 'bytes', 'name': '_signature', 'type': 'bytes' }
         ],
-        "name": "submitProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'name': 'submitProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "getProof",
-        "outputs": [
-            { "internalType": "address", "name": "user", "type": "address" },
-            { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
-            { "internalType": "uint256", "name": "expiryTime", "type": "uint256" },
-            { "internalType": "bytes32", "name": "proofHash", "type": "bytes32" },
-            { "internalType": "enum ProofOfFunds.ProofType", "name": "proofType", "type": "uint8" },
-            { "internalType": "uint256", "name": "thresholdAmount", "type": "uint256" },
-            { "internalType": "bool", "name": "isRevoked", "type": "bool" },
-            { "internalType": "string", "name": "signatureMessage", "type": "string" },
-            { "internalType": "bytes", "name": "signature", "type": "bytes" }
+        'inputs': [{ 'internalType': 'address', 'name': '_user', 'type': 'address' }],
+        'name': 'getProof',
+        'outputs': [
+            { 'internalType': 'address', 'name': 'user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': 'timestamp', 'type': 'uint256' },
+            { 'internalType': 'uint256', 'name': 'expiryTime', 'type': 'uint256' },
+            { 'internalType': 'bytes32', 'name': 'proofHash', 'type': 'bytes32' },
+            { 'internalType': 'enum ProofOfFunds.ProofType', 'name': 'proofType', 'type': 'uint8' },
+            { 'internalType': 'uint256', 'name': 'thresholdAmount', 'type': 'uint256' },
+            { 'internalType': 'bool', 'name': 'isRevoked', 'type': 'bool' },
+            { 'internalType': 'string', 'name': 'signatureMessage', 'type': 'string' },
+            { 'internalType': 'bytes', 'name': 'signature', 'type': 'bytes' }
         ],
-        "stateMutability": "view",
-        "type": "function"
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_claimedAmount", "type": "uint256" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': '_claimedAmount', 'type': 'uint256' }
         ],
-        "name": "verifyStandardProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'name': 'verifyStandardProof',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_minimumAmount", "type": "uint256" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': '_minimumAmount', 'type': 'uint256' }
         ],
-        "name": "verifyThresholdProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'name': 'verifyThresholdProof',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_maximumAmount", "type": "uint256" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': '_maximumAmount', 'type': 'uint256' }
         ],
-        "name": "verifyMaximumProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'name': 'verifyMaximumProof',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "uint256", "name": "_amount", "type": "uint256" },
-            { "internalType": "enum ProofOfFunds.ProofType", "name": "_proofType", "type": "uint8" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': '_amount', 'type': 'uint256' },
+            { 'internalType': 'enum ProofOfFunds.ProofType', 'name': '_proofType', 'type': 'uint8' }
         ],
-        "name": "generateProofHash",
-        "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
-        "stateMutability": "pure",
-        "type": "function"
+        'name': 'generateProofHash',
+        'outputs': [{ 'internalType': 'bytes32', 'name': '', 'type': 'bytes32' }],
+        'stateMutability': 'pure',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "string", "name": "_reason", "type": "string" }],
-        "name": "revokeProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'inputs': [{ 'internalType': 'string', 'name': '_reason', 'type': 'string' }],
+        'name': 'revokeProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "isProofValid",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'inputs': [{ 'internalType': 'address', 'name': '_user', 'type': 'address' }],
+        'name': 'isProofValid',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "string", "name": "_message", "type": "string" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'string', 'name': '_message', 'type': 'string' }
         ],
-        "name": "verifySignature",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'name': 'verifySignature',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     }
 ];
 
 const ZK_VERIFIER_ABI = exports.ZK_VERIFIER_ABI = [
     {
-        "inputs": [
-            { "internalType": "bytes", "name": "_proof", "type": "bytes" },
-            { "internalType": "bytes", "name": "_publicSignals", "type": "bytes" },
-            { "internalType": "uint256", "name": "_expiryTime", "type": "uint256" },
-            { "internalType": "enum ZKVerifier.ZKProofType", "name": "_proofType", "type": "uint8" },
-            { "internalType": "string", "name": "_signatureMessage", "type": "string" },
-            { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+        'inputs': [
+            { 'internalType': 'bytes', 'name': '_proof', 'type': 'bytes' },
+            { 'internalType': 'bytes', 'name': '_publicSignals', 'type': 'bytes' },
+            { 'internalType': 'uint256', 'name': '_expiryTime', 'type': 'uint256' },
+            { 'internalType': 'enum ZKVerifier.ZKProofType', 'name': '_proofType', 'type': 'uint8' },
+            { 'internalType': 'string', 'name': '_signatureMessage', 'type': 'string' },
+            { 'internalType': 'bytes', 'name': '_signature', 'type': 'bytes' }
         ],
-        "name": "submitZKProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'name': 'submitZKProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "getZKProof",
-        "outputs": [
-            { "internalType": "address", "name": "user", "type": "address" },
-            { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
-            { "internalType": "uint256", "name": "expiryTime", "type": "uint256" },
-            { "internalType": "bytes", "name": "publicSignals", "type": "bytes" },
-            { "internalType": "bytes", "name": "proof", "type": "bytes" },
-            { "internalType": "enum ZKVerifier.ZKProofType", "name": "proofType", "type": "uint8" },
-            { "internalType": "bool", "name": "isRevoked", "type": "bool" },
-            { "internalType": "string", "name": "signatureMessage", "type": "string" },
-            { "internalType": "bytes", "name": "signature", "type": "bytes" }
+        'inputs': [{ 'internalType': 'address', 'name': '_user', 'type': 'address' }],
+        'name': 'getZKProof',
+        'outputs': [
+            { 'internalType': 'address', 'name': 'user', 'type': 'address' },
+            { 'internalType': 'uint256', 'name': 'timestamp', 'type': 'uint256' },
+            { 'internalType': 'uint256', 'name': 'expiryTime', 'type': 'uint256' },
+            { 'internalType': 'bytes', 'name': 'publicSignals', 'type': 'bytes' },
+            { 'internalType': 'bytes', 'name': 'proof', 'type': 'bytes' },
+            { 'internalType': 'enum ZKVerifier.ZKProofType', 'name': 'proofType', 'type': 'uint8' },
+            { 'internalType': 'bool', 'name': 'isRevoked', 'type': 'bool' },
+            { 'internalType': 'string', 'name': 'signatureMessage', 'type': 'string' },
+            { 'internalType': 'bytes', 'name': 'signature', 'type': 'bytes' }
         ],
-        "stateMutability": "view",
-        "type": "function"
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-        "name": "verifyZKProof",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'inputs': [{ 'internalType': 'address', 'name': '_user', 'type': 'address' }],
+        'name': 'verifyZKProof',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     },
     {
-        "inputs": [{ "internalType": "string", "name": "_reason", "type": "string" }],
-        "name": "revokeZKProof",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'inputs': [{ 'internalType': 'string', 'name': '_reason', 'type': 'string' }],
+        'name': 'revokeZKProof',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "string", "name": "_message", "type": "string" },
-            { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+        'inputs': [
+            { 'internalType': 'string', 'name': '_message', 'type': 'string' },
+            { 'internalType': 'bytes', 'name': '_signature', 'type': 'bytes' }
         ],
-        "name": "addZKSignatureMessage",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        'name': 'addZKSignatureMessage',
+        'outputs': [],
+        'stateMutability': 'nonpayable',
+        'type': 'function'
     },
     {
-        "inputs": [
-            { "internalType": "address", "name": "_user", "type": "address" },
-            { "internalType": "string", "name": "_message", "type": "string" }
+        'inputs': [
+            { 'internalType': 'address', 'name': '_user', 'type': 'address' },
+            { 'internalType': 'string', 'name': '_message', 'type': 'string' }
         ],
-        "name": "verifyZKSignature",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "view",
-        "type": "function"
+        'name': 'verifyZKSignature',
+        'outputs': [{ 'internalType': 'bool', 'name': '', 'type': 'bool' }],
+        'stateMutability': 'view',
+        'type': 'function'
     }
 ];
 

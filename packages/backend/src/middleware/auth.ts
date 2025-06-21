@@ -410,3 +410,28 @@ export const authenticateApiKey = async (req: Request, res: Response, next: Next
     return res.status(500).json({ error: 'Internal server error during authentication' });
   }
 };
+
+// Aliases for common authentication patterns
+export const authenticateJWT = authenticate;
+
+/**
+ * Middleware to check if user has admin privileges
+ */
+export const isAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // User must be authenticated first
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Check if user has admin permissions
+    if (!req.user.permissions?.includes('admin')) {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+    
+    next();
+  } catch (error) {
+    logger.error('Admin check error:', { error });
+    return res.status(500).json({ error: 'Internal server error during authorization' });
+  }
+};

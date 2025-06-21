@@ -30,6 +30,7 @@ model User {
   wallets           Wallet[]
   proofs            Proof[]
   organizationUsers OrganizationUser[]
+  walletAuthLogs    WalletAuthLog[]
   
   @@map("users")
   @@index([isActive], name: "idx_users_is_active")
@@ -214,6 +215,30 @@ model AuditLog {
   timestamp       DateTime   @default(now())
   
   @@map("audit_logs")
+}
+
+// Wallet authentication logs model
+model WalletAuthLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  walletAddress  String   @map("wallet_address")
+  chainId        Int?     @map("chain_id")
+  nonce          String
+  signature      String?
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  authResult     String   @map("auth_result")
+  failureReason  String?  @map("failure_reason")
+  timestamp      DateTime @default(now())
+  metadata       Json?
+  
+  user           User?    @relation(fields: [userId], references: [id])
+  
+  @@map("wallet_auth_logs")
+  @@index([userId], name: "idx_wallet_auth_logs_user_id")
+  @@index([walletAddress], name: "idx_wallet_auth_logs_wallet_address")
+  @@index([authResult], name: "idx_wallet_auth_logs_auth_result")
+  @@index([timestamp], name: "idx_wallet_auth_logs_timestamp")
 }
 
 // Enumerations

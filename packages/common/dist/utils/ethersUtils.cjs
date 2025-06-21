@@ -66,14 +66,14 @@ const getEthers = async () => {
  * @returns {boolean} - True if valid, false otherwise
  */
 const isValidAmount = (amount) => {
-    if (!amount || amount.trim() === '') return false;
+    if (!amount || amount.trim() === '') {return false;}
 
     // Try to parse as number
     const num = Number(amount);
-    if (isNaN(num)) return false;
+    if (isNaN(num)) {return false;}
 
     // Ensure it's positive
-    if (num < 0) return false;
+    if (num < 0) {return false;}
 
     return true;
 };
