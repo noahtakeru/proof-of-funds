@@ -36,9 +36,7 @@ module.exports = {
   // A map from regular expressions to paths to transformers
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.test.json',
-      isolatedModules: false,
-      diagnostics: false
+      tsconfig: 'tsconfig.test.json'
     }]
   },
 
@@ -70,13 +68,5 @@ module.exports = {
   testTimeout: 30000,
   
   // Mock all modules by default
-  automock: false,
-  
-  // Prevent ts-jest from checking types during tests
-  globals: {
-    'ts-jest': {
-      isolatedModules: true,
-      diagnostics: false
-    }
-  }
+  automock: false
 };

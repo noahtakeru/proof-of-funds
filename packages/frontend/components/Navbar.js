@@ -21,6 +21,7 @@ import ConnectWallet from './ConnectWallet';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
+import { useAuth } from '../contexts/AuthContext';
 
 // Dynamically import these components to avoid hydration errors
 const UserProfileDropdown = dynamic(() => import('./user/UserProfileDropdown'), { ssr: false });
@@ -30,6 +31,7 @@ export default function Navbar() {
     const [refreshing, setRefreshing] = useState(false);
     const router = useRouter();
     const [activeRoute, setActiveRoute] = useState('/');
+    const { isAuthenticated } = useAuth();
 
     useEffect(() => {
         setActiveRoute(router.pathname);
@@ -100,14 +102,25 @@ export default function Navbar() {
                             >
                                 Tech
                             </Link>
-                            
+
                             <AdminNavLinks />
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-4">
                         <ConnectWallet />
-                        <UserProfileDropdown />
+                        {!isAuthenticated ? (
+                            <div className="flex space-x-2">
+                                <Link href="/login" className="inline-block px-4 py-2 text-sm text-blue-600 hover:text-blue-800">
+                                    Login
+                                </Link>
+                                <Link href="/register" className="inline-block px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                    Register
+                                </Link>
+                            </div>
+                        ) : (
+                            <UserProfileDropdown />
+                        )}
                     </div>
                 </div>
             </div>

@@ -26,8 +26,8 @@ export interface EmailOptions {
 
 // Get transporter based on environment
 function getTransporter() {
-  // Use SMTP configuration in production
-  if (process.env.NODE_ENV === 'production') {
+  // Use SMTP configuration if credentials are provided
+  if (config.email.user && config.email.password) {
     return nodemailer.createTransport({
       host: config.email.host,
       port: config.email.port,
@@ -37,16 +37,38 @@ function getTransporter() {
         pass: config.email.password
       }
     });
-  } 
+  }
   
-  // Use ethereal.email for development/testing
+  // Use test email for development if no production config
+  if (config.email.testUser && config.email.testPassword) {
+    return nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: config.email.testUser,
+        pass: config.email.testPassword
+      }
+    });
+  }
+  
+  // Fallback: create test account or use mock transporter for tests
+  if (process.env.NODE_ENV === 'test') {
+    return nodemailer.createTransport({
+      streamTransport: true,
+      newline: 'unix',
+      buffer: true
+    });
+  }
+  
+  // Fallback to ethereal with default test account
   return nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
     secure: false,
     auth: {
-      user: config.email.testUser || 'test@ethereal.email',
-      pass: config.email.testPassword || 'testpassword'
+      user: 'test@ethereal.email',
+      pass: 'testpassword'
     }
   });
 }

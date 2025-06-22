@@ -29,6 +29,13 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-unit-tes
 // Set test API port
 process.env.PORT = '3001';
 
+// Mock email configuration for tests
+process.env.EMAIL_HOST = 'localhost';
+process.env.EMAIL_PORT = '1025';
+process.env.EMAIL_USER = 'test@example.com';
+process.env.EMAIL_PASSWORD = 'testpassword';
+process.env.EMAIL_FROM = 'test@example.com';
+
 // Disable rate limiting for tests
 process.env.RATE_LIMIT_WINDOW_MS = '10000';
 process.env.RATE_LIMIT_MAX_REQUESTS = '1000';

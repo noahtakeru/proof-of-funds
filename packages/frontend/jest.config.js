@@ -8,12 +8,10 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.test.json',
-      isolatedModules: true,
-      diagnostics: {
-        warnOnly: true
-      }
+      tsconfig: 'tsconfig.test.json'
     }],
+    '^.+\\.jsx?$': ['babel-jest'],
+    '../../common/src/.*\\.js$': ['babel-jest'],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverage: true,
@@ -34,5 +32,11 @@ module.exports = {
   testTimeout: 10000,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@proof-of-funds/common/utils/(.*)$': '<rootDir>/../common/src/utils/$1',
+    '^@proof-of-funds/common/(.*)$': '<rootDir>/../common/src/$1',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@proof-of-funds|ethers)/)'
+  ],
 };

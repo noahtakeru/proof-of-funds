@@ -66,7 +66,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(config.server.port, () => {
+const server = app.listen(config.server.port, '0.0.0.0', () => {
   logger.info(`Server running in ${config.env} mode on port ${config.server.port}`);
   logger.info(`API available at ${config.server.apiPrefix}`);
 });
