@@ -84,7 +84,23 @@ export async function registerWithEmail(
     });
     
     // Send verification email
-    await sendVerificationEmail(user.id, email, baseUrl);
+    try {
+      const emailSent = await sendVerificationEmail(user.id, email, baseUrl);
+      logger.info('Verification email sending attempted', {
+        userId: user.id,
+        email,
+        emailSent,
+        baseUrl
+      });
+    } catch (emailError) {
+      logger.error('Failed to send verification email during registration', {
+        userId: user.id,
+        email,
+        error: emailError.message,
+        stack: emailError.stack
+      });
+      // Don't fail registration if email fails, but log it
+    }
     
     // Log user creation
     await auditLogService.log({

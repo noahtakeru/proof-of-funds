@@ -2,14 +2,40 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Before Starting Any Task
+Claude Code MUST:
+1. Run `git status` and confirm clean working directory
+2. Run `npm test` and confirm all tests pass
+3. Read ALL existing code related to the task
+4. State: "I have read [list files] and understand the current implementation"
+
 ## Build & Dev Commands
-- `npm run dev` - Start development server
+- `npm run dev` - Start both frontend and backend servers with automatic port assignment
+- `npm run dev:frontend` - Start only frontend development server
+- `npm run dev:backend` - Start only backend API server
 - `npm run build` - Build for production
 - `npm run lint` - Run ESLint
 - `npm run test` - Run all Hardhat tests
 - `npm run test -- --grep "Standard Proof"` - Run specific test
 - `npm run compile` - Compile Solidity contracts
 - `npm run deploy:local` - Deploy to local Hardhat network
+
+## Development Setup
+The development system automatically handles port assignment and service discovery:
+
+**Single Command (Recommended):**
+```bash
+npm run dev
+```
+
+This will:
+1. Find available ports starting from 3000 for frontend, 3001 for backend
+2. Update frontend environment to point to the correct backend URL
+3. Start backend server first
+4. Start frontend server after backend is ready
+5. Display both server URLs in the console
+
+The frontend proxy endpoints automatically discover and forward authentication requests to the backend server.
 
 ## Standard Workflow
 1. First think through the problem, read the codebase for relevant files, and write a plan to projectplan.md
@@ -71,3 +97,22 @@ Correction: I previously made an unverified claim. That was incorrect and should
 19. No exaggerated optimism. Be realistic about progress and functionality.
 20. Review all changes with Aider.
 21. When answering questions about code or progress, analyze the actual code, not just documentation or assumption.
+
+## Zero-Knowledge Specific Rules
+- NEVER modify circuit files without explicit permission
+- NEVER change proof generation parameters
+- Always verify proof constraints remain intact
+- Flag ANY changes to cryptographic constants
+
+## After Every Change, Run:
+1. `git diff` - Show me what changed
+2. `npm run lint` - Ensure code quality
+3. `npm test` - Verify nothing broke
+4. For contracts: `npx hardhat compile`
+
+## STOP Immediately If You:
+- Feel tempted to write "// TODO" or "// Placeholder"
+- Want to use setTimeout() to "fix" async issues
+- Think "this should work" without testing
+- Can't find where something is implemented
+- Are about to delete more than 10 lines of code

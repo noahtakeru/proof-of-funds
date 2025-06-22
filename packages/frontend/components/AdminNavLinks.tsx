@@ -33,10 +33,8 @@ const AdminNavLinks: React.FC = () => {
   
   return (
     <>
-      <Link href="/admin/security-dashboard">
-        <a className={getActiveClass('/admin/security-dashboard')}>
-          Security Dashboard
-        </a>
+      <Link href="/admin/security-dashboard" className={getActiveClass('/admin/security-dashboard')}>
+        Security Dashboard
       </Link>
     </>
   );

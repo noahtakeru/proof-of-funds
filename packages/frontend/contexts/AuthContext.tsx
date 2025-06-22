@@ -92,8 +92,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
-        // Check if token is valid by calling /api/auth/me endpoint
-        const response = await fetch('/api/auth/me', {
+        // Check if token is valid by calling /api/user/me endpoint
+        const response = await fetch('/api/user/me', {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           },
@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         storeTokens(data.accessToken, data.refreshToken);
         
         // Get user data with new token
-        const userResponse = await fetch('/api/auth/me', {
+        const userResponse = await fetch('/api/user/me', {
           headers: {
             'Authorization': `Bearer ${data.accessToken}`,
           },
@@ -301,7 +301,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const response = await fetch('/api/auth/email/login', {
+      const response = await fetch('/api/user/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -311,8 +311,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
-      if (data.success && data.tokens) {
-        storeTokens(data.tokens.accessToken, data.tokens.refreshToken);
+      if (data.success && data.token && data.refreshToken) {
+        storeTokens(data.token, data.refreshToken);
         
         setState({
           isAuthenticated: true,
@@ -350,7 +350,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const response = await fetch('/api/auth/email/register', {
+      const response = await fetch('/api/user/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -388,15 +388,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Get access token
       const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
       
-      if (accessToken) {
-        // Call logout endpoint
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-      }
+      // For JWT tokens, logout is handled client-side by clearing tokens
+      // No backend logout endpoint needed
       
       // Clear tokens
       clearTokens();
@@ -443,7 +436,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const response = await fetch(`/api/auth/email/verify/${token}`, {
+      const response = await fetch(`/api/user/auth/verify-email?token=${token}`, {
         method: 'POST',
       });
       
@@ -489,7 +482,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Not authenticated');
       }
       
-      const response = await fetch('/api/auth/email/resend-verification', {
+      const response = await fetch('/api/user/auth/resend-verification', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -523,7 +516,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const response = await fetch('/api/auth/email/forgot-password', {
+      const response = await fetch('/api/user/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -558,12 +551,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const response = await fetch(`/api/auth/email/reset-password/${token}`, {
+      const response = await fetch('/api/user/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ password: newPassword }),
+        body: JSON.stringify({ token, newPassword }),
       });
       
       const data = await response.json();
@@ -608,7 +601,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Not authenticated');
       }
       
-      const response = await fetch('/api/auth/email/change-password', {
+      const response = await fetch('/api/user/auth/change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

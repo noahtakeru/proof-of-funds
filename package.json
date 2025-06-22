@@ -6,7 +6,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @proof-of-funds/frontend",
+    "dev": "node scripts/dev-servers.js",
+    "dev:frontend": "npm run dev -w @proof-of-funds/frontend",
+    "dev:backend": "npm run dev -w @proof-of-funds/backend",
     "build": "node scripts/prepare-zk-files.js && npm run build --workspaces",
     "prepare-zk": "node scripts/prepare-zk-files.js",
     "test": "npm run test --workspaces",

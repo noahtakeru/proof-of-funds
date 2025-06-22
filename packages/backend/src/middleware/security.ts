@@ -49,13 +49,23 @@ export const requestMetrics = (req: Request, res: Response, next: NextFunction) 
   // Record start time
   const startTime = Date.now();
   
-  // Finish event handler
+  // Set header before response is sent
+  const originalSend = res.send;
+  res.send = function(data) {
+    const duration = Date.now() - startTime;
+    
+    // Add custom header with response time (before sending response)
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${duration}ms`);
+    }
+    
+    return originalSend.call(this, data);
+  };
+  
+  // Log on finish (but don't set headers)
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     const logLevel = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-    
-    // Add custom header with response time
-    res.setHeader('X-Response-Time', `${duration}ms`);
     
     // Log request info unless it's a health check (to reduce noise)
     if (!req.path.includes('/health')) {

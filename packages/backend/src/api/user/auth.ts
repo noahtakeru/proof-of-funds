@@ -46,6 +46,14 @@ router.post('/register',
       // Register user
       const result = await emailAuthService.registerWithEmail(email, password, baseUrl);
       
+      // Log the registration attempt result for debugging
+      logger.info('Registration attempt result', {
+        email,
+        success: result.success,
+        message: result.message,
+        userId: result.userId
+      });
+      
       return res.status(result.success ? 201 : 400).json({
         success: result.success,
         message: result.message,

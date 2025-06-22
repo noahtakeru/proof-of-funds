@@ -14,7 +14,7 @@ const UserProfileDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -22,13 +22,13 @@ const UserProfileDropdown: React.FC = () => {
         setIsOpen(false);
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-  
+
   /**
    * Handle logout
    */
@@ -37,30 +37,18 @@ const UserProfileDropdown: React.FC = () => {
     setIsOpen(false);
     router.push('/');
   };
-  
-  // If not authenticated, show login/register links
+
+  // If not authenticated, don't render anything 
+  // (Login/Register buttons are handled in the main Navbar)
   if (!isAuthenticated) {
-    return (
-      <div className="flex space-x-2">
-        <Link href="/login">
-          <a className="inline-block px-4 py-2 text-sm text-blue-600 hover:text-blue-800">
-            Login
-          </a>
-        </Link>
-        <Link href="/register">
-          <a className="inline-block px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            Register
-          </a>
-        </Link>
-      </div>
-    );
+    return null;
   }
-  
+
   // Get address display for UI
   const displayAddress = user?.walletAddress
     ? `${user.walletAddress.substring(0, 6)}...${user.walletAddress.substring(user.walletAddress.length - 4)}`
     : null;
-  
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -77,7 +65,7 @@ const UserProfileDropdown: React.FC = () => {
           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
         </svg>
       </button>
-      
+
       {/* Dropdown menu */}
       {isOpen && (
         <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100">
@@ -87,20 +75,16 @@ const UserProfileDropdown: React.FC = () => {
               {user?.email || displayAddress || 'Unknown'}
             </p>
           </div>
-          
+
           <div className="py-1">
-            <Link href="/dashboard">
-              <a className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setIsOpen(false)}>
-                Dashboard
-              </a>
+            <Link href="/dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setIsOpen(false)}>
+              Dashboard
             </Link>
-            <Link href="/settings">
-              <a className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setIsOpen(false)}>
-                Settings
-              </a>
+            <Link href="/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setIsOpen(false)}>
+              Settings
             </Link>
           </div>
-          
+
           <div className="py-1">
             <button
               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
