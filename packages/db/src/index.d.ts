@@ -1,4 +1,4 @@
-import { PrismaClient, User, Wallet, Proof, Verification, Batch, Organization, OrganizationUser, ProofTemplate, AuditLog } from '@prisma/client';
+import { PrismaClient, User, Wallet, Proof, Verification, Batch, Organization, OrganizationUser, ProofTemplate, AuditLog, ProofType, ProofStatus, WalletType, BatchStatus, OrgRole } from '@prisma/client';
 
 export const prisma: PrismaClient;
 
@@ -36,3 +36,8 @@ export const models: {
   proofTemplate: PrismaClient['proofTemplate'];
   auditLog: PrismaClient['auditLog'];
 };
+
+/**
+ * Type exports for convenience
+ */
+export { PrismaClient, User, Wallet, Proof, Verification, Batch, Organization, OrganizationUser, ProofTemplate, AuditLog, ProofType, ProofStatus, WalletType, BatchStatus, OrgRole };

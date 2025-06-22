@@ -97,6 +97,7 @@ Correction: I previously made an unverified claim. That was incorrect and should
 19. No exaggerated optimism. Be realistic about progress and functionality.
 20. Review all changes with Aider.
 21. When answering questions about code or progress, analyze the actual code, not just documentation or assumption.
+22. No hardcodes or mock/placeholder data.
 
 ## Zero-Knowledge Specific Rules
 - NEVER modify circuit files without explicit permission

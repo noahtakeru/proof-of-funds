@@ -128,7 +128,7 @@ describe('ZkProofService', () => {
 
     it('should throw error if wasm file does not exist', () => {
       const fs = require('fs');
-      jest.mocked(fs.existsSync).mockImplementation((path) => !String(path).endsWith('.wasm'));
+      jest.mocked(fs.existsSync).mockImplementation((path: string) => !String(path).endsWith('.wasm'));
       
       expect(() => {
         // @ts-ignore - accessing private method for testing
@@ -138,7 +138,7 @@ describe('ZkProofService', () => {
 
     it('should throw error if zkey file does not exist', () => {
       const fs = require('fs');
-      jest.mocked(fs.existsSync).mockImplementation((path) => !String(path).endsWith('.zkey'));
+      jest.mocked(fs.existsSync).mockImplementation((path: string) => !String(path).endsWith('.zkey'));
       
       expect(() => {
         // @ts-ignore - accessing private method for testing
@@ -148,7 +148,7 @@ describe('ZkProofService', () => {
 
     it('should throw error if vkey file does not exist', () => {
       const fs = require('fs');
-      jest.mocked(fs.existsSync).mockImplementation((path) => !String(path).endsWith('.vkey.json'));
+      jest.mocked(fs.existsSync).mockImplementation((path: string) => !String(path).endsWith('.vkey.json'));
       
       expect(() => {
         // @ts-ignore - accessing private method for testing
